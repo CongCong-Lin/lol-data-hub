@@ -50,7 +50,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       TZ: Asia/Shanghai
     ports:
-      - "${MYSQL_PORT:-3307}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
     volumes:
       - lol-datahub-mysql:/var/lib/mysql
     healthcheck:
@@ -64,7 +64,7 @@ services:
     image: redis:7.4-alpine
     container_name: lol-datahub-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - lol-datahub-redis:/data
     healthcheck:

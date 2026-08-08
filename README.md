@@ -99,6 +99,8 @@ java -jar backend/lol-datahub-application/target/lol-datahub-application-0.1.0-S
 
 后端默认端口 `8080`，MySQL 默认映射到宿主机 `3307` 端口（可通过 `MYSQL_PORT` 修改）。
 
+> **端口安全**：MySQL、Redis 和后端端口均仅绑定 `127.0.0.1`，不会暴露到外部网络。前端端口（默认 `8081`）绑定 `0.0.0.0`，通过 Nginx 反向代理访问后端 API。
+
 ### 前端
 
 ```powershell
@@ -157,8 +159,8 @@ cd frontend && npm run build
 | `TJSTATS_BASE_URL` | 否 | `https://open.tjstats.com/match-auth-app/open/v1` | 数据源地址 |
 | `FRONTEND_PORT` | 否 | `8081` | 前端宿主端口 |
 | `BACKEND_PORT` | 否 | `8080` | 后端宿主端口（仅绑定 127.0.0.1） |
-| `MYSQL_PORT` | 否 | `3307` | MySQL 宿主端口 |
-| `REDIS_PORT` | 否 | `6379` | Redis 宿主端口 |
+| `MYSQL_PORT` | 否 | `3307` | MySQL 宿主端口（仅绑定 127.0.0.1） |
+| `REDIS_PORT` | 否 | `6379` | Redis 宿主端口（仅绑定 127.0.0.1） |
 | `MYSQL_DATABASE` | 否 | `lol_data_hub` | MySQL 数据库名 |
 | `MYSQL_USERNAME` | 否 | `loldatahub` | MySQL 应用账号 |
 | `MYSQL_PASSWORD` | 否 | `loldatahub` | MySQL 应用账号密码（生产环境必须修改） |
@@ -185,6 +187,16 @@ lol-datahub:
 
 - [数据源说明](docs/data-source.md)
 - [参考项目审计记录](docs/reference-loldata.md)
+
+## Nginx 限流
+
+公开查询接口（`/api/` 前缀，不包括 `/api/internal/`）内置 Nginx 请求限流：
+
+- **速率**：每 IP 每秒 10 个请求
+- **突发**：允许瞬时突发 20 个请求（`burst=20 nodelay`）
+- **超限响应**：返回 `503 Service Temporarily Unavailable`
+
+内部采集接口（`/api/internal/`）不受限流影响，仍由 Nginx 直接返回 404 隔离。
 
 ## 技术栈
 
