@@ -2,6 +2,7 @@ package com.loldatahub.api;
 
 import com.loldatahub.domain.statistics.ChampionStatisticsQuery;
 import com.loldatahub.domain.statistics.SortDirection;
+import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.statistics.ChampionStatisticsResult;
 import com.loldatahub.statistics.ChampionStatisticsService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,14 +23,16 @@ public class ChampionStatisticsController {
 
     @GetMapping("/champions")
     ApiResponse<ChampionStatisticsResult> champions(
-            @RequestParam long seasonId,
-            @RequestParam List<Long> stageIds,
+            @RequestParam(required = false) String stageKeys,
+            @RequestParam(required = false) Long seasonId,
+            @RequestParam(required = false) List<Long> stageIds,
             @RequestParam(defaultValue = "10") int minimumPickCount,
             @RequestParam(defaultValue = "bpRate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection
     ) {
+        List<StageKey> stages = StageKeyParamParser.parse(stageKeys, seasonId, stageIds);
         var query = new ChampionStatisticsQuery(
-                seasonId, stageIds, minimumPickCount, sortBy,
+                stages, minimumPickCount, sortBy,
                 SortDirection.from(sortDirection)
         );
         return ApiResponse.success(service.query(query));

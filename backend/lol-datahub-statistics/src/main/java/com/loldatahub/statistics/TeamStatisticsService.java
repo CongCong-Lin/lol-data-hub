@@ -3,6 +3,7 @@ package com.loldatahub.statistics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.domain.statistics.TeamStatistics;
 import com.loldatahub.domain.statistics.TeamStatisticsMath;
 import com.loldatahub.domain.statistics.TeamStatisticsQuery;
@@ -21,6 +22,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class TeamStatisticsService {
@@ -46,25 +49,30 @@ public class TeamStatisticsService {
     }
 
     public TeamStatisticsResult query(TeamStatisticsQuery query) {
-        if (query.stageIds().isEmpty()) {
+        List<StageKey> stages = query.stages();
+        if (stages.isEmpty()) {
             throw new IllegalArgumentException("至少需要选择一个赛段");
         }
-        List<Long> collectedStageIds = mapper.findCollectedStageIds(query.seasonId(), query.stageIds());
-        List<Long> missingStageIds = query.stageIds().stream()
-                .filter(stageId -> !collectedStageIds.contains(stageId))
+        List<StageKey> collectedKeys = mapper.findCollectedStageKeys(stages);
+        Set<StageKey> collectedSet = new java.util.HashSet<>(collectedKeys);
+        List<StageKey> missingKeys = stages.stream()
+                .filter(sk -> !collectedSet.contains(sk))
                 .toList();
-        if (!missingStageIds.isEmpty()) {
-            throw new IllegalArgumentException("以下赛段尚未采集战队数据：" + missingStageIds);
+        if (!missingKeys.isEmpty()) {
+            String missingStr = missingKeys.stream()
+                    .map(StageKey::canonical)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException("以下赛段尚未采集战队数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:v" + dataVersion + ":team:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s3:v" + dataVersion + ":team:" + query.cacheFingerprint();
         List<TeamStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new TeamStatisticsResult(dataVersion, query.minimumMatchCount(), cached.size(), cached);
         }
 
         List<TeamStatistics> items = new ArrayList<>(mapper.aggregateTeams(
-                query.seasonId(), query.stageIds(), query.minimumMatchCount()
+                stages, query.minimumMatchCount()
         ).stream().map(row -> map(row, query.minimumMatchCount())).toList());
         items.sort(comparator(query));
         writeCache(cacheKey, items);

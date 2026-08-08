@@ -1,5 +1,6 @@
 package com.loldatahub.infrastructure.mapper;
 
+import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.model.TeamAggregateRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -35,32 +36,28 @@ public interface TeamStatisticsMapper {
                        AS weightedDrakeKillPerGame
               FROM team_stage_stat_current ts
               JOIN team t ON t.source_team_id = ts.source_team_id
-             WHERE ts.source_season_id = #{seasonId}
-               AND ts.source_stage_id IN
-               <foreach collection="stageIds" item="stageId" open="(" separator="," close=")">
-                   #{stageId}
+             WHERE (ts.source_season_id, ts.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
                </foreach>
              GROUP BY t.source_team_id, t.name, t.logo_url
             HAVING SUM(ts.match_count) >= #{minimumMatchCount}
             </script>
             """)
-    List<TeamAggregateRow> aggregateTeams(@Param("seasonId") long seasonId,
-                                          @Param("stageIds") List<Long> stageIds,
+    List<TeamAggregateRow> aggregateTeams(@Param("stages") List<StageKey> stages,
                                           @Param("minimumMatchCount") int minimumMatchCount);
 
     @Select("""
             <script>
-            SELECT source_stage_id
+            SELECT source_season_id AS sourceSeasonId, source_stage_id AS sourceStageId
               FROM team_stage_collection_current
-             WHERE source_season_id = #{seasonId}
-               AND source_stage_id IN
-               <foreach collection="stageIds" item="stageId" open="(" separator="," close=")">
-                   #{stageId}
+             WHERE (source_season_id, source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
                </foreach>
             </script>
             """)
-    List<Long> findCollectedStageIds(@Param("seasonId") long seasonId,
-                                     @Param("stageIds") List<Long> stageIds);
+    List<StageKey> findCollectedStageKeys(@Param("stages") List<StageKey> stages);
 
     @Select("""
             SELECT content_hash FROM team_stage_collection_current

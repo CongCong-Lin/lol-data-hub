@@ -1,6 +1,7 @@
 package com.loldatahub.api;
 
 import com.loldatahub.domain.statistics.SortDirection;
+import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.domain.statistics.TeamStatisticsQuery;
 import com.loldatahub.statistics.TeamStatisticsResult;
 import com.loldatahub.statistics.TeamStatisticsService;
@@ -22,14 +23,16 @@ public class TeamStatisticsController {
 
     @GetMapping("/teams")
     ApiResponse<TeamStatisticsResult> teams(
-            @RequestParam long seasonId,
-            @RequestParam List<Long> stageIds,
+            @RequestParam(required = false) String stageKeys,
+            @RequestParam(required = false) Long seasonId,
+            @RequestParam(required = false) List<Long> stageIds,
             @RequestParam(defaultValue = "5") int minimumMatchCount,
             @RequestParam(defaultValue = "winningRate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection
     ) {
+        List<StageKey> stages = StageKeyParamParser.parse(stageKeys, seasonId, stageIds);
         var query = new TeamStatisticsQuery(
-                seasonId, stageIds, minimumMatchCount, sortBy,
+                stages, minimumMatchCount, sortBy,
                 SortDirection.from(sortDirection)
         );
         return ApiResponse.success(service.query(query));

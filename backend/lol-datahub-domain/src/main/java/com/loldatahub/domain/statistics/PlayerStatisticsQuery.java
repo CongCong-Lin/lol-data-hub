@@ -5,8 +5,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public record PlayerStatisticsQuery(
-        long seasonId,
-        List<Long> stageIds,
+        List<StageKey> stages,
         int minimumMatchCount,
         String position,
         String sortBy,
@@ -16,11 +15,33 @@ public record PlayerStatisticsQuery(
             "totalKills", "mvpCount", "killPerGame", "goldPerGame", "damagePercent", "matchCount", "kda"
     );
     private static final String DEFAULT_SORT_BY = "kda";
+    private static final int MAX_STAGES = 50;
+    private static final int MAX_THRESHOLD = 10000;
+
+    /**
+     * 旧参数兼容构造器：从 (seasonId, stageIds, ...) 转换为 canonical 形式。
+     */
+    public PlayerStatisticsQuery(long seasonId, List<Long> stageIds, int minimumMatchCount,
+                                 String position, String sortBy, SortDirection sortDirection) {
+        this(StageKey.fromSeasonStages(seasonId, stageIds), minimumMatchCount, position, sortBy, sortDirection);
+    }
 
     public PlayerStatisticsQuery {
-        stageIds = stageIds == null ? List.of() : stageIds.stream().distinct().sorted().toList();
+        if (stages == null) {
+            stages = List.of();
+        }
+        stages = stages.stream().distinct().sorted().toList();
+        if (stages.isEmpty()) {
+            throw new IllegalArgumentException("至少需要选择一个赛段");
+        }
+        if (stages.size() > MAX_STAGES) {
+            throw new IllegalArgumentException("跨赛事查询最多支持 " + MAX_STAGES + " 个赛段，当前 " + stages.size() + " 个");
+        }
         if (minimumMatchCount < 0) {
             throw new IllegalArgumentException("最低比赛场数不能小于 0");
+        }
+        if (minimumMatchCount > MAX_THRESHOLD) {
+            throw new IllegalArgumentException("最低比赛场数不能超过 " + MAX_THRESHOLD);
         }
         if (sortBy == null || sortBy.isBlank()) {
             sortBy = DEFAULT_SORT_BY;
@@ -42,8 +63,12 @@ public record PlayerStatisticsQuery(
     }
 
     public String cacheFingerprint() {
+        String stageKeysStr = stages.stream()
+                .map(StageKey::canonical)
+                .reduce((a, b) -> a + "," + b)
+                .orElse("");
         String pos = position == null ? "" : position;
-        return seasonId + ":" + stageIds + ":" + minimumMatchCount + ":"
+        return stageKeysStr + ":" + minimumMatchCount + ":"
                 + pos + ":" + sortBy + ":" + sortDirection.name();
     }
 }
