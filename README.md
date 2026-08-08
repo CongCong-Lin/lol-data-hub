@@ -128,6 +128,25 @@ mvn test
 cd frontend && npm run build
 ```
 
+## 数据库备份
+
+使用备份脚本将 MySQL 数据导出为 SQL 文件：
+
+```powershell
+# 默认备份到 backups/ 目录，数据库名从容器环境变量读取
+.\scripts\backup-mysql.ps1
+
+# 指定输出目录
+.\scripts\backup-mysql.ps1 -OutputDirectory "D:\backups"
+
+# 指定数据库名
+.\scripts\backup-mysql.ps1 -Database "lol_data_hub" -OutputDirectory "backups"
+```
+
+备份文件命名格式：`{数据库名}_{UTC时间戳}.sql`，例如 `lol_data_hub_20260808_120000.sql`。
+
+> **注意**：备份使用 `mysqldump --single-transaction` 保证 InnoDB 一致性读，包含存储过程、事件和触发器。备份过程为只读操作，不会修改数据库。
+
 ## 主要接口
 
 ### 公开查询接口

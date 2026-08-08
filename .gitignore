@@ -10,3 +10,4 @@ frontend/dist/
 *.log
 .mvn/repository/
 .claude/
+backups/
