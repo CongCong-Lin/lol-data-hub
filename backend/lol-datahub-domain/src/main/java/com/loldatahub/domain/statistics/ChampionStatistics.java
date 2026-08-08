@@ -23,6 +23,10 @@ public record ChampionStatistics(
         BigDecimal bpRate,
         BigDecimal winningRate,
         BigDecimal kda,
+        BigDecimal killPerGame,
+        BigDecimal assistPerGame,
+        BigDecimal deathPerGame,
+        List<String> mostUsedPlayers,
         boolean sampleQualified,
         OffsetDateTime sourceUpdatedAt
 ) {

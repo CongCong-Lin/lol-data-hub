@@ -53,11 +53,11 @@ public interface ChampionStatWriteMapper {
                 (source_season_id, source_stage_id, source_champion_id, pick_count, ban_count, bp_count,
                  winning_count, total_kills, total_deaths, total_assists, source_pick_rate,
                  source_ban_rate, source_bp_rate, source_winning_rate, most_used_player_id,
-                 most_used_player_name, collection_run_id, collected_at)
+                 most_used_player_name, positions_json, collection_run_id, collected_at)
             VALUES (#{seasonId}, #{stageId}, #{championId}, #{pickCount}, #{banCount}, #{bpCount},
                     #{winningCount}, #{totalKills}, #{totalDeaths}, #{totalAssists}, #{sourcePickRate},
                     #{sourceBanRate}, #{sourceBpRate}, #{sourceWinningRate}, #{mostUsedPlayerId},
-                    #{mostUsedPlayerName}, #{runId}, #{collectedAt})
+                    #{mostUsedPlayerName}, CAST(#{positionsJson} AS JSON), #{runId}, #{collectedAt})
             ON DUPLICATE KEY UPDATE pick_count = VALUES(pick_count), ban_count = VALUES(ban_count),
                 bp_count = VALUES(bp_count), winning_count = VALUES(winning_count),
                 total_kills = VALUES(total_kills), total_deaths = VALUES(total_deaths),
@@ -66,6 +66,7 @@ public interface ChampionStatWriteMapper {
                 source_winning_rate = VALUES(source_winning_rate),
                 most_used_player_id = VALUES(most_used_player_id),
                 most_used_player_name = VALUES(most_used_player_name),
+                positions_json = VALUES(positions_json),
                 collection_run_id = VALUES(collection_run_id), collected_at = VALUES(collected_at)
             """)
     void upsertCurrent(ChampionStageStatWrite stat);
@@ -74,9 +75,10 @@ public interface ChampionStatWriteMapper {
             INSERT INTO champion_stage_stat_snapshot
                 (collection_run_id, source_season_id, source_stage_id, source_champion_id,
                  pick_count, ban_count, bp_count, winning_count, total_kills, total_deaths,
-                 total_assists, collected_at)
+                 total_assists, positions_json, collected_at)
             VALUES (#{runId}, #{seasonId}, #{stageId}, #{championId}, #{pickCount}, #{banCount},
-                    #{bpCount}, #{winningCount}, #{totalKills}, #{totalDeaths}, #{totalAssists}, #{collectedAt})
+                    #{bpCount}, #{winningCount}, #{totalKills}, #{totalDeaths}, #{totalAssists},
+                    CAST(#{positionsJson} AS JSON), #{collectedAt})
             """)
     void insertSnapshot(ChampionStageStatWrite stat);
 }

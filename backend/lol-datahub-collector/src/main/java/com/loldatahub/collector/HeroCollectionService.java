@@ -101,7 +101,8 @@ public class HeroCollectionService {
                                 runId, seasonId, stageId, hero.heroId(), hero.pickCount(), hero.banCount(),
                                 hero.bpCount(), hero.winningCount(), hero.totalKills(), hero.totalDeath(),
                                 hero.totalAssists(), hero.pickRate(), hero.banRate(), hero.bPRate(),
-                                hero.winningRate(), hero.mostUsePlayerId(), hero.mostUsePlayerName(), collectedAt
+                                hero.winningRate(), hero.mostUsePlayerId(), hero.mostUsePlayerName(),
+                                toJson(hero.heroLocation()), collectedAt
                         );
                         writeMapper.upsertCurrent(stat);
                         writeMapper.insertSnapshot(stat);

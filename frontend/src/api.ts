@@ -44,6 +44,10 @@ export interface ChampionStatistics {
   bpRate: number
   winningRate: number
   kda: number
+  killPerGame: number
+  assistPerGame: number
+  deathPerGame: number
+  mostUsedPlayers: string[]
   sampleQualified: boolean
   sourceUpdatedAt: string | null
 }

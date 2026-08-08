@@ -447,17 +447,26 @@ onMounted(async () => {
       </div>
 
       <div v-if="filteredChampionItems.length" class="table-scroll">
-        <table>
+        <table class="champion-table">
           <thead>
             <tr>
               <th>英雄</th>
               <th>分路</th>
               <th>出场</th>
+              <th>出场率</th>
               <th>禁用</th>
+              <th>禁用率</th>
               <th>BP 率</th>
               <th>胜场</th>
               <th>胜率</th>
+              <th>总击杀</th>
+              <th>场均击杀</th>
+              <th>总助攻</th>
+              <th>场均助攻</th>
+              <th>总死亡</th>
+              <th>场均死亡</th>
               <th>KDA</th>
+              <th>常用选手</th>
               <th>样本基数</th>
             </tr>
           </thead>
@@ -472,11 +481,20 @@ onMounted(async () => {
               </td>
               <td>{{ item.positions.join(' / ') || '—' }}</td>
               <td>{{ item.pickCount }}</td>
+              <td>{{ percent(item.pickRate) }}</td>
               <td>{{ item.banCount }}</td>
+              <td>{{ percent(item.banRate) }}</td>
               <td class="accent">{{ percent(item.bpRate) }}</td>
               <td>{{ item.winningCount }}</td>
               <td class="accent">{{ percent(item.winningRate) }}</td>
+              <td>{{ item.totalKills }}</td>
+              <td>{{ fmtDecimal(item.killPerGame) }}</td>
+              <td>{{ item.totalAssists }}</td>
+              <td>{{ fmtDecimal(item.assistPerGame) }}</td>
+              <td>{{ item.totalDeaths }}</td>
+              <td>{{ fmtDecimal(item.deathPerGame) }}</td>
               <td>{{ fmtDecimal(item.kda) }}</td>
+              <td>{{ item.mostUsedPlayers.join('、') || '—' }}</td>
               <td>{{ item.sampleBaseCount }}</td>
             </tr>
           </tbody>
@@ -589,6 +607,7 @@ onMounted(async () => {
               <th>位置</th>
               <th>比赛</th>
               <th>MVP</th>
+              <th>MVP 票数</th>
               <th>KDA</th>
               <th>总击杀</th>
               <th>总助攻</th>
@@ -616,6 +635,7 @@ onMounted(async () => {
               <td>{{ fmtPositions(item.positions) }}</td>
               <td>{{ item.matchCount }}</td>
               <td>{{ item.mvpCount }}</td>
+              <td>{{ item.mvpVotes }}</td>
               <td class="accent">{{ fmtDecimal(item.kda) }}</td>
               <td>{{ item.totalKills }}</td>
               <td>{{ item.totalAssists }}</td>

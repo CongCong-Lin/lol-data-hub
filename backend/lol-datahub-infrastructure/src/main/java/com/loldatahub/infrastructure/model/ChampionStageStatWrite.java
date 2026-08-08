@@ -21,6 +21,7 @@ public record ChampionStageStatWrite(
         BigDecimal sourceWinningRate,
         Long mostUsedPlayerId,
         String mostUsedPlayerName,
+        String positionsJson,
         OffsetDateTime collectedAt
 ) {
 }

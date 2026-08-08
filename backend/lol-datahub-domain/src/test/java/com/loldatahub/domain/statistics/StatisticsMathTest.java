@@ -22,4 +22,14 @@ class StatisticsMathTest {
     void returnsZeroWhenThereIsNoSample() {
         assertThat(StatisticsMath.ratio(0, 0)).isEqualByComparingTo("0");
     }
+
+    @Test
+    void perGameReturnsZeroWhenMatchCountIsZero() {
+        assertThat(StatisticsMath.perGame(100, 0)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void perGameComputesCorrectly() {
+        assertThat(StatisticsMath.perGame(150, 20)).isEqualByComparingTo("7.500000");
+    }
 }

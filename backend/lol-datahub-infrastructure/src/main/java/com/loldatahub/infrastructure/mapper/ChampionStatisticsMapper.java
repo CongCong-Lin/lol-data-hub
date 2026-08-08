@@ -15,7 +15,12 @@ public interface ChampionStatisticsMapper {
                    c.chinese_name AS championName,
                    c.chinese_title AS championTitle,
                    c.logo_url AS championLogo,
-                   c.positions_json AS positionsJson,
+                   GROUP_CONCAT(DISTINCT CAST(cs.positions_json AS CHAR) ORDER BY cs.source_stage_id SEPARATOR '|')
+                       AS positionsCsv,
+                   GROUP_CONCAT(DISTINCT
+                       CASE WHEN cs.most_used_player_name IS NOT NULL AND cs.most_used_player_name != ''
+                            THEN cs.most_used_player_name END
+                       ORDER BY cs.most_used_player_name SEPARATOR ',') AS mostUsedPlayersCsv,
                    (SELECT COALESCE(SUM(ss.sample_base_count), 0)
                       FROM stage_stat_current ss
                      WHERE ss.source_season_id = #{seasonId}
@@ -40,7 +45,7 @@ public interface ChampionStatisticsMapper {
                <foreach collection="stageIds" item="stageId" open="(" separator="," close=")">
                    #{stageId}
                </foreach>
-             GROUP BY c.source_champion_id, c.chinese_name, c.chinese_title, c.logo_url, c.positions_json
+             GROUP BY c.source_champion_id, c.chinese_name, c.chinese_title, c.logo_url
             HAVING SUM(cs.pick_count) &gt;= #{minimumPickCount}
             </script>
             """)

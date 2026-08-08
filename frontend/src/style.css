@@ -98,6 +98,10 @@ tbody tr:hover { background: rgba(59,199,196,.04); }
 .empty-state strong { color: #dce7ee; font-size: 22px; }
 .empty-state p { max-width: 520px; line-height: 1.7; }
 
+.champion-table th, .champion-table td { white-space: nowrap; padding: 12px 14px; }
+.champion-table th { font-size: 11px; }
+.champion-table td { font-size: 13px; }
+
 .team-cell { display: flex; align-items: center; gap: 10px; min-width: 140px; }
 .team-logo, .team-placeholder { width: 32px; height: 32px; border-radius: 4px; object-fit: contain; background: #162938; }
 .team-placeholder { display: grid; place-items: center; color: var(--gold); font-weight: 800; font-size: 14px; }

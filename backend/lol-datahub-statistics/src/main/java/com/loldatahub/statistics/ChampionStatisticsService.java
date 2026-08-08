@@ -18,8 +18,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ChampionStatisticsService {
@@ -56,7 +59,7 @@ public class ChampionStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集英雄数据：" + missingStageIds);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:v" + dataVersion + ":champion:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s2:v" + dataVersion + ":champion:" + query.cacheFingerprint();
         List<ChampionStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new ChampionStatisticsResult(dataVersion, query.minimumPickCount(), cached.size(), cached);
@@ -71,16 +74,21 @@ public class ChampionStatisticsService {
     }
 
     private ChampionStatistics map(ChampionAggregateRow row, int minimumPickCount) {
+        long pickCount = row.pickCount();
         return new ChampionStatistics(
                 row.championId(), row.championName(), row.championTitle(), row.championLogo(),
-                parsePositions(row.positionsJson()), row.sampleBaseCount(), row.pickCount(), row.banCount(),
+                mergePositionsFromCsv(row.positionsCsv()), row.sampleBaseCount(), pickCount, row.banCount(),
                 row.bpCount(), row.winningCount(), row.totalKills(), row.totalDeaths(), row.totalAssists(),
-                StatisticsMath.ratio(row.pickCount(), row.sampleBaseCount()),
+                StatisticsMath.ratio(pickCount, row.sampleBaseCount()),
                 StatisticsMath.ratio(row.banCount(), row.sampleBaseCount()),
                 StatisticsMath.ratio(row.bpCount(), row.sampleBaseCount()),
-                StatisticsMath.ratio(row.winningCount(), row.pickCount()),
+                StatisticsMath.ratio(row.winningCount(), pickCount),
                 StatisticsMath.ratio(row.totalKills() + row.totalAssists(), row.totalDeaths()),
-                row.pickCount() >= minimumPickCount, row.sourceUpdatedAt()
+                StatisticsMath.perGame(row.totalKills(), pickCount),
+                StatisticsMath.perGame(row.totalAssists(), pickCount),
+                StatisticsMath.perGame(row.totalDeaths(), pickCount),
+                splitCsv(row.mostUsedPlayersCsv()),
+                pickCount >= minimumPickCount, row.sourceUpdatedAt()
         );
     }
 
@@ -105,6 +113,29 @@ public class ChampionStatisticsService {
         } catch (JsonProcessingException ignored) {
             return List.of();
         }
+    }
+
+    List<String> mergePositionsFromCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>();
+        for (String segment : csv.split("\\|")) {
+            List<String> parsed = parsePositions(segment.trim());
+            merged.addAll(parsed);
+        }
+        return List.copyOf(merged);
+    }
+
+    private List<String> splitCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .collect(Collectors.toUnmodifiableList());
     }
 
     private List<ChampionStatistics> readCache(String key) {
