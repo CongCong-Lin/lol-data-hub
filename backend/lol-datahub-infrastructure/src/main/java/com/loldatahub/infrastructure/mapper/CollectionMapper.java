@@ -52,6 +52,16 @@ public interface CollectionMapper {
             """)
     String findCurrentContentHash(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
 
+    @Update("""
+            UPDATE collection_run
+            SET status = 'FAILED',
+                finished_at = UTC_TIMESTAMP(3),
+                error_message = '应用启动时回收超过 30 分钟的悬挂采集任务'
+            WHERE status = 'RUNNING'
+              AND started_at < UTC_TIMESTAMP(3) - INTERVAL 30 MINUTE
+            """)
+    int recoverStaleRunningRuns();
+
     final class GeneratedId {
         private Long id;
 
