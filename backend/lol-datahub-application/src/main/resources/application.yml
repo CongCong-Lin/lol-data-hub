@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: lol-data-hub
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3307/lol_data_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME:loldatahub}
+    password: ${MYSQL_PASSWORD:loldatahub}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: UTC
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+lol-datahub:
+  source:
+    tjstats:
+      base-url: ${TJSTATS_BASE_URL:https://open.tjstats.com/match-auth-app/open/v1}
+      authorization: ${TJSTATS_AUTHORIZATION:}
+      connect-timeout: 5s
+      read-timeout: 20s
+  collector:
+    scheduling:
+      enabled: false
+  cache:
+    statistics-ttl: 12h

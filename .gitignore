@@ -1,0 +1,12 @@
+.idea/
+.vscode/
+*.iml
+target/
+**/target/
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+.env
+*.log
+.mvn/repository/
+.claude/

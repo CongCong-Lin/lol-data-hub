@@ -1,0 +1,37 @@
+package com.loldatahub.api;
+
+import com.loldatahub.domain.statistics.ChampionStatisticsQuery;
+import com.loldatahub.statistics.ChampionStatisticsResult;
+import com.loldatahub.statistics.ChampionStatisticsService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/statistics")
+public class ChampionStatisticsController {
+    private final ChampionStatisticsService service;
+
+    public ChampionStatisticsController(ChampionStatisticsService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/champions")
+    ApiResponse<ChampionStatisticsResult> champions(
+            @RequestParam long seasonId,
+            @RequestParam List<Long> stageIds,
+            @RequestParam(defaultValue = "10") int minimumPickCount,
+            @RequestParam(defaultValue = "bpRate") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection
+    ) {
+        var query = new ChampionStatisticsQuery(
+                seasonId, stageIds, minimumPickCount, sortBy,
+                ChampionStatisticsQuery.SortDirection.from(sortDirection)
+        );
+        return ApiResponse.success(service.query(query));
+    }
+}
+
