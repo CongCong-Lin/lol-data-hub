@@ -206,6 +206,18 @@ lol-datahub:
       enabled: false
 ```
 
+## 数据源连通性检查
+
+部署前或遇到采集失败时，运行只读检查脚本验证 tjstats 数据源和 LPL 官网的可达性：
+
+```powershell
+.\scripts\check-tjstats.ps1
+```
+
+可选参数：`-BaseUrl`（tjstats API 地址，默认使用 `TJSTATS_BASE_URL` 环境变量或内置值）和 `-TimeoutSec`（超时秒数，默认 `15`）。
+
+脚本仅输出 HTTP 状态码、耗时和环境变量就绪情况（SET / NOT_SET），不输出任何变量值或响应体。检查失败时以非 0 退出。
+
 ## 已知限制
 
 - **tjstats 数据源可达性**：`open.tjstats.com` 在代理或 VPN 环境下可能不可用，需通过 `TJSTATS_BASE_URL` 切换到境内转发服务。
