@@ -114,6 +114,26 @@ class TjStatsClientTest {
         verify(restClient, times(1)).get();
     }
 
+    @Test
+    void http422ThrowsImmediatelyWithoutRetry() {
+        RestClientResponseException exception = new RestClientResponseException(
+                "Unprocessable Entity", 422, "Unprocessable Entity", null, null, null);
+
+        when(restClient.get()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri(anyString(), any(Object[].class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.body(String.class)).thenThrow(exception);
+
+        TjStatsClient client = new TjStatsClient(restClient);
+
+        assertThatThrownBy(client::fetchSeasons)
+                .isInstanceOf(TjStatsSourceException.class)
+                .hasMessageContaining("HTTP 422")
+                .hasCause(exception);
+
+        verify(restClient, times(1)).get();
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // 可重试状态码：最多重试 3 次后失败
     // ══════════════════════════════════════════════════════════════════════

@@ -5,14 +5,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.util.Set;
-
 @Component
 public class TjStatsClient {
     private static final int MAX_ATTEMPTS = 3;
-
-    /** 不可重试的 HTTP 状态码：客户端错误中不可恢复的类型 */
-    private static final Set<Integer> NON_RETRYABLE_STATUS_CODES = Set.of(400, 401, 403, 404);
 
     private final RestClient restClient;
 
@@ -51,7 +46,7 @@ public class TjStatsClient {
                 return body;
             } catch (RestClientResponseException exception) {
                 int statusCode = exception.getStatusCode().value();
-                if (NON_RETRYABLE_STATUS_CODES.contains(statusCode)) {
+                if (!isRetryableStatus(statusCode)) {
                     throw new TjStatsSourceException(
                             "赛事官网接口返回不可恢复的错误 HTTP " + statusCode + "：" + uri, exception);
                 }
@@ -69,6 +64,10 @@ public class TjStatsClient {
             }
         }
         throw new TjStatsSourceException("访问赛事官网接口失败，重试 " + MAX_ATTEMPTS + " 次后仍未恢复：" + uri, lastFailure);
+    }
+
+    private static boolean isRetryableStatus(int statusCode) {
+        return statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode >= 500;
     }
 
     private static void waitBeforeRetry(int attempt) {
