@@ -18,6 +18,9 @@ export interface Stage {
   name: string
   startTime: string | null
   endTime: string | null
+  collected: boolean
+  sampleBaseCount: number | null
+  collectedAt: string | null
 }
 
 export interface ChampionStatistics {
@@ -65,21 +68,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   seasons: () => request<Season[]>('/api/v1/catalog/seasons'),
   stages: (seasonId: number) => request<Stage[]>(`/api/v1/catalog/stages?seasonId=${seasonId}`),
-  syncCatalog: (seasonId: number) => request('/api/v1/catalog/sync?seasonId=' + seasonId, { method: 'POST' }),
-  collectHeroes: (seasonId: number, stageIds: number[]) =>
-    request('/api/internal/collections/heroes', {
-      method: 'POST',
-      body: JSON.stringify({ seasonId, stageIds }),
-    }),
-  championStatistics: (seasonId: number, stageIds: number[], minimumPickCount: number, sortBy: string) => {
+  championStatistics: (
+    seasonId: number,
+    stageIds: number[],
+    minimumPickCount: number,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
     const params = new URLSearchParams({
       seasonId: String(seasonId),
       stageIds: stageIds.join(','),
       minimumPickCount: String(minimumPickCount),
       sortBy,
-      sortDirection: 'desc',
+      sortDirection,
     })
     return request<ChampionStatisticsResult>(`/api/v1/statistics/champions?${params}`)
   },
 }
-
