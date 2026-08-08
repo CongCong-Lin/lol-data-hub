@@ -45,14 +45,24 @@ docker compose -f deploy/docker-compose.yml up -d
 
 使用默认配置时，启动后访问 `http://localhost:8081`；修改 `FRONTEND_PORT` 后请使用对应端口。
 
-### 3. 初始化赛季目录
+### 3. 验收检查
+
+启动后运行验收脚本，验证服务状态、接口可用性和数据完整性：
+
+```powershell
+.\scripts\verify-compose.ps1
+```
+
+可选参数：`-StageKeys`（英雄统计 stageKeys，默认 `237:112,237:113,237:100`）和 `-MinimumPickCount`（最低出场次数，默认 `10`）。
+
+### 4. 初始化赛季目录
 
 ```powershell
 curl -X POST http://localhost:8080/api/internal/catalog/sync `
   -H "X-Internal-Token: $env:INTERNAL_API_TOKEN"
 ```
 
-### 4. 手动采集数据
+### 5. 手动采集数据
 
 英雄统计采集示例：
 
