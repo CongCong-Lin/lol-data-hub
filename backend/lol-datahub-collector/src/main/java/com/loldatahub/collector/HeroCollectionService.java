@@ -50,7 +50,8 @@ public class HeroCollectionService {
         this.transactionTemplate = transactionTemplate;
     }
 
-    public CollectionResult collect(long seasonId, List<Long> stageIds) {
+    // 单 JVM 内串行保护，避免同表并发 delete/upsert 竞争；分布式部署仍需外部锁
+    public synchronized CollectionResult collect(long seasonId, List<Long> stageIds) {
         if (stageIds == null || stageIds.isEmpty()) {
             throw new IllegalArgumentException("至少需要指定一个赛段");
         }
