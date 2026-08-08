@@ -30,6 +30,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-loldatahub}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       TJSTATS_AUTHORIZATION: ${TJSTATS_AUTHORIZATION:-}
       TJSTATS_BASE_URL: ${TJSTATS_BASE_URL:-https://open.tjstats.com/match-auth-app/open/v1}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
@@ -69,12 +70,15 @@ services:
   redis:
     image: redis:7.4-alpine
     container_name: lol-datahub-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command: ["sh", "-c", "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --requirepass \"$${REDIS_PASSWORD}\"; else exec redis-server; fi"]
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - lol-datahub-redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
       interval: 5s
       timeout: 3s
       retries: 20

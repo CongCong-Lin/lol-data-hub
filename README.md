@@ -190,6 +190,7 @@ cd frontend && npm run build
 | `BACKEND_PORT` | 否 | `8080` | 后端宿主端口（仅绑定 127.0.0.1） |
 | `MYSQL_PORT` | 否 | `3307` | MySQL 宿主端口（仅绑定 127.0.0.1） |
 | `REDIS_PORT` | 否 | `6379` | Redis 宿主端口（仅绑定 127.0.0.1） |
+| `REDIS_PASSWORD` | 否 | 空 | Redis 密码；生产环境建议设置，留空时兼容本地无密码 Redis |
 | `MYSQL_DATABASE` | 否 | `lol_data_hub` | MySQL 数据库名 |
 | `MYSQL_USERNAME` | 否 | `loldatahub` | MySQL 应用账号 |
 | `MYSQL_PASSWORD` | 否 | `loldatahub` | MySQL 应用账号密码（生产环境必须修改） |
