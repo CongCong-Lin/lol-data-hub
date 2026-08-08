@@ -7,6 +7,7 @@ import com.loldatahub.domain.statistics.ChampionStatistics;
 import com.loldatahub.domain.statistics.ChampionStatisticsQuery;
 import com.loldatahub.domain.statistics.StatisticsMath;
 import com.loldatahub.infrastructure.mapper.ChampionStatisticsMapper;
+import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.ChampionAggregateRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,15 +27,18 @@ public class ChampionStatisticsService {
     private static final TypeReference<List<ChampionStatistics>> CACHE_TYPE = new TypeReference<>() { };
 
     private final ChampionStatisticsMapper mapper;
+    private final SystemStateMapper systemStateMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final Duration cacheTtl;
 
     public ChampionStatisticsService(ChampionStatisticsMapper mapper,
+                                     SystemStateMapper systemStateMapper,
                                      StringRedisTemplate redisTemplate,
                                      ObjectMapper objectMapper,
                                      @Value("${lol-datahub.cache.statistics-ttl:PT12H}") Duration cacheTtl) {
         this.mapper = mapper;
+        this.systemStateMapper = systemStateMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.cacheTtl = cacheTtl;
@@ -51,7 +55,7 @@ public class ChampionStatisticsService {
         if (!missingStageIds.isEmpty()) {
             throw new IllegalArgumentException("以下赛段尚未采集英雄数据：" + missingStageIds);
         }
-        long dataVersion = mapper.currentDataVersion();
+        long dataVersion = systemStateMapper.currentDataVersion();
         String cacheKey = "loldatahub:stats:v" + dataVersion + ":champion:" + query.cacheFingerprint();
         List<ChampionStatistics> cached = readCache(cacheKey);
         if (cached != null) {

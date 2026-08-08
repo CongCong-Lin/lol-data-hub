@@ -1,6 +1,7 @@
 package com.loldatahub.api;
 
 import com.loldatahub.domain.statistics.ChampionStatisticsQuery;
+import com.loldatahub.domain.statistics.SortDirection;
 import com.loldatahub.statistics.ChampionStatisticsResult;
 import com.loldatahub.statistics.ChampionStatisticsService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,9 +30,8 @@ public class ChampionStatisticsController {
     ) {
         var query = new ChampionStatisticsQuery(
                 seasonId, stageIds, minimumPickCount, sortBy,
-                ChampionStatisticsQuery.SortDirection.from(sortDirection)
+                SortDirection.from(sortDirection)
         );
         return ApiResponse.success(service.query(query));
     }
 }
-

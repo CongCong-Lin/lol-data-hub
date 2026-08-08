@@ -3,8 +3,8 @@ package com.loldatahub.collector;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.ChampionStatWriteMapper;
-import com.loldatahub.infrastructure.mapper.ChampionStatisticsMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
+import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.ChampionStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
 import com.loldatahub.source.TjStatsClient;
@@ -28,7 +28,7 @@ public class HeroCollectionService {
     private final ObjectMapper objectMapper;
     private final CollectionMapper collectionMapper;
     private final ChampionStatWriteMapper writeMapper;
-    private final ChampionStatisticsMapper statisticsMapper;
+    private final SystemStateMapper systemStateMapper;
     private final CatalogCollectionService catalogCollectionService;
     private final TransactionTemplate transactionTemplate;
 
@@ -37,7 +37,7 @@ public class HeroCollectionService {
                                  ObjectMapper objectMapper,
                                  CollectionMapper collectionMapper,
                                  ChampionStatWriteMapper writeMapper,
-                                 ChampionStatisticsMapper statisticsMapper,
+                                 SystemStateMapper systemStateMapper,
                                  CatalogCollectionService catalogCollectionService,
                                  TransactionTemplate transactionTemplate) {
         this.client = client;
@@ -45,7 +45,7 @@ public class HeroCollectionService {
         this.objectMapper = objectMapper;
         this.collectionMapper = collectionMapper;
         this.writeMapper = writeMapper;
-        this.statisticsMapper = statisticsMapper;
+        this.systemStateMapper = systemStateMapper;
         this.catalogCollectionService = catalogCollectionService;
         this.transactionTemplate = transactionTemplate;
     }
@@ -113,14 +113,14 @@ public class HeroCollectionService {
             }
 
             if (changedRecords > 0) {
-                statisticsMapper.incrementDataVersion();
+                systemStateMapper.incrementDataVersion();
             }
             String status = changedRecords > 0 ? "SUCCESS" : "NO_CHANGE";
             collectionMapper.finishRun(runId, status, OffsetDateTime.now(ZoneOffset.UTC), changedRecords, null);
             return new CollectionResult(runId, status, changedRecords, unchanged);
         } catch (RuntimeException exception) {
             if (changedRecords > 0) {
-                statisticsMapper.incrementDataVersion();
+                systemStateMapper.incrementDataVersion();
             }
             String message = exception.getMessage();
             collectionMapper.finishRun(

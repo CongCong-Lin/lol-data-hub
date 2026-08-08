@@ -4,7 +4,6 @@ import com.loldatahub.infrastructure.model.ChampionAggregateRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -63,9 +62,4 @@ public interface ChampionStatisticsMapper {
     List<Long> findCollectedStageIds(@Param("seasonId") long seasonId,
                                      @Param("stageIds") List<Long> stageIds);
 
-    @Select("SELECT data_version FROM system_state WHERE id = 1")
-    long currentDataVersion();
-
-    @Update("UPDATE system_state SET data_version = data_version + 1 WHERE id = 1")
-    int incrementDataVersion();
 }
