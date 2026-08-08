@@ -17,9 +17,10 @@ export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER'
 export interface Stage {
   sourceSeasonId: number
   sourceStageId: number
+  seasonName?: string
   name: string
-  startTime: string | null
-  endTime: string | null
+  startTime?: string | null
+  endTime?: string | null
   collected: boolean
   sampleBaseCount: number | null
   collectedAt: string | null
@@ -136,6 +137,8 @@ export const api = {
   seasons: () => request<Season[]>('/api/v1/catalog/seasons'),
   stages: (seasonId: number, statisticType: StatisticType = 'HERO') =>
     request<Stage[]>(`/api/v1/catalog/stages?seasonId=${seasonId}&statisticType=${statisticType}`),
+  availability: (statisticType: StatisticType, collectedOnly: boolean = false) =>
+    request<Stage[]>(`/api/v1/catalog/stages/availability?statisticType=${statisticType}&collectedOnly=${collectedOnly}`),
   championStatistics: (
     seasonId: number,
     stageIds: number[],
@@ -179,6 +182,50 @@ export const api = {
     const params: Record<string, string> = {
       seasonId: String(seasonId),
       stageIds: stageIds.join(','),
+      minimumMatchCount: String(minimumMatchCount),
+      sortBy,
+      sortDirection,
+    }
+    if (position) params.position = position
+    return request<PlayerStatisticsResult>(`/api/v1/statistics/players?${new URLSearchParams(params)}`)
+  },
+  championStatisticsByKeys: (
+    stageKeys: string[],
+    minimumPickCount: number,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      minimumPickCount: String(minimumPickCount),
+      sortBy,
+      sortDirection,
+    })
+    return request<ChampionStatisticsResult>(`/api/v1/statistics/champions?${params}`)
+  },
+  teamStatisticsByKeys: (
+    stageKeys: string[],
+    minimumMatchCount: number,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      minimumMatchCount: String(minimumMatchCount),
+      sortBy,
+      sortDirection,
+    })
+    return request<TeamStatisticsResult>(`/api/v1/statistics/teams?${params}`)
+  },
+  playerStatisticsByKeys: (
+    stageKeys: string[],
+    minimumMatchCount: number,
+    position: string,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params: Record<string, string> = {
+      stageKeys: stageKeys.join(','),
       minimumMatchCount: String(minimumMatchCount),
       sortBy,
       sortDirection,

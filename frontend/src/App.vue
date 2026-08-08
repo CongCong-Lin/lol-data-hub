@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   api,
-  type ChampionStatistics,
   type ChampionStatisticsResult,
-  type PlayerStatistics,
   type PlayerStatisticsResult,
   type Season,
   type Stage,
   type StatisticType,
-  type TeamStatistics,
   type TeamStatisticsResult,
 } from './api'
 
@@ -65,11 +62,22 @@ const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   player: 'PLAYER',
 }
 
+const MAX_STAGE_SELECTION = 50
+
+function makeKey(seasonId: number, stageId: number): string {
+  return `${seasonId}:${stageId}`
+}
+
+function parseKey(key: string): { seasonId: number; stageId: number } {
+  const idx = key.indexOf(':')
+  return { seasonId: Number(key.slice(0, idx)), stageId: Number(key.slice(idx + 1)) }
+}
+
 const activeView = ref<ActiveView>('champion')
 const seasons = ref<Season[]>([])
-const stages = ref<Stage[]>([])
-const seasonId = ref(237)
-const selectedStageIds = ref<number[]>([])
+const allAvailability = ref<Stage[]>([])
+const browsedSeasonId = ref(0)
+const selectedStageKeys = ref<Set<string>>(new Set())
 const minimumPickCount = ref(10)
 const minimumMatchCount = ref(5)
 const sortBy = ref('bpRate')
@@ -85,21 +93,35 @@ const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
 const busy = ref(false)
-const stagesLoading = ref(false)
+const availabilityLoading = ref(false)
 const notice = ref('')
 const error = ref('')
-let loadStagesSeq = 0
+let loadAvailabilitySeq = 0
 let querySeq = 0
 
-const collectedStages = computed(() => stages.value.filter((s) => s.collected))
-const hasCollectedStages = computed(() => collectedStages.value.length > 0)
+/* ---- computed ---- */
 
-const selectedStages = computed(() =>
-  stages.value.filter((s) => selectedStageIds.value.includes(s.sourceStageId)),
+const browsedSeasonName = computed(() => {
+  const season = seasons.value.find((s) => s.sourceSeasonId === browsedSeasonId.value)
+  return season?.name ?? `赛事 #${browsedSeasonId.value}`
+})
+
+const browsedStages = computed(() =>
+  allAvailability.value.filter((s) => s.sourceSeasonId === browsedSeasonId.value),
 )
 
+const selectedStageDetails = computed(() => {
+  const keys = selectedStageKeys.value
+  return allAvailability.value.filter((s) => keys.has(makeKey(s.sourceSeasonId, s.sourceStageId)))
+})
+
+const selectedSeasonCount = computed(() => {
+  const ids = new Set(selectedStageDetails.value.map((s) => s.sourceSeasonId))
+  return ids.size
+})
+
 const totalSampleBase = computed(() =>
-  selectedStages.value.reduce((sum, s) => sum + (s.sampleBaseCount ?? 0), 0),
+  selectedStageDetails.value.reduce((sum, s) => sum + (s.sampleBaseCount ?? 0), 0),
 )
 
 const filteredChampionItems = computed(() => {
@@ -141,7 +163,7 @@ const filteredPlayerItems = computed(() => {
 })
 
 const latestCollectedAt = computed(() => {
-  const timestamps = selectedStages.value
+  const timestamps = selectedStageDetails.value
     .map((s) => s.collectedAt)
     .filter(Boolean) as string[]
   return timestamps.sort().at(-1) ?? null
@@ -162,41 +184,74 @@ const currentDataVersion = computed(() => {
 })
 
 const canQuery = computed(() => {
-  if (busy.value || stagesLoading.value || selectedStageIds.value.length === 0) return false
-  return hasCollectedStages.value
+  if (busy.value || availabilityLoading.value) return false
+  return selectedStageKeys.value.size > 0
 })
+
+/* ---- methods ---- */
 
 async function loadSeasons() {
   seasons.value = await api.seasons()
-  if (seasons.value.length && !seasons.value.some((item) => item.sourceSeasonId === seasonId.value)) {
-    seasonId.value = seasons.value[0].sourceSeasonId
+  if (seasons.value.length && !seasons.value.some((item) => item.sourceSeasonId === browsedSeasonId.value)) {
+    browsedSeasonId.value = seasons.value[0].sourceSeasonId
   }
 }
 
-async function loadStages() {
-  const seq = ++loadStagesSeq
+async function loadAvailability() {
+  const seq = ++loadAvailabilitySeq
   querySeq++
   busy.value = false
-  const sid = seasonId.value
   const type = VIEW_STAT_TYPE[activeView.value]
-  stages.value = []
-  selectedStageIds.value = []
   result.value = null
   teamResult.value = null
   playerResult.value = null
   notice.value = ''
   error.value = ''
-  stagesLoading.value = true
+  availabilityLoading.value = true
   try {
-    const data = await api.stages(sid, type)
-    if (seq !== loadStagesSeq) return
-    stages.value = data
-    selectedStageIds.value = data.filter((s) => s.collected).map((s) => s.sourceStageId)
+    const data = await api.availability(type, false)
+    if (seq !== loadAvailabilitySeq) return
+    allAvailability.value = data
+
+    /* 保留仍然 collected 的已选复合键 */
+    const collectedKeys = new Set(
+      data.filter((s) => s.collected).map((s) => makeKey(s.sourceSeasonId, s.sourceStageId)),
+    )
+    const preserved = new Set([...selectedStageKeys.value].filter((k) => collectedKeys.has(k)))
+
+    /* 若交集为空，自动选择默认赛事所有已采集赛段 */
+    if (preserved.size === 0) {
+      autoSelectDefaults(data, preserved)
+    }
+    selectedStageKeys.value = preserved
+
+    /* 确保 browsedSeasonId 指向有数据的赛事 */
+    if (!data.some((s) => s.sourceSeasonId === browsedSeasonId.value)) {
+      const first = data.find((s) => s.collected) ?? data[0]
+      if (first) browsedSeasonId.value = first.sourceSeasonId
+    }
   } catch (reason) {
-    if (seq !== loadStagesSeq) return
+    if (seq !== loadAvailabilitySeq) return
     error.value = reason instanceof Error ? reason.message : `加载赛段失败：${String(reason)}`
   } finally {
-    if (seq === loadStagesSeq) stagesLoading.value = false
+    if (seq === loadAvailabilitySeq) availabilityLoading.value = false
+  }
+}
+
+function autoSelectDefaults(data: Stage[], target: Set<string>) {
+  const groups = new Map<number, Stage[]>()
+  for (const s of data) {
+    if (!s.collected) continue
+    const arr = groups.get(s.sourceSeasonId) ?? []
+    arr.push(s)
+    groups.set(s.sourceSeasonId, arr)
+  }
+  const first = groups.entries().next().value
+  if (first) {
+    for (const s of first[1]) {
+      target.add(makeKey(s.sourceSeasonId, s.sourceStageId))
+    }
+    browsedSeasonId.value = first[0]
   }
 }
 
@@ -204,37 +259,19 @@ async function query() {
   if (!canQuery.value) return
   const seq = ++querySeq
   const view = activeView.value
+  const keys = [...selectedStageKeys.value]
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
     if (view === 'champion') {
-      const data = await api.championStatistics(
-        seasonId.value,
-        selectedStageIds.value,
-        minimumPickCount.value,
-        sortBy.value,
-        sortDirection.value,
-      )
+      const data = await api.championStatisticsByKeys(keys, minimumPickCount.value, sortBy.value, sortDirection.value)
       if (seq === querySeq && activeView.value === view) result.value = data
     } else if (view === 'team') {
-      const data = await api.teamStatistics(
-        seasonId.value,
-        selectedStageIds.value,
-        minimumMatchCount.value,
-        teamSortBy.value,
-        sortDirection.value,
-      )
+      const data = await api.teamStatisticsByKeys(keys, minimumMatchCount.value, teamSortBy.value, sortDirection.value)
       if (seq === querySeq && activeView.value === view) teamResult.value = data
     } else {
-      const data = await api.playerStatistics(
-        seasonId.value,
-        selectedStageIds.value,
-        minimumMatchCount.value,
-        '',
-        playerSortBy.value,
-        sortDirection.value,
-      )
+      const data = await api.playerStatisticsByKeys(keys, minimumMatchCount.value, '', playerSortBy.value, sortDirection.value)
       if (seq === querySeq && activeView.value === view) playerResult.value = data
     }
     if (seq === querySeq) notice.value = '查询完成'
@@ -253,14 +290,28 @@ function switchView(view: ActiveView) {
   playerResult.value = null
   notice.value = ''
   error.value = ''
-  void loadStages()
+  void loadAvailability()
 }
 
-function toggleStage(stageId: number, collected: boolean) {
+function toggleStage(compositeKey: string, collected: boolean) {
   if (!collected) return
-  selectedStageIds.value = selectedStageIds.value.includes(stageId)
-    ? selectedStageIds.value.filter((id) => id !== stageId)
-    : [...selectedStageIds.value, stageId]
+  const newSet = new Set(selectedStageKeys.value)
+  if (newSet.has(compositeKey)) {
+    newSet.delete(compositeKey)
+  } else {
+    if (newSet.size >= MAX_STAGE_SELECTION) {
+      error.value = `最多选择 ${MAX_STAGE_SELECTION} 个赛段，请先移除部分赛段后再添加`
+      return
+    }
+    newSet.add(compositeKey)
+  }
+  selectedStageKeys.value = newSet
+}
+
+function removeStage(compositeKey: string) {
+  const newSet = new Set(selectedStageKeys.value)
+  newSet.delete(compositeKey)
+  selectedStageKeys.value = newSet
 }
 
 function percent(value: number) {
@@ -284,12 +335,13 @@ function fmtTeamNames(teamNames: string[]) {
   return teamNames.join(' / ') || '—'
 }
 
-watch(seasonId, () => { void loadStages() })
-
 onMounted(async () => {
   try {
     await loadSeasons()
-    await loadStages()
+    if (seasons.value.length > 0 && browsedSeasonId.value === 0) {
+      browsedSeasonId.value = seasons.value[0].sourceSeasonId
+    }
+    await loadAvailability()
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : String(reason)
   }
@@ -302,7 +354,7 @@ onMounted(async () => {
       <div>
         <p class="eyebrow">LOL DATA HUB</p>
         <h1>赛事数据，<span class="title-tail">不止看一个赛段</span></h1>
-        <p class="hero-copy">基于本地持久化数据重新计算跨赛段指标，并用明确的样本门槛隔离低样本噪声。</p>
+        <p class="hero-copy">基于本地持久化数据重新计算跨赛事指标，并用明确的样本门槛隔离低样本噪声。支持跨赛事赛段选择，如 LPL + MSI（需已有采集数据）。</p>
       </div>
       <div class="status-card">
         <span>数据版本</span>
@@ -337,9 +389,9 @@ onMounted(async () => {
 
     <section class="panel controls">
       <div class="field">
-        <label for="season">赛季</label>
-        <select id="season" v-model.number="seasonId">
-          <option v-if="!seasons.length" :value="seasonId">赛季 #{{ seasonId }}</option>
+        <label for="season">赛事/赛季（浏览）</label>
+        <select id="season" v-model.number="browsedSeasonId">
+          <option v-if="!seasons.length" :value="browsedSeasonId">赛事 #{{ browsedSeasonId }}</option>
           <option v-for="season in seasons" :key="season.sourceSeasonId" :value="season.sourceSeasonId">
             {{ season.name }} · #{{ season.sourceSeasonId }}
           </option>
@@ -382,22 +434,21 @@ onMounted(async () => {
         <button class="primary" :disabled="!canQuery" @click="query">{{ busy ? '处理中…' : '查询统计' }}</button>
       </div>
 
+      <!-- 赛段浏览器 -->
       <div class="stage-block">
         <div class="stage-heading">
-          <span>选择一个或多个赛段</span>
-          <small v-if="activeView === 'champion'">跨赛段：胜率等由可加总计数重算，不平均官网百分比</small>
-          <small v-else-if="activeView === 'team'">跨赛段：胜率/击杀由可加总计数重算；眼位/经济/龙按比赛场数加权，非简单平均</small>
-          <small v-else>跨赛段：KDA/击杀/助攻/死亡由计数重算；经济/补刀/视野及参团率/伤害占比等按比赛场数加权，比例为近似整合口径</small>
+          <span>选择赛段（支持跨赛事选择，如 LPL + MSI）</span>
+          <small>当前浏览：{{ browsedSeasonName }}</small>
         </div>
-        <div v-if="stagesLoading" class="empty-inline">正在加载赛段…</div>
-        <div v-else-if="stages.length" class="stage-list">
+        <div v-if="availabilityLoading" class="empty-inline">正在加载赛段…</div>
+        <div v-else-if="browsedStages.length" class="stage-list">
           <button
-            v-for="stage in stages"
-            :key="stage.sourceStageId"
+            v-for="stage in browsedStages"
+            :key="makeKey(stage.sourceSeasonId, stage.sourceStageId)"
             class="stage-chip"
-            :class="{ selected: selectedStageIds.includes(stage.sourceStageId), disabled: !stage.collected }"
+            :class="{ selected: selectedStageKeys.has(makeKey(stage.sourceSeasonId, stage.sourceStageId)), disabled: !stage.collected }"
             :disabled="!stage.collected"
-            @click="toggleStage(stage.sourceStageId, stage.collected)"
+            @click="toggleStage(makeKey(stage.sourceSeasonId, stage.sourceStageId), stage.collected)"
           >
             <span>{{ stage.name }}</span>
             <small v-if="!stage.collected" class="uncollected-tag">未采集</small>
@@ -407,11 +458,41 @@ onMounted(async () => {
         <p v-else class="empty-inline">
           {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : '该赛季暂无赛段数据。' }}
         </p>
+
+        <!-- 跨赛事选择篮 -->
+        <div class="basket-section">
+          <div class="basket-heading">
+            <span>已选跨赛事赛段</span>
+            <small v-if="selectedStageKeys.size > 0">
+              {{ selectedSeasonCount }} 个赛事 · {{ selectedStageKeys.size }} 个赛段
+              <template v-if="activeView === 'champion'"> · 样本合计 {{ totalSampleBase }}</template>
+            </small>
+          </div>
+          <div v-if="selectedStageKeys.size === 0" class="empty-inline">
+            请在上方赛段列表中勾选要查询的赛段，支持跨赛事选择（如 LPL 赛段 + MSI 赛段，需已有采集数据）。
+          </div>
+          <div v-else class="basket-list">
+            <div
+              v-for="stage in selectedStageDetails"
+              :key="makeKey(stage.sourceSeasonId, stage.sourceStageId)"
+              class="basket-item"
+            >
+              <span class="basket-season">{{ stage.seasonName ?? `赛事#${stage.sourceSeasonId}` }}</span>
+              <span class="basket-stage">{{ stage.name }}</span>
+              <small v-if="stage.sampleBaseCount != null" class="basket-sample">{{ stage.sampleBaseCount }} 场</small>
+              <button
+                class="basket-remove"
+                :aria-label="`移除 ${stage.seasonName ?? ''} ${stage.name}`"
+                @click="removeStage(makeKey(stage.sourceSeasonId, stage.sourceStageId))"
+              >&times;</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section v-if="selectedStageIds.length > 0" class="query-summary">
-      <span>已选 <strong>{{ selectedStageIds.length }}</strong> 个赛段</span>
+    <section v-if="selectedStageKeys.size > 0" class="query-summary">
+      <span>已选 <strong>{{ selectedSeasonCount }}</strong> 个赛事 · <strong>{{ selectedStageKeys.size }}</strong> 个赛段</span>
       <span v-if="activeView === 'champion'">样本基数合计 <strong>{{ totalSampleBase }}</strong></span>
       <span>数据版本 <strong>{{ currentDataVersion ?? '—' }}</strong></span>
       <span v-if="latestUpdatedAt">最近更新 <strong>{{ new Date(latestUpdatedAt).toLocaleString() }}</strong></span>
@@ -501,10 +582,9 @@ onMounted(async () => {
         </table>
       </div>
       <div v-else class="empty-state">
-        <strong v-if="!hasCollectedStages">该赛季暂无已采集赛段</strong>
+        <strong v-if="selectedStageKeys.size === 0">选择赛段后点击查询</strong>
         <strong v-else-if="!result">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
-        <p v-if="!hasCollectedStages">请切换到其他赛季查看已采集的数据。</p>
       </div>
     </section>
 
@@ -566,10 +646,9 @@ onMounted(async () => {
         </table>
       </div>
       <div v-else class="empty-state">
-        <strong v-if="!hasCollectedStages">该赛季暂无已采集战队数据</strong>
+        <strong v-if="selectedStageKeys.size === 0">选择赛段后点击查询</strong>
         <strong v-else-if="!teamResult">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
-        <p v-if="!hasCollectedStages">请切换到其他赛季或采集战队数据后再查询。</p>
       </div>
     </section>
 
@@ -651,10 +730,9 @@ onMounted(async () => {
         </table>
       </div>
       <div v-else class="empty-state">
-        <strong v-if="!hasCollectedStages">该赛季暂无已采集选手数据</strong>
+        <strong v-if="selectedStageKeys.size === 0">选择赛段后点击查询</strong>
         <strong v-else-if="!playerResult">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
-        <p v-if="!hasCollectedStages">请切换到其他赛季或采集选手数据后再查询。</p>
       </div>
     </section>
   </main>

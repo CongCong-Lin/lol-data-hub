@@ -124,9 +124,12 @@ cd frontend && npm run build
 | --- | --- | --- |
 | GET | `/api/v1/catalog/seasons` | 获取所有赛季列表 |
 | GET | `/api/v1/catalog/stages?seasonId=237&statisticType=HERO` | 获取指定赛季的赛段列表（可选 HERO/TEAM/PLAYER） |
-| GET | `/api/v1/statistics/champions?seasonId=237&stageIds=112,113` | 英雄统计查询 |
-| GET | `/api/v1/statistics/teams?seasonId=237&stageIds=112` | 战队统计查询 |
-| GET | `/api/v1/statistics/players?seasonId=237&stageIds=112&position=mid` | 选手统计查询 |
+| GET | `/api/v1/catalog/stages/availability?statisticType=HERO&collectedOnly=false` | 获取全赛事赛段可用性（含 seasonName/collected/sampleBaseCount） |
+| GET | `/api/v1/statistics/champions?stageKeys=237:102,239:28&minimumPickCount=10&sortBy=bpRate&sortDirection=desc` | 英雄统计查询（跨赛事，stageKeys 为 `seasonId:stageId` 复合键） |
+| GET | `/api/v1/statistics/teams?stageKeys=237:102,239:28&minimumMatchCount=5` | 战队统计查询（跨赛事） |
+| GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=5` | 选手统计查询（跨赛事） |
+
+> **跨赛事查询说明**：`stageKeys` 参数使用 `seasonId:stageId` 复合键格式，多个用逗号分隔。旧参数 `seasonId` + `stageIds` 仍向后兼容，但推荐使用 `stageKeys` 以支持跨赛事选择。
 
 ### 内部采集接口
 
