@@ -3,9 +3,17 @@ package com.loldatahub.source;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+
+import java.util.Set;
 
 @Component
 public class TjStatsClient {
+    private static final int MAX_ATTEMPTS = 3;
+
+    /** 不可重试的 HTTP 状态码：客户端错误中不可恢复的类型 */
+    private static final Set<Integer> NON_RETRYABLE_STATUS_CODES = Set.of(400, 401, 403, 404);
+
     private final RestClient restClient;
 
     public TjStatsClient(RestClient tjStatsRestClient) {
@@ -34,21 +42,33 @@ public class TjStatsClient {
 
     private String get(String uri, Object... uriVariables) {
         RestClientException lastFailure = null;
-        for (int attempt = 1; attempt <= 3; attempt++) {
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 String body = restClient.get().uri(uri, uriVariables).retrieve().body(String.class);
                 if (body == null || body.isBlank()) {
                     throw new TjStatsSourceException("赛事官网接口返回空响应：" + uri);
                 }
                 return body;
-            } catch (RestClientException exception) {
+            } catch (RestClientResponseException exception) {
+                int statusCode = exception.getStatusCode().value();
+                if (NON_RETRYABLE_STATUS_CODES.contains(statusCode)) {
+                    throw new TjStatsSourceException(
+                            "赛事官网接口返回不可恢复的错误 HTTP " + statusCode + "：" + uri, exception);
+                }
+                // 可重试的 HTTP 错误（408, 425, 429, 5xx 等）继续重试
                 lastFailure = exception;
-                if (attempt < 3) {
+                if (attempt < MAX_ATTEMPTS) {
+                    waitBeforeRetry(attempt);
+                }
+            } catch (RestClientException exception) {
+                // 连接/读取类异常，继续重试
+                lastFailure = exception;
+                if (attempt < MAX_ATTEMPTS) {
                     waitBeforeRetry(attempt);
                 }
             }
         }
-        throw new TjStatsSourceException("访问赛事官网接口失败，重试 3 次后仍未恢复：" + uri, lastFailure);
+        throw new TjStatsSourceException("访问赛事官网接口失败，重试 " + MAX_ATTEMPTS + " 次后仍未恢复：" + uri, lastFailure);
     }
 
     private static void waitBeforeRetry(int attempt) {
