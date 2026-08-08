@@ -2,6 +2,7 @@ package com.loldatahub.infrastructure.mapper;
 
 import com.loldatahub.domain.catalog.Season;
 import com.loldatahub.domain.catalog.Stage;
+import com.loldatahub.infrastructure.model.StageAvailabilityRow;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -34,11 +35,20 @@ public interface CatalogMapper {
     List<Season> findSeasons();
 
     @Select("""
-            SELECT source_season_id AS sourceSeasonId, source_stage_id AS sourceStageId,
-                   name, start_time AS startTime, end_time AS endTime
-            FROM stage WHERE source_season_id = #{seasonId}
-            ORDER BY start_time, source_stage_id
+            SELECT s.source_season_id AS sourceSeasonId,
+                   s.source_stage_id AS sourceStageId,
+                   s.name,
+                   s.start_time AS startTime,
+                   s.end_time AS endTime,
+                   CASE WHEN ss.source_stage_id IS NULL THEN FALSE ELSE TRUE END AS collected,
+                   ss.sample_base_count AS sampleBaseCount,
+                   ss.collected_at AS collectedAt
+            FROM stage s
+            LEFT JOIN stage_stat_current ss
+              ON ss.source_season_id = s.source_season_id
+             AND ss.source_stage_id = s.source_stage_id
+            WHERE s.source_season_id = #{seasonId}
+            ORDER BY s.start_time, s.source_stage_id
             """)
-    List<Stage> findStages(@Param("seasonId") long seasonId);
+    List<StageAvailabilityRow> findStageAvailability(@Param("seasonId") long seasonId);
 }
-

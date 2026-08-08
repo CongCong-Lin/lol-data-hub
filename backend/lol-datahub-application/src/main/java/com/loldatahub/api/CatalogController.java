@@ -2,7 +2,6 @@ package com.loldatahub.api;
 
 import com.loldatahub.collector.CatalogCollectionService;
 import com.loldatahub.domain.catalog.Season;
-import com.loldatahub.domain.catalog.Stage;
 import com.loldatahub.infrastructure.mapper.CatalogMapper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,8 +28,10 @@ public class CatalogController {
     }
 
     @GetMapping("/stages")
-    ApiResponse<List<Stage>> stages(@RequestParam long seasonId) {
-        return ApiResponse.success(catalogMapper.findStages(seasonId));
+    ApiResponse<List<StageView>> stages(@RequestParam long seasonId) {
+        return ApiResponse.success(catalogMapper.findStageAvailability(seasonId).stream()
+                .map(StageView::from)
+                .toList());
     }
 
     @PostMapping("/sync")
@@ -38,4 +39,3 @@ public class CatalogController {
         return ApiResponse.success(collectionService.sync(seasonId));
     }
 }
-
