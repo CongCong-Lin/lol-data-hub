@@ -26,6 +26,7 @@ services:
       REDIS_PORT: "6379"
       TJSTATS_AUTHORIZATION: ${TJSTATS_AUTHORIZATION:-}
       TJSTATS_BASE_URL: ${TJSTATS_BASE_URL:-https://open.tjstats.com/match-auth-app/open/v1}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
     depends_on:
       mysql:
         condition: service_healthy

@@ -23,16 +23,19 @@
 
 ```powershell
 cp .env.example .env
-# 编辑 .env，填入 TJSTATS_AUTHORIZATION
+# 编辑 .env，填入 TJSTATS_AUTHORIZATION 和 INTERNAL_API_TOKEN
 ```
 
 或者直接设置系统环境变量：
 
 ```powershell
 $env:TJSTATS_AUTHORIZATION = "你的官网 Authorization 值"
+$env:INTERNAL_API_TOKEN = "你的内部接口令牌"
 ```
 
 > **注意**：`TJSTATS_BASE_URL` 默认使用 `https://open.tjstats.com/match-auth-app/open/v1`。如果部署环境无法直连（如使用代理或 VPN 导致出口 IP 不稳定），可设置为境内转发服务地址。
+>
+> `INTERNAL_API_TOKEN` 为内部接口访问令牌，为空时内部接口返回 503 不可用。建议使用 `openssl rand -hex 32` 生成。
 
 ### 2. 启动全部服务
 
@@ -40,12 +43,13 @@ $env:TJSTATS_AUTHORIZATION = "你的官网 Authorization 值"
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-启动后访问 `http://localhost:${FRONTEND_PORT:-8081}`。
+使用默认配置时，启动后访问 `http://localhost:8081`；修改 `FRONTEND_PORT` 后请使用对应端口。
 
 ### 3. 初始化赛季目录
 
 ```powershell
-curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/catalog/sync
+curl -X POST http://localhost:8080/api/internal/catalog/sync `
+  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN"
 ```
 
 ### 4. 手动采集数据
@@ -53,7 +57,8 @@ curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/catalog/sync
 英雄统计采集示例：
 
 ```powershell
-curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/collections/heroes `
+curl -X POST http://localhost:8080/api/internal/collections/heroes `
+  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
   -H "Content-Type: application/json" `
   -d '{"seasonId": 237, "stageIds": [112, 113, 100]}'
 ```
@@ -61,7 +66,8 @@ curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/collections/her
 战队统计采集：
 
 ```powershell
-curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/collections/teams `
+curl -X POST http://localhost:8080/api/internal/collections/teams `
+  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
   -H "Content-Type: application/json" `
   -d '{"seasonId": 237, "stageIds": [112]}'
 ```
@@ -69,7 +75,8 @@ curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/collections/tea
 选手统计采集：
 
 ```powershell
-curl -X POST http://localhost:${BACKEND_PORT:-8080}/api/internal/collections/players `
+curl -X POST http://localhost:8080/api/internal/collections/players `
+  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
   -H "Content-Type: application/json" `
   -d '{"seasonId": 237, "stageIds": [112]}'
 ```
@@ -130,7 +137,7 @@ cd frontend && npm run build
 | POST | `/api/internal/collections/teams` | 采集战队统计 |
 | POST | `/api/internal/collections/players` | 采集选手统计 |
 
-> **注意**：内部接口（`/api/internal/`）需要直接访问后端端口，Nginx 代理层会对该路径返回 404。
+> **注意**：内部接口（`/api/internal/`）需要在请求头中携带 `X-Internal-Token` 进行鉴权，且必须直连后端端口（仅绑定 `127.0.0.1`），Nginx 不代理该路径（返回 404）。`INTERNAL_API_TOKEN` 为手动同步和采集的必填环境变量。
 
 ### 查询参数说明
 
@@ -143,6 +150,7 @@ cd frontend && npm run build
 | 变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `TJSTATS_AUTHORIZATION` | 是 | - | 官网请求凭据 |
+| `INTERNAL_API_TOKEN` | 是 | - | 内部接口访问令牌（手动同步/采集必填，为空则内部接口返回 503） |
 | `TJSTATS_BASE_URL` | 否 | `https://open.tjstats.com/match-auth-app/open/v1` | 数据源地址 |
 | `FRONTEND_PORT` | 否 | `8081` | 前端宿主端口 |
 | `BACKEND_PORT` | 否 | `8080` | 后端宿主端口（仅绑定 127.0.0.1） |
