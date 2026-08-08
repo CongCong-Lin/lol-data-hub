@@ -72,7 +72,6 @@ public class TeamCollectionService {
             for (Long stageId : normalizedStageIds) {
                 String rawJson = client.fetchTeamStatistics(seasonId, stageId);
                 String contentHash = sha256(rawJson);
-                var teams = parser.parseTeamStage(rawJson);
                 OffsetDateTime collectedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
                 collectionMapper.insertRawResponse(
@@ -83,6 +82,8 @@ public class TeamCollectionService {
                         contentHash,
                         collectedAt
                 );
+
+                var teams = parser.parseTeamStage(rawJson);
 
                 if (contentHash.equals(statisticsMapper.findCurrentContentHash(seasonId, stageId))) {
                     unchanged.add(stageId);

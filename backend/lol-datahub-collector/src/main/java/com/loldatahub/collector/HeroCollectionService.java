@@ -68,7 +68,6 @@ public class HeroCollectionService {
             for (Long stageId : normalizedStageIds) {
                 String rawJson = client.fetchHeroStatistics(seasonId, stageId);
                 String contentHash = sha256(rawJson);
-                var payload = parser.parseHeroStage(rawJson);
                 OffsetDateTime collectedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
                 collectionMapper.insertRawResponse(
@@ -79,6 +78,8 @@ public class HeroCollectionService {
                         contentHash,
                         collectedAt
                 );
+
+                var payload = parser.parseHeroStage(rawJson);
 
                 if (contentHash.equals(collectionMapper.findCurrentContentHash(seasonId, stageId))) {
                     unchanged.add(stageId);
