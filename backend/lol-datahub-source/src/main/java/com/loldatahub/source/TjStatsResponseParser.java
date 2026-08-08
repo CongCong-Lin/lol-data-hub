@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.source.model.HeroStagePayload;
 import com.loldatahub.source.model.HeroStatSourceRecord;
+import com.loldatahub.source.model.PlayerStatSourceRecord;
 import com.loldatahub.source.model.SeasonSourceRecord;
 import com.loldatahub.source.model.SeasonStagesSourceRecord;
 import com.loldatahub.source.model.TeamStatSourceRecord;
@@ -55,6 +56,14 @@ public class TjStatsResponseParser {
         return objectMapper.convertValue(
                 data,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, TeamStatSourceRecord.class)
+        );
+    }
+
+    public List<PlayerStatSourceRecord> parsePlayerStage(String rawJson) {
+        JsonNode data = validatedData(rawJson);
+        return objectMapper.convertValue(
+                data,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, PlayerStatSourceRecord.class)
         );
     }
 

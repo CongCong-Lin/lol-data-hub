@@ -2,6 +2,7 @@ package com.loldatahub.api;
 
 import com.loldatahub.collector.CollectionResult;
 import com.loldatahub.collector.HeroCollectionService;
+import com.loldatahub.collector.PlayerCollectionService;
 import com.loldatahub.collector.TeamCollectionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -18,11 +19,14 @@ import java.util.List;
 public class CollectionController {
     private final HeroCollectionService heroCollectionService;
     private final TeamCollectionService teamCollectionService;
+    private final PlayerCollectionService playerCollectionService;
 
     public CollectionController(HeroCollectionService heroCollectionService,
-                                TeamCollectionService teamCollectionService) {
+                                TeamCollectionService teamCollectionService,
+                                PlayerCollectionService playerCollectionService) {
         this.heroCollectionService = heroCollectionService;
         this.teamCollectionService = teamCollectionService;
+        this.playerCollectionService = playerCollectionService;
     }
 
     @PostMapping("/heroes")
@@ -33,6 +37,11 @@ public class CollectionController {
     @PostMapping("/teams")
     ApiResponse<CollectionResult> collectTeams(@Valid @RequestBody CollectionRequest request) {
         return ApiResponse.success(teamCollectionService.collect(request.seasonId(), request.stageIds()));
+    }
+
+    @PostMapping("/players")
+    ApiResponse<CollectionResult> collectPlayers(@Valid @RequestBody CollectionRequest request) {
+        return ApiResponse.success(playerCollectionService.collect(request.seasonId(), request.stageIds()));
     }
 
     public record CollectionRequest(

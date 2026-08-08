@@ -20,4 +20,15 @@ class StatisticsQueryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("最低比赛场数不能小于 0");
     }
+
+    @Test
+    void normalizesAndValidatesPlayerPosition() {
+        var query = new PlayerStatisticsQuery(1, List.of(1L), 0, " jug ", "kda", SortDirection.DESC);
+
+        org.assertj.core.api.Assertions.assertThat(query.position()).isEqualTo("JUG");
+        assertThatThrownBy(() -> new PlayerStatisticsQuery(
+                1, List.of(1L), 0, "JUN", "kda", SortDirection.DESC
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("未知的选手位置：JUN");
+    }
 }

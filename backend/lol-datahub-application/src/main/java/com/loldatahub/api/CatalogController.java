@@ -31,6 +31,7 @@ public class CatalogController {
         var rows = switch (statisticType.toUpperCase(java.util.Locale.ROOT)) {
             case "HERO" -> catalogMapper.findHeroStageAvailability(seasonId);
             case "TEAM" -> catalogMapper.findTeamStageAvailability(seasonId);
+            case "PLAYER" -> catalogMapper.findPlayerStageAvailability(seasonId);
             default -> throw new IllegalArgumentException("不支持的统计类型：" + statisticType);
         };
         return ApiResponse.success(rows.stream()

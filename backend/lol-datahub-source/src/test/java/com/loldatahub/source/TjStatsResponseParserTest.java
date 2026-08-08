@@ -80,4 +80,76 @@ class TjStatsResponseParserTest {
             assertThat(team.wardPlacedPerGameTeam()).isEqualByComparingTo("50.5");
         });
     }
+
+    @Test
+    void parsesPlayerStageWithPlayerId() {
+        String json = """
+                {
+                  "success": true,
+                  "data": [{
+                    "playerId": 12345,
+                    "teamId": 100,
+                    "playerName": "JackeyLove",
+                    "playerAvatar": "https://example.com/jkl.png",
+                    "playerLocation": "AD",
+                    "teamName": "TES",
+                    "teamLogo": "https://example.com/tes.png",
+                    "matchCount": 20,
+                    "mvpCount": 5,
+                    "mvpVotes": 100,
+                    "kda": 6.5,
+                    "totalKills": 150,
+                    "totalAssists": 200,
+                    "totalDeath": 50,
+                    "goldPerGame": 15000.0,
+                    "creepScorePerGame": 320.5,
+                    "wardPlacedPerGame": 20.0,
+                    "wardKilledPerGame": 10.0,
+                    "killParticipantPercent": 0.65,
+                    "goldGapPerGame": 2000.0,
+                    "damagePercent": 0.30,
+                    "goldPercent": 0.25
+                  }]
+                }
+                """;
+
+        var players = parser.parsePlayerStage(json);
+
+        assertThat(players).singleElement().satisfies(player -> {
+            assertThat(player.playerId()).isEqualTo(12345L);
+            assertThat(player.playerName()).isEqualTo("JackeyLove");
+            assertThat(player.matchCount()).isEqualTo(20);
+            assertThat(player.totalKills()).isEqualTo(150);
+            assertThat(player.goldPerGame()).isEqualByComparingTo("15000.0");
+        });
+    }
+
+    @Test
+    void parsesPlayerStageWithoutPlayerId() {
+        String json = """
+                {
+                  "success": true,
+                  "data": [{
+                    "playerName": "Rookie",
+                    "playerLocation": "MID",
+                    "teamName": "TES",
+                    "matchCount": 15,
+                    "mvpCount": 3,
+                    "mvpVotes": 50,
+                    "totalKills": 100,
+                    "totalAssists": 180,
+                    "totalDeath": 40
+                  }]
+                }
+                """;
+
+        var players = parser.parsePlayerStage(json);
+
+        assertThat(players).singleElement().satisfies(player -> {
+            assertThat(player.playerId()).isNull();
+            assertThat(player.playerName()).isEqualTo("Rookie");
+            assertThat(player.matchCount()).isEqualTo(15);
+            assertThat(player.goldPerGame()).isNull();
+        });
+    }
 }

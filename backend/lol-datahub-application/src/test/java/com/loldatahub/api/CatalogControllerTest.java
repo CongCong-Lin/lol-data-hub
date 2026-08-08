@@ -46,6 +46,19 @@ class CatalogControllerTest {
     }
 
     @Test
+    void resolvesPlayerAvailability() {
+        CatalogMapper mapper = mock(CatalogMapper.class);
+        CatalogController controller = new CatalogController(mapper);
+        when(mapper.findPlayerStageAvailability(237L)).thenReturn(List.of(
+                new StageAvailabilityRow(237, 112, "第一赛段", null, null, false, null, null)
+        ));
+
+        ApiResponse<List<StageView>> response = controller.stages(237L, "PLAYER");
+
+        assertThat(response.data()).singleElement().extracting(StageView::collected).isEqualTo(false);
+    }
+
+    @Test
     void rejectsUnsupportedStatisticType() {
         CatalogController controller = new CatalogController(mock(CatalogMapper.class));
 
