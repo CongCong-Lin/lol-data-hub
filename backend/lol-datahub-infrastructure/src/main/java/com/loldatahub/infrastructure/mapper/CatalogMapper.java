@@ -50,5 +50,23 @@ public interface CatalogMapper {
             WHERE s.source_season_id = #{seasonId}
             ORDER BY s.start_time, s.source_stage_id
             """)
-    List<StageAvailabilityRow> findStageAvailability(@Param("seasonId") long seasonId);
+    List<StageAvailabilityRow> findHeroStageAvailability(@Param("seasonId") long seasonId);
+
+    @Select("""
+            SELECT s.source_season_id AS sourceSeasonId,
+                   s.source_stage_id AS sourceStageId,
+                   s.name,
+                   s.start_time AS startTime,
+                   s.end_time AS endTime,
+                   CASE WHEN tc.source_stage_id IS NULL THEN FALSE ELSE TRUE END AS collected,
+                   NULL AS sampleBaseCount,
+                   tc.collected_at AS collectedAt
+            FROM stage s
+            LEFT JOIN team_stage_collection_current tc
+              ON tc.source_season_id = s.source_season_id
+             AND tc.source_stage_id = s.source_stage_id
+            WHERE s.source_season_id = #{seasonId}
+            ORDER BY s.start_time, s.source_stage_id
+            """)
+    List<StageAvailabilityRow> findTeamStageAvailability(@Param("seasonId") long seasonId);
 }
