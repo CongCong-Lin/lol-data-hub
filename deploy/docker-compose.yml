@@ -1,4 +1,14 @@
 services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    container_name: lol-datahub-frontend
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   mysql:
     image: mysql:8.4
     container_name: lol-datahub-mysql

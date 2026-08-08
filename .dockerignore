@@ -1,0 +1,8 @@
+.git
+.claude
+**/node_modules
+**/target
+frontend/dist
+.mvn/repository
+.env
+*.log
