@@ -53,6 +53,32 @@ export interface ChampionStatisticsResult {
   items: ChampionStatistics[]
 }
 
+export interface TeamStatistics {
+  teamId: number
+  teamName: string
+  teamLogo: string | null
+  matchCount: number
+  matchWinCount: number
+  winningRate: number
+  totalKills: number
+  killPerGame: number
+  totalDeaths: number
+  deathPerGame: number
+  wardPlacedPerGame: number
+  wardKilledPerGame: number
+  goldPerGame: number
+  baronKillPerGame: number
+  drakeKillPerGame: number
+  sampleQualified: boolean
+}
+
+export interface TeamStatisticsResult {
+  dataVersion: number
+  minimumMatchCount: number
+  total: number
+  items: TeamStatistics[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -67,7 +93,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   seasons: () => request<Season[]>('/api/v1/catalog/seasons'),
-  stages: (seasonId: number) => request<Stage[]>(`/api/v1/catalog/stages?seasonId=${seasonId}`),
+  stages: (seasonId: number, statisticType: 'HERO' | 'TEAM' = 'HERO') =>
+    request<Stage[]>(`/api/v1/catalog/stages?seasonId=${seasonId}&statisticType=${statisticType}`),
   championStatistics: (
     seasonId: number,
     stageIds: number[],
@@ -83,5 +110,21 @@ export const api = {
       sortDirection,
     })
     return request<ChampionStatisticsResult>(`/api/v1/statistics/champions?${params}`)
+  },
+  teamStatistics: (
+    seasonId: number,
+    stageIds: number[],
+    minimumMatchCount: number,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params = new URLSearchParams({
+      seasonId: String(seasonId),
+      stageIds: stageIds.join(','),
+      minimumMatchCount: String(minimumMatchCount),
+      sortBy,
+      sortDirection,
+    })
+    return request<TeamStatisticsResult>(`/api/v1/statistics/teams?${params}`)
   },
 }
