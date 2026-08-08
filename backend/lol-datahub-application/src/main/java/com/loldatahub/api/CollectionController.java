@@ -6,7 +6,9 @@ import com.loldatahub.collector.PlayerCollectionService;
 import com.loldatahub.collector.TeamCollectionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,7 +48,7 @@ public class CollectionController {
 
     public record CollectionRequest(
             @Positive long seasonId,
-            @NotEmpty List<@Positive Long> stageIds
+            @NotEmpty @Size(max = 50) List<@NotNull @Positive Long> stageIds
     ) {
     }
 }
