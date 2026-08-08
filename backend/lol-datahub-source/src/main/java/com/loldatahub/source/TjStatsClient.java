@@ -24,6 +24,10 @@ public class TjStatsClient {
         return get("/compound/public/hero?seasonId={seasonId}&stageIds={stageId}", seasonId, stageId);
     }
 
+    public String fetchTeamStatistics(long seasonId, long stageId) {
+        return get("/compound/public/team?seasonId={seasonId}&stageIds={stageId}", seasonId, stageId);
+    }
+
     private String get(String uri, Object... uriVariables) {
         RestClientException lastFailure = null;
         for (int attempt = 1; attempt <= 3; attempt++) {

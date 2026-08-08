@@ -7,6 +7,7 @@ import com.loldatahub.source.model.HeroStagePayload;
 import com.loldatahub.source.model.HeroStatSourceRecord;
 import com.loldatahub.source.model.SeasonSourceRecord;
 import com.loldatahub.source.model.SeasonStagesSourceRecord;
+import com.loldatahub.source.model.TeamStatSourceRecord;
 
 import java.time.Instant;
 import java.util.List;
@@ -46,6 +47,14 @@ public class TjStatsResponseParser {
                 updatedAt > 0 ? Instant.ofEpochSecond(updatedAt) : null,
                 gameVersion,
                 heroes
+        );
+    }
+
+    public List<TeamStatSourceRecord> parseTeamStage(String rawJson) {
+        JsonNode data = validatedData(rawJson);
+        return objectMapper.convertValue(
+                data,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, TeamStatSourceRecord.class)
         );
     }
 

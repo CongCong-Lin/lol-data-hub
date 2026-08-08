@@ -3,25 +3,24 @@ package com.loldatahub.domain.statistics;
 import java.util.List;
 import java.util.Locale;
 
-public record ChampionStatisticsQuery(
+public record TeamStatisticsQuery(
         long seasonId,
         List<Long> stageIds,
-        int minimumPickCount,
+        int minimumMatchCount,
         String sortBy,
         SortDirection sortDirection
 ) {
-    public ChampionStatisticsQuery {
+    public TeamStatisticsQuery {
         stageIds = stageIds == null ? List.of() : stageIds.stream().distinct().sorted().toList();
-        if (minimumPickCount < 0) {
-            throw new IllegalArgumentException("最低出场次数不能小于 0");
+        if (minimumMatchCount < 0) {
+            throw new IllegalArgumentException("最低比赛场数不能小于 0");
         }
-        sortBy = sortBy == null || sortBy.isBlank() ? "bpRate" : sortBy;
+        sortBy = sortBy == null || sortBy.isBlank() ? "winningRate" : sortBy;
         sortDirection = sortDirection == null ? SortDirection.DESC : sortDirection;
     }
 
     public String cacheFingerprint() {
-        return seasonId + ":" + stageIds + ":" + minimumPickCount + ":"
+        return seasonId + ":" + stageIds + ":" + minimumMatchCount + ":"
                 + sortBy.toLowerCase(Locale.ROOT) + ":" + sortDirection.name();
     }
-
 }
