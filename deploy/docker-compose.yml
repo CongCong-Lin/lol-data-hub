@@ -6,27 +6,58 @@ services:
     container_name: lol-datahub-frontend
     ports:
       - "${FRONTEND_PORT:-8081}:80"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/lol-datahub-application/Dockerfile
+    container_name: lol-datahub-backend
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    environment:
+      MYSQL_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-lol_data_hub}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      MYSQL_USERNAME: ${MYSQL_USERNAME:-loldatahub}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-loldatahub}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      TJSTATS_AUTHORIZATION: ${TJSTATS_AUTHORIZATION:-}
+      TJSTATS_BASE_URL: ${TJSTATS_BASE_URL:-https://open.tjstats.com/match-auth-app/open/v1}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
 
   mysql:
     image: mysql:8.4
     container_name: lol-datahub-mysql
     environment:
-      MYSQL_DATABASE: lol_data_hub
-      MYSQL_USER: loldatahub
-      MYSQL_PASSWORD: loldatahub
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-lol_data_hub}
+      MYSQL_USER: ${MYSQL_USERNAME:-loldatahub}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-loldatahub}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       TZ: Asia/Shanghai
     ports:
       - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - lol-datahub-mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$${MYSQL_ROOT_PASSWORD}\""]
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
 
   redis:
     image: redis:7.4-alpine
@@ -40,6 +71,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    restart: unless-stopped
 
 volumes:
   lol-datahub-mysql:
