@@ -4,20 +4,32 @@ import {
   api,
   type ChampionStatistics,
   type ChampionStatisticsResult,
+  type PlayerStatistics,
+  type PlayerStatisticsResult,
   type Season,
   type Stage,
+  type StatisticType,
   type TeamStatistics,
   type TeamStatisticsResult,
 } from './api'
 
-type ActiveView = 'champion' | 'team'
+type ActiveView = 'champion' | 'team' | 'player'
 
-const POSITION_OPTIONS = [
+const CHAMPION_POSITION_OPTIONS = [
   { value: '', label: '全部' },
   { value: 'TOP', label: '上单' },
   { value: 'JUN', label: '打野' },
   { value: 'MID', label: '中路' },
   { value: 'BOT', label: '下路' },
+  { value: 'SUP', label: '辅助' },
+]
+
+const PLAYER_POSITION_OPTIONS = [
+  { value: '', label: '全部' },
+  { value: 'TOP', label: '上单' },
+  { value: 'JUG', label: '打野' },
+  { value: 'MID', label: '中路' },
+  { value: 'AD', label: '下路' },
   { value: 'SUP', label: '辅助' },
 ]
 
@@ -37,6 +49,22 @@ const TEAM_SORT_OPTIONS = [
   { value: 'baronKillPerGame', label: '场均大龙' },
 ]
 
+const PLAYER_SORT_OPTIONS = [
+  { value: 'kda', label: 'KDA' },
+  { value: 'totalKills', label: '总击杀' },
+  { value: 'mvpCount', label: 'MVP' },
+  { value: 'killPerGame', label: '场均击杀' },
+  { value: 'goldPerGame', label: '场均经济' },
+  { value: 'damagePercent', label: '伤害占比' },
+  { value: 'matchCount', label: '比赛场数' },
+]
+
+const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
+  champion: 'HERO',
+  team: 'TEAM',
+  player: 'PLAYER',
+}
+
 const activeView = ref<ActiveView>('champion')
 const seasons = ref<Season[]>([])
 const stages = ref<Stage[]>([])
@@ -46,12 +74,16 @@ const minimumPickCount = ref(10)
 const minimumMatchCount = ref(5)
 const sortBy = ref('bpRate')
 const teamSortBy = ref('winningRate')
+const playerSortBy = ref('kda')
 const sortDirection = ref('desc')
 const positionFilter = ref('')
+const playerPositionFilter = ref('')
 const search = ref('')
 const teamSearch = ref('')
+const playerSearch = ref('')
 const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
+const playerResult = ref<PlayerStatisticsResult | null>(null)
 const busy = ref(false)
 const stagesLoading = ref(false)
 const notice = ref('')
@@ -94,6 +126,20 @@ const filteredTeamItems = computed(() => {
   return items
 })
 
+const filteredPlayerItems = computed(() => {
+  let items = playerResult.value?.items ?? []
+  if (playerPositionFilter.value) {
+    items = items.filter((item) => item.positions.includes(playerPositionFilter.value))
+  }
+  const keyword = playerSearch.value.trim().toLowerCase()
+  if (keyword) {
+    items = items.filter((item) =>
+      `${item.playerName}${item.teamNames.join('')}`.toLowerCase().includes(keyword),
+    )
+  }
+  return items
+})
+
 const latestCollectedAt = computed(() => {
   const timestamps = selectedStages.value
     .map((s) => s.collectedAt)
@@ -102,11 +148,17 @@ const latestCollectedAt = computed(() => {
 })
 
 const latestUpdatedAt = computed(() => {
-  if (activeView.value === 'team') return latestCollectedAt.value
+  if (activeView.value === 'team' || activeView.value === 'player') return latestCollectedAt.value
   const timestamps = (result.value?.items ?? [])
     .map((item) => item.sourceUpdatedAt)
     .filter(Boolean) as string[]
   return timestamps.sort().at(-1) ?? latestCollectedAt.value
+})
+
+const currentDataVersion = computed(() => {
+  if (activeView.value === 'champion') return result.value?.dataVersion
+  if (activeView.value === 'team') return teamResult.value?.dataVersion
+  return playerResult.value?.dataVersion
 })
 
 const canQuery = computed(() => {
@@ -126,11 +178,12 @@ async function loadStages() {
   querySeq++
   busy.value = false
   const sid = seasonId.value
-  const type = activeView.value === 'champion' ? 'HERO' : 'TEAM'
+  const type = VIEW_STAT_TYPE[activeView.value]
   stages.value = []
   selectedStageIds.value = []
   result.value = null
   teamResult.value = null
+  playerResult.value = null
   notice.value = ''
   error.value = ''
   stagesLoading.value = true
@@ -164,7 +217,7 @@ async function query() {
         sortDirection.value,
       )
       if (seq === querySeq && activeView.value === view) result.value = data
-    } else {
+    } else if (view === 'team') {
       const data = await api.teamStatistics(
         seasonId.value,
         selectedStageIds.value,
@@ -173,6 +226,16 @@ async function query() {
         sortDirection.value,
       )
       if (seq === querySeq && activeView.value === view) teamResult.value = data
+    } else {
+      const data = await api.playerStatistics(
+        seasonId.value,
+        selectedStageIds.value,
+        minimumMatchCount.value,
+        '',
+        playerSortBy.value,
+        sortDirection.value,
+      )
+      if (seq === querySeq && activeView.value === view) playerResult.value = data
     }
     if (seq === querySeq) notice.value = '查询完成'
   } catch (reason) {
@@ -187,6 +250,7 @@ function switchView(view: ActiveView) {
   activeView.value = view
   result.value = null
   teamResult.value = null
+  playerResult.value = null
   notice.value = ''
   error.value = ''
   void loadStages()
@@ -208,7 +272,16 @@ function fmtDecimal(value: number, digits = 2) {
 }
 
 function fmtGold(value: number) {
+  if (value < 0) return '-' + ((-value) / 1000).toFixed(1) + 'k'
   return (value / 1000).toFixed(1) + 'k'
+}
+
+function fmtPositions(positions: string[]) {
+  return positions.join(' / ') || '—'
+}
+
+function fmtTeamNames(teamNames: string[]) {
+  return teamNames.join(' / ') || '—'
 }
 
 watch(seasonId, () => { void loadStages() })
@@ -233,7 +306,7 @@ onMounted(async () => {
       </div>
       <div class="status-card">
         <span>数据版本</span>
-        <strong>{{ (activeView === 'champion' ? result?.dataVersion : teamResult?.dataVersion) ?? '—' }}</strong>
+        <strong>{{ currentDataVersion ?? '—' }}</strong>
         <small>{{ latestUpdatedAt ? `更新于 ${new Date(latestUpdatedAt).toLocaleString()}` : '尚未查询数据' }}</small>
       </div>
     </header>
@@ -252,6 +325,13 @@ onMounted(async () => {
         @click="switchView('team')"
       >
         战队统计
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeView === 'player' }"
+        @click="switchView('player')"
+      >
+        选手统计
       </button>
     </nav>
 
@@ -279,10 +359,16 @@ onMounted(async () => {
           <option v-for="opt in CHAMPION_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
       </div>
-      <div v-else class="field compact">
+      <div v-else-if="activeView === 'team'" class="field compact">
         <label for="teamSort">排序指标</label>
         <select id="teamSort" v-model="teamSortBy">
           <option v-for="opt in TEAM_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </div>
+      <div v-else class="field compact">
+        <label for="playerSort">排序指标</label>
+        <select id="playerSort" v-model="playerSortBy">
+          <option v-for="opt in PLAYER_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
       </div>
       <div class="field compact">
@@ -300,7 +386,8 @@ onMounted(async () => {
         <div class="stage-heading">
           <span>选择一个或多个赛段</span>
           <small v-if="activeView === 'champion'">跨赛段：胜率等由可加总计数重算，不平均官网百分比</small>
-          <small v-else>跨赛段：胜率/击杀由可加总计数重算；眼位/经济/龙按比赛场数加权，非简单平均</small>
+          <small v-else-if="activeView === 'team'">跨赛段：胜率/击杀由可加总计数重算；眼位/经济/龙按比赛场数加权，非简单平均</small>
+          <small v-else>跨赛段：KDA/击杀/助攻/死亡由计数重算；经济/补刀/视野及参团率/伤害占比等按比赛场数加权，比例为近似整合口径</small>
         </div>
         <div v-if="stagesLoading" class="empty-inline">正在加载赛段…</div>
         <div v-else-if="stages.length" class="stage-list">
@@ -318,7 +405,7 @@ onMounted(async () => {
           </button>
         </div>
         <p v-else class="empty-inline">
-          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : '该赛季暂无赛段数据。' }}
+          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : '该赛季暂无赛段数据。' }}
         </p>
       </div>
     </section>
@@ -326,7 +413,7 @@ onMounted(async () => {
     <section v-if="selectedStageIds.length > 0" class="query-summary">
       <span>已选 <strong>{{ selectedStageIds.length }}</strong> 个赛段</span>
       <span v-if="activeView === 'champion'">样本基数合计 <strong>{{ totalSampleBase }}</strong></span>
-      <span>数据版本 <strong>{{ (activeView === 'champion' ? result?.dataVersion : teamResult?.dataVersion) ?? '—' }}</strong></span>
+      <span>数据版本 <strong>{{ currentDataVersion ?? '—' }}</strong></span>
       <span v-if="latestUpdatedAt">最近更新 <strong>{{ new Date(latestUpdatedAt).toLocaleString() }}</strong></span>
     </section>
 
@@ -343,7 +430,7 @@ onMounted(async () => {
         <div class="toolbar-right">
           <div class="position-filter">
             <button
-              v-for="opt in POSITION_OPTIONS"
+              v-for="opt in CHAMPION_POSITION_OPTIONS"
               :key="opt.value"
               class="pos-chip"
               :class="{ active: positionFilter === opt.value }"
@@ -465,6 +552,89 @@ onMounted(async () => {
         <strong v-else-if="!teamResult">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
         <p v-if="!hasCollectedStages">请切换到其他赛季或采集战队数据后再查询。</p>
+      </div>
+    </section>
+
+    <!-- 选手统计面板 -->
+    <section v-if="activeView === 'player'" class="panel table-panel">
+      <div class="table-toolbar">
+        <div>
+          <p class="eyebrow">PLAYER STATISTICS</p>
+          <h2>选手统计</h2>
+        </div>
+        <div class="toolbar-right">
+          <div class="position-filter">
+            <button
+              v-for="opt in PLAYER_POSITION_OPTIONS"
+              :key="opt.value"
+              class="pos-chip"
+              :class="{ active: playerPositionFilter === opt.value }"
+              @click="playerPositionFilter = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <div class="search-wrap">
+            <input v-model="playerSearch" type="search" placeholder="搜索选手、战队" />
+            <span>{{ filteredPlayerItems.length }} 项</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="filteredPlayerItems.length" class="table-scroll">
+        <table class="player-table">
+          <thead>
+            <tr>
+              <th>选手</th>
+              <th>位置</th>
+              <th>比赛</th>
+              <th>MVP</th>
+              <th>KDA</th>
+              <th>总击杀</th>
+              <th>总助攻</th>
+              <th>总死亡</th>
+              <th>场均经济</th>
+              <th>场均补刀</th>
+              <th>参团率</th>
+              <th>场均经济差</th>
+              <th>伤害占比</th>
+              <th>经济占比</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in filteredPlayerItems" :key="item.playerKey">
+              <td>
+                <div class="player-cell">
+                  <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
+                  <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
+                  <div>
+                    <strong>{{ item.playerName }}</strong>
+                    <small>{{ fmtTeamNames(item.teamNames) }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>{{ fmtPositions(item.positions) }}</td>
+              <td>{{ item.matchCount }}</td>
+              <td>{{ item.mvpCount }}</td>
+              <td class="accent">{{ fmtDecimal(item.kda) }}</td>
+              <td>{{ item.totalKills }}</td>
+              <td>{{ item.totalAssists }}</td>
+              <td>{{ item.totalDeaths }}</td>
+              <td>{{ fmtGold(item.goldPerGame) }}</td>
+              <td>{{ fmtDecimal(item.creepScorePerGame) }}</td>
+              <td class="accent">{{ percent(item.killParticipantPercent) }}</td>
+              <td>{{ fmtGold(item.goldGapPerGame) }}</td>
+              <td class="accent">{{ percent(item.damagePercent) }}</td>
+              <td>{{ percent(item.goldPercent) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="empty-state">
+        <strong v-if="!hasCollectedStages">该赛季暂无已采集选手数据</strong>
+        <strong v-else-if="!playerResult">选择赛段后点击查询</strong>
+        <strong v-else>无匹配结果</strong>
+        <p v-if="!hasCollectedStages">请切换到其他赛季或采集选手数据后再查询。</p>
       </div>
     </section>
   </main>

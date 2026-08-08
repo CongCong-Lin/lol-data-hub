@@ -34,6 +34,7 @@ h1 .title-tail { white-space: nowrap; }
 }
 .tab-btn:first-child { border-radius: 6px 0 0 6px; }
 .tab-btn:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.tab-btn + .tab-btn { border-left: 0; }
 .tab-btn:hover { background: rgba(59,199,196,.06); color: #cbd5df; }
 .tab-btn.active { background: rgba(59,199,196,.15); color: #e7ffff; border-color: var(--cyan); }
 
@@ -104,6 +105,15 @@ tbody tr:hover { background: rgba(59,199,196,.04); }
 .team-table th, .team-table td { white-space: nowrap; padding: 12px 14px; }
 .team-table th { font-size: 11px; }
 .team-table td { font-size: 13px; }
+
+.player-cell { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+.player-avatar, .player-placeholder { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #162938; }
+.player-placeholder { display: grid; place-items: center; color: var(--gold); font-weight: 800; font-size: 14px; }
+.player-cell strong { display: block; white-space: nowrap; }
+.player-cell small { display: block; margin-top: 2px; color: #708395; font-size: 11px; white-space: nowrap; }
+.player-table th, .player-table td { white-space: nowrap; padding: 12px 14px; }
+.player-table th { font-size: 11px; }
+.player-table td { font-size: 13px; }
 
 @media (max-width: 960px) {
   .hero { align-items: stretch; flex-direction: column; }

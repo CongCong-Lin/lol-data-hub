@@ -12,6 +12,8 @@ export interface Season {
   open: boolean
 }
 
+export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER'
+
 export interface Stage {
   sourceSeasonId: number
   sourceStageId: number
@@ -79,6 +81,41 @@ export interface TeamStatisticsResult {
   items: TeamStatistics[]
 }
 
+export interface PlayerStatistics {
+  playerKey: string
+  sourcePlayerId: number | null
+  playerName: string
+  playerAvatar: string | null
+  teamNames: string[]
+  positions: string[]
+  matchCount: number
+  mvpCount: number
+  mvpVotes: number
+  totalKills: number
+  totalAssists: number
+  totalDeaths: number
+  kda: number
+  killPerGame: number
+  assistPerGame: number
+  deathPerGame: number
+  goldPerGame: number
+  creepScorePerGame: number
+  wardPlacedPerGame: number
+  wardKilledPerGame: number
+  killParticipantPercent: number
+  goldGapPerGame: number
+  damagePercent: number
+  goldPercent: number
+  sampleQualified: boolean
+}
+
+export interface PlayerStatisticsResult {
+  dataVersion: number
+  minimumMatchCount: number
+  total: number
+  items: PlayerStatistics[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -93,7 +130,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   seasons: () => request<Season[]>('/api/v1/catalog/seasons'),
-  stages: (seasonId: number, statisticType: 'HERO' | 'TEAM' = 'HERO') =>
+  stages: (seasonId: number, statisticType: StatisticType = 'HERO') =>
     request<Stage[]>(`/api/v1/catalog/stages?seasonId=${seasonId}&statisticType=${statisticType}`),
   championStatistics: (
     seasonId: number,
@@ -126,5 +163,23 @@ export const api = {
       sortDirection,
     })
     return request<TeamStatisticsResult>(`/api/v1/statistics/teams?${params}`)
+  },
+  playerStatistics: (
+    seasonId: number,
+    stageIds: number[],
+    minimumMatchCount: number,
+    position: string,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params: Record<string, string> = {
+      seasonId: String(seasonId),
+      stageIds: stageIds.join(','),
+      minimumMatchCount: String(minimumMatchCount),
+      sortBy,
+      sortDirection,
+    }
+    if (position) params.position = position
+    return request<PlayerStatisticsResult>(`/api/v1/statistics/players?${new URLSearchParams(params)}`)
   },
 }
