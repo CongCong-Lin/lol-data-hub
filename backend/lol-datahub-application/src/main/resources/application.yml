@@ -5,6 +5,8 @@ spring:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3307/lol_data_hub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
     username: ${MYSQL_USERNAME:loldatahub}
     password: ${MYSQL_PASSWORD:loldatahub}
+    hikari:
+      connection-init-sql: SET SESSION group_concat_max_len = 65535
   data:
     redis:
       host: ${REDIS_HOST:localhost}

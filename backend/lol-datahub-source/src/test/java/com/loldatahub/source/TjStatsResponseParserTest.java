@@ -12,6 +12,31 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TjStatsResponseParserTest {
     private final TjStatsResponseParser parser = new TjStatsResponseParser(new ObjectMapper());
 
+    @Test
+    void rejectsDuplicateSeasonIdsBeforeCatalogPublication() {
+        String json = """
+                {"success":true,"data":[
+                  {"seasonId":239,"seasonName":"2026季中冠军赛","openStatus":true},
+                  {"seasonId":239,"seasonName":"重复赛事","openStatus":false}
+                ]}
+                """;
+
+        assertThatThrownBy(() -> parser.parseSeasons(json))
+                .isInstanceOf(TjStatsSourceException.class)
+                .hasMessageContaining("seasonId 重复: 239");
+    }
+
+    @Test
+    void rejectsSeasonWithoutDisplayName() {
+        String json = """
+                {"success":true,"data":[{"seasonId":239,"seasonName":""}]}
+                """;
+
+        assertThatThrownBy(() -> parser.parseSeasons(json))
+                .isInstanceOf(TjStatsSourceException.class)
+                .hasMessageContaining("seasonName 不能为空");
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // 合法最小响应
     // ══════════════════════════════════════════════════════════════════════

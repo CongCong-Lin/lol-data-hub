@@ -29,10 +29,27 @@ public class TjStatsResponseParser {
 
     public List<SeasonSourceRecord> parseSeasons(String rawJson) {
         JsonNode data = validatedData(rawJson);
-        return objectMapper.convertValue(
+        if (!data.isArray() || data.isEmpty()) {
+            throw new TjStatsSourceException("SEASON: data 必须是非空数组");
+        }
+        requireIntegralFields(data, "SEASON", "seasonId");
+        List<SeasonSourceRecord> seasons = objectMapper.convertValue(
                 data,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, SeasonSourceRecord.class)
         );
+        Set<Long> seasonIds = new HashSet<>();
+        for (SeasonSourceRecord season : seasons) {
+            if (season.seasonId() <= 0) {
+                throw new TjStatsSourceException("SEASON: seasonId 必须大于 0，实际值: " + season.seasonId());
+            }
+            if (season.seasonName() == null || season.seasonName().isBlank()) {
+                throw new TjStatsSourceException("SEASON: seasonName 不能为空，seasonId=" + season.seasonId());
+            }
+            if (!seasonIds.add(season.seasonId())) {
+                throw new TjStatsSourceException("SEASON: seasonId 重复: " + season.seasonId());
+            }
+        }
+        return seasons;
     }
 
     public SeasonStagesSourceRecord parseStages(String rawJson, long expectedSeasonId) {
