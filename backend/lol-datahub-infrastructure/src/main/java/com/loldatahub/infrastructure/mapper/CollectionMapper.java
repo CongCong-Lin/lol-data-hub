@@ -36,7 +36,7 @@ public interface CollectionMapper {
     @Insert("""
             INSERT INTO source_raw_response
                 (collection_run_id, endpoint, request_parameters, response_body, content_hash, collected_at)
-            VALUES (#{runId}, #{endpoint}, CAST(#{parametersJson} AS JSON), CAST(#{responseBody} AS JSON),
+            VALUES (#{runId}, #{endpoint}, CAST(#{parametersJson} AS JSON), #{responseBody},
                     #{contentHash}, #{collectedAt})
             """)
     void insertRawResponse(@Param("runId") long runId,
@@ -74,4 +74,3 @@ public interface CollectionMapper {
         }
     }
 }
-
