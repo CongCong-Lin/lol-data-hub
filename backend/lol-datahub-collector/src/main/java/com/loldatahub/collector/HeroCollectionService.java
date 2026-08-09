@@ -12,6 +12,7 @@ import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
 import com.loldatahub.source.model.HeroStagePayload;
+import com.loldatahub.source.model.MatchPlayerGameSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import org.springframework.stereotype.Service;
@@ -26,9 +27,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 public class HeroCollectionService {
+    private static final String CONTENT_SCHEMA_VERSION = "hero-position-v3-exact-match-recovery";
+
     private final TjStatsClient client;
     private final TjStatsResponseParser parser;
     private final ObjectMapper objectMapper;
@@ -88,7 +93,7 @@ public class HeroCollectionService {
                         .toList();
 
                 List<PlayerHeroRecordPayload> playerHeroRecords = new ArrayList<>();
-                StringBuilder hashMaterial = new StringBuilder();
+                StringBuilder hashMaterial = new StringBuilder(CONTENT_SCHEMA_VERSION).append('\n');
                 appendHashMaterial(hashMaterial, "hero", rawHeroJson);
                 appendHashMaterial(hashMaterial, "player", rawPlayerJson);
                 for (PlayerStatSourceRecord player : players) {
@@ -99,8 +104,37 @@ public class HeroCollectionService {
                     playerHeroRecords.add(parser.parsePlayerHeroRecords(rawRecordJson, playerId));
                     appendHashMaterial(hashMaterial, "heroRecord:" + playerId, rawRecordJson);
                 }
+
+                List<MatchPlayerGameSourceRecord> matchGameRecords = new ArrayList<>();
+                Set<Long> matchIdsNeedingDetails = new TreeSet<>();
+                long expectedPlayerRecordCount;
+                try {
+                    expectedPlayerRecordCount = Math.multiplyExact(payload.sampleBaseCount(), 10L);
+                } catch (ArithmeticException exception) {
+                    throw new TjStatsSourceException("HERO_POSITION: 样本基数过大，无法校验逐局记录", exception);
+                }
+                long actualPlayerRecordCount = playerHeroRecords.stream()
+                        .mapToLong(records -> records.records().size())
+                        .sum();
+                boolean needsCompletenessRecovery = actualPlayerRecordCount != expectedPlayerRecordCount;
+                for (PlayerHeroRecordPayload playerRecords : playerHeroRecords) {
+                    playerRecords.records().stream()
+                            .filter(record -> needsCompletenessRecovery
+                                    || record.heroId() == 0
+                                    || record.role() == null
+                                    || record.role().isBlank())
+                            .map(record -> record.matchId())
+                            .forEach(matchIdsNeedingDetails::add);
+                }
+                for (Long matchId : matchIdsNeedingDetails) {
+                    String rawMatchJson = client.fetchMatchDetail(matchId);
+                    storeMatchDetailRawResponse(
+                            runId, seasonId, stageId, matchId, rawMatchJson, collectedAt);
+                    matchGameRecords.addAll(parser.parseMatchPlayerGames(rawMatchJson, matchId));
+                    appendHashMaterial(hashMaterial, "matchDetail:" + matchId, rawMatchJson);
+                }
                 HeroPositionStatAssembler.Result positionData = HeroPositionStatAssembler.assemble(
-                        payload, players, playerHeroRecords
+                        payload, players, playerHeroRecords, matchGameRecords
                 );
                 String contentHash = sha256(hashMaterial.toString());
 
@@ -221,6 +255,21 @@ public class HeroCollectionService {
         }
         collectionMapper.insertRawResponse(
                 runId, endpoint, toJson(parameters), rawJson, sha256(rawJson), collectedAt
+        );
+    }
+
+    private void storeMatchDetailRawResponse(long runId,
+                                             long seasonId,
+                                             long stageId,
+                                             long matchId,
+                                             String rawJson,
+                                             OffsetDateTime collectedAt) {
+        java.util.Map<String, Object> parameters = new java.util.LinkedHashMap<>();
+        parameters.put("seasonId", seasonId);
+        parameters.put("stageIds", stageId);
+        parameters.put("matchId", matchId);
+        collectionMapper.insertRawResponse(
+                runId, "/compound/matchDetail", toJson(parameters), rawJson, sha256(rawJson), collectedAt
         );
     }
 

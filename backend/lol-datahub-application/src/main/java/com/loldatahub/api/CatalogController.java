@@ -2,25 +2,30 @@ package com.loldatahub.api;
 
 import com.loldatahub.domain.catalog.Season;
 import com.loldatahub.infrastructure.mapper.CatalogMapper;
+import com.loldatahub.infrastructure.model.CrossSeasonStageAvailabilityRow;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 @RestController
 @RequestMapping("/api/v1/catalog")
 public class CatalogController {
     private final CatalogMapper catalogMapper;
+    private final PublicCatalogProperties publicCatalog;
 
-    public CatalogController(CatalogMapper catalogMapper) {
+    public CatalogController(CatalogMapper catalogMapper, PublicCatalogProperties publicCatalog) {
         this.catalogMapper = catalogMapper;
+        this.publicCatalog = publicCatalog;
     }
 
     @GetMapping("/seasons")
     ApiResponse<List<Season>> seasons() {
-        return ApiResponse.success(catalogMapper.findSeasons());
+        return ApiResponse.success(orderAndFilter(
+                catalogMapper.findSeasons(), Season::sourceSeasonId, ignored -> true));
     }
 
     /**
@@ -38,6 +43,7 @@ public class CatalogController {
             default -> throw new IllegalArgumentException("不支持的统计类型：" + statisticType);
         };
         return ApiResponse.success(rows.stream()
+                .filter(row -> publicCatalog.containsStage(row.sourceSeasonId(), row.sourceStageId()))
                 .map(StageView::from)
                 .toList());
     }
@@ -57,8 +63,21 @@ public class CatalogController {
             case "PLAYER" -> catalogMapper.findAllPlayerStageAvailability(collectedOnly);
             default -> throw new IllegalArgumentException("不支持的统计类型：" + statisticType);
         };
-        return ApiResponse.success(rows.stream()
+        return ApiResponse.success(orderAndFilter(
+                rows,
+                CrossSeasonStageAvailabilityRow::sourceSeasonId,
+                row -> publicCatalog.containsStage(row.sourceSeasonId(), row.sourceStageId())).stream()
                 .map(StageAvailabilityView::from)
                 .toList());
+    }
+
+    private <T> List<T> orderAndFilter(List<T> rows,
+                                       ToLongFunction<T> seasonId,
+                                       java.util.function.Predicate<T> visible) {
+        return publicCatalog.visibleEvents().stream()
+                .flatMap(event -> rows.stream()
+                        .filter(visible)
+                        .filter(row -> seasonId.applyAsLong(row) == event.seasonId()))
+                .toList();
     }
 }

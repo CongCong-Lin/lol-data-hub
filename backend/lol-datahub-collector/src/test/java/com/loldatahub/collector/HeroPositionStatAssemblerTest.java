@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.HeroStagePayload;
 import com.loldatahub.source.model.HeroStatSourceRecord;
+import com.loldatahub.source.model.MatchPlayerGameSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,74 @@ class HeroPositionStatAssemblerTest {
                 .containsExactly("TOP", "MID");
         assertThat(result.rows()).filteredOn(row -> row.championId() == 50L)
                 .allSatisfy(row -> assertThat(row.pickCount()).isEqualTo(1));
+    }
+
+    @Test
+    void uniquelyRepairsOfficialZeroHeroAndMissingPlayerRecord() {
+        List<PlayerStatSourceRecord> players = new ArrayList<>();
+        Map<Long, List<HeroRecordSourceRecord>> recordsByPlayer = new HashMap<>();
+        List<HeroRecordSourceRecord> expectedRecords = new ArrayList<>();
+        List<MatchPlayerGameSourceRecord> secondGameDetails = new ArrayList<>();
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            String position = POSITIONS.get((int) ((playerId - 1) % 5));
+            PlayerStatSourceRecord player = mock(PlayerStatSourceRecord.class);
+            when(player.playerId()).thenReturn(playerId);
+            when(player.playerName()).thenReturn("Player" + playerId);
+            when(player.playerLocation()).thenReturn(switch (position) {
+                case "JUN" -> "JUG";
+                case "BOT" -> "AD";
+                default -> position;
+            });
+            players.add(player);
+            recordsByPlayer.put(playerId, new ArrayList<>());
+
+            long teamId = playerId <= 5 ? 1 : 2;
+            HeroRecordSourceRecord firstGame = new HeroRecordSourceRecord(
+                    100 + playerId, "Hero" + (100 + playerId), null, 9001, 1, "", true,
+                    playerId, 1, 2, teamId, 1
+            );
+            expectedRecords.add(firstGame);
+            recordsByPlayer.get(playerId).add(playerId == 1
+                    ? new HeroRecordSourceRecord(
+                            0, "", "", 9001, 1, "", true,
+                            playerId, 1, 2, teamId, 1)
+                    : firstGame);
+
+            HeroRecordSourceRecord secondGame = new HeroRecordSourceRecord(
+                    200 + playerId, "Hero" + (200 + playerId), null, 9002, 1, position, true,
+                    playerId, 2, 3, teamId, 2
+            );
+            expectedRecords.add(secondGame);
+            if (playerId != 2) {
+                recordsByPlayer.get(playerId).add(secondGame);
+            }
+            secondGameDetails.add(new MatchPlayerGameSourceRecord(
+                    9002, 1, playerId, position, 200 + playerId, "Hero" + (200 + playerId), "",
+                    teamId, 2, playerId, 2, 3
+            ));
+        }
+
+        List<PlayerHeroRecordPayload> payloads = recordsByPlayer.entrySet().stream()
+                .map(entry -> new PlayerHeroRecordPayload(entry.getKey(), entry.getValue()))
+                .toList();
+        HeroStagePayload stage = new HeroStagePayload(
+                2, null, new ObjectMapper().createArrayNode(), buildOfficialTotals(expectedRecords)
+        );
+
+        HeroPositionStatAssembler.Result result = HeroPositionStatAssembler.assemble(
+                stage, players, payloads, secondGameDetails
+        );
+
+        assertThat(result.rows()).hasSize(20);
+        assertThat(result.rows()).filteredOn(row -> row.championId() == 101L)
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.playerId()).isEqualTo(1L);
+                    assertThat(row.position()).isEqualTo("TOP");
+                });
+        assertThat(result.rows()).filteredOn(row -> row.championId() == 202L)
+                .singleElement()
+                .satisfies(row -> assertThat(row.playerId()).isEqualTo(2L));
     }
 
     private List<HeroStatSourceRecord> buildOfficialTotals(List<HeroRecordSourceRecord> records) {

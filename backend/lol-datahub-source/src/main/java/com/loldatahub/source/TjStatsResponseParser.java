@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.source.model.HeroStagePayload;
 import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.HeroStatSourceRecord;
+import com.loldatahub.source.model.MatchPlayerGameSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
+import com.loldatahub.source.model.MatchPlayerPositionSourceRecord;
 import com.loldatahub.source.model.SeasonSourceRecord;
 import com.loldatahub.source.model.SeasonStagesSourceRecord;
 import com.loldatahub.source.model.StageSourceRecord;
@@ -154,12 +156,25 @@ public class TjStatsResponseParser {
         if (!data.isArray() || data.isEmpty()) {
             throw new TjStatsSourceException("PLAYER: data 必须是非空数组");
         }
-        requireIntegralFields(data, "PLAYER", "matchCount", "boCount", "mvpCount",
+        // 官网历史赛事会返回进入名单但没有实际登场的选手。此类记录没有统计样本，
+        // 应在契约校验前明确剔除，不能用全零指标污染结果，也不能阻塞整个赛段。
+        requireIntegralFields(data, "PLAYER", "matchCount", "boCount");
+        var activePlayerNodes = objectMapper.createArrayNode();
+        data.forEach(player -> {
+            if (player.path("matchCount").longValue() != 0
+                    || player.path("boCount").longValue() != 0) {
+                activePlayerNodes.add(player);
+            }
+        });
+        if (activePlayerNodes.isEmpty()) {
+            throw new TjStatsSourceException("PLAYER: data 至少需要包含一名有出场记录的选手");
+        }
+        requireIntegralFields(activePlayerNodes, "PLAYER", "matchCount", "boCount", "mvpCount",
                 "totalKills", "totalAssists", "totalDeath");
-        requireNumericFields(data, "PLAYER", "mvpVotes");
+        requireNumericFields(activePlayerNodes, "PLAYER", "mvpVotes");
 
         List<PlayerStatSourceRecord> players = objectMapper.convertValue(
-                data,
+                activePlayerNodes,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, PlayerStatSourceRecord.class)
         );
 
@@ -202,15 +217,21 @@ public class TjStatsResponseParser {
         for (int index = 0; index < records.size(); index++) {
             HeroRecordSourceRecord record = records.get(index);
             String prefix = "HERO_RECORD[" + index + "]";
-            if (record.heroId() <= 0 || record.matchId() <= 0 || record.bo() <= 0
+            if (record.heroId() < 0 || record.matchId() <= 0 || record.bo() <= 0
                     || record.teamId() <= 0 || record.winTeamId() <= 0) {
-                throw new TjStatsSourceException(prefix + ": 英雄、比赛、局次与战队 ID 必须大于 0");
+                throw new TjStatsSourceException(prefix + ": 英雄 ID 不得小于 0，比赛、局次与战队 ID 必须大于 0");
+            }
+            if (record.heroId() == 0
+                    && (!isBlank(record.heroName()) || !isBlank(record.heroTitle()))) {
+                throw new TjStatsSourceException(prefix + ": heroId=0 仅允许用于官网英雄信息同时缺失的占位记录");
             }
             requireNonNegative(prefix, "kill", record.kill());
             requireNonNegative(prefix, "death", record.death());
             requireNonNegative(prefix, "assist", record.assist());
             String role = record.role() == null ? "" : record.role().trim().toUpperCase(Locale.ROOT);
-            if (!validRoles.contains(role)) {
+            // 2023—2025 的历史逐局接口会把 role 返回为空；采集层优先使用比赛详情补全，
+            // 仅在详情也是官网空占位数据时使用赛段 playerLocation 兜底，并继续执行每局 5 路校验。
+            if (!role.isEmpty() && !validRoles.contains(role)) {
                 throw new TjStatsSourceException(
                         prefix + ": role 必须属于 TOP/JUN/MID/BOT/SUP，实际值: " + record.role());
             }
@@ -220,6 +241,163 @@ public class TjStatsResponseParser {
             }
         }
         return new PlayerHeroRecordPayload(playerId, records);
+    }
+
+    public List<MatchPlayerPositionSourceRecord> parseMatchPlayerPositions(String rawJson, long expectedMatchId) {
+        return parseMatchPlayerGames(rawJson, expectedMatchId).stream()
+                .map(row -> new MatchPlayerPositionSourceRecord(
+                        row.matchId(), row.bo(), row.playerId(), row.position()))
+                .toList();
+    }
+
+    public List<MatchPlayerGameSourceRecord> parseMatchPlayerGames(String rawJson, long expectedMatchId) {
+        if (expectedMatchId <= 0) {
+            throw new IllegalArgumentException("期望比赛 ID 必须大于 0");
+        }
+        JsonNode data = validatedData(rawJson);
+        if (!data.isObject()) {
+            throw new TjStatsSourceException("MATCH_DETAIL: data 必须是对象");
+        }
+        JsonNode matchIdNode = data.get("matchId");
+        if (matchIdNode == null || !matchIdNode.isIntegralNumber()
+                || matchIdNode.longValue() != expectedMatchId) {
+            throw new TjStatsSourceException(
+                    "MATCH_DETAIL: 返回比赛 ID 与请求不一致，期望 " + expectedMatchId);
+        }
+        JsonNode matchInfos = data.get("matchInfos");
+        if (matchInfos == null || !matchInfos.isArray() || matchInfos.isEmpty()) {
+            throw new TjStatsSourceException("MATCH_DETAIL: matchInfos 必须是非空数组，matchId=" + expectedMatchId);
+        }
+
+        List<MatchPlayerGameSourceRecord> records = new java.util.ArrayList<>();
+        Set<Long> seenBos = new HashSet<>();
+        for (int gameIndex = 0; gameIndex < matchInfos.size(); gameIndex++) {
+            JsonNode game = matchInfos.get(gameIndex);
+            JsonNode boNode = game.get("bo");
+            if (boNode == null || !boNode.isIntegralNumber() || boNode.longValue() <= 0) {
+                throw new TjStatsSourceException("MATCH_DETAIL[" + gameIndex + "]: bo 必须大于 0");
+            }
+            long bo = boNode.longValue();
+            if (!seenBos.add(bo)) {
+                throw new TjStatsSourceException("MATCH_DETAIL: bo 重复，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            JsonNode teamInfos = game.get("teamInfos");
+            if (teamInfos == null || !teamInfos.isArray() || teamInfos.size() != 2) {
+                throw new TjStatsSourceException(
+                        "MATCH_DETAIL: 每局必须包含两支战队，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            if (isOfficialEmptyGamePlaceholder(teamInfos)) {
+                continue;
+            }
+            JsonNode winTeamIdNode = game.get("matchWin");
+            if (winTeamIdNode == null || !winTeamIdNode.isIntegralNumber()
+                    || winTeamIdNode.longValue() <= 0) {
+                throw new TjStatsSourceException(
+                        "MATCH_DETAIL: matchWin 必须大于 0，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            long winTeamId = winTeamIdNode.longValue();
+            Set<Long> playerIds = new HashSet<>();
+            Set<Long> teamIds = new HashSet<>();
+            java.util.Map<String, Integer> positionCounts = new java.util.HashMap<>();
+            for (JsonNode team : teamInfos) {
+                JsonNode teamIdNode = team.get("teamId");
+                if (teamIdNode == null || !teamIdNode.isIntegralNumber() || teamIdNode.longValue() <= 0) {
+                    throw new TjStatsSourceException("MATCH_DETAIL: teamId 必须大于 0");
+                }
+                long teamId = teamIdNode.longValue();
+                if (!teamIds.add(teamId)) {
+                    throw new TjStatsSourceException(
+                            "MATCH_DETAIL: 同一局战队重复，matchId=" + expectedMatchId + "，bo=" + bo);
+                }
+                JsonNode playerInfos = team.get("playerInfos");
+                if (playerInfos == null || !playerInfos.isArray() || playerInfos.size() != 5) {
+                    throw new TjStatsSourceException(
+                            "MATCH_DETAIL: 每支战队每局必须包含 5 名选手，matchId=" + expectedMatchId + "，bo=" + bo);
+                }
+                for (JsonNode player : playerInfos) {
+                    JsonNode playerIdNode = player.get("playerId");
+                    if (playerIdNode == null || !playerIdNode.isIntegralNumber() || playerIdNode.longValue() <= 0) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: playerId 必须大于 0");
+                    }
+                    long playerId = playerIdNode.longValue();
+                    if (!playerIds.add(playerId)) {
+                        throw new TjStatsSourceException(
+                                "MATCH_DETAIL: 同一局选手重复，matchId=" + expectedMatchId + "，bo=" + bo
+                                        + "，playerId=" + playerId);
+                    }
+                    String position = normalizeMatchPosition(player.path("playerLocation").asText(""));
+                    JsonNode heroIdNode = player.get("heroId");
+                    if (heroIdNode == null || !heroIdNode.isIntegralNumber() || heroIdNode.longValue() <= 0) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: heroId 必须大于 0");
+                    }
+                    JsonNode battleDetail = player.get("battleDetail");
+                    if (battleDetail == null || !battleDetail.isObject()) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: battleDetail 必须是对象");
+                    }
+                    long kills = requireNonNegativeIntegral(
+                            battleDetail, "kills", expectedMatchId, bo, playerId);
+                    long deaths = requireNonNegativeIntegral(
+                            battleDetail, "death", expectedMatchId, bo, playerId);
+                    long assists = requireNonNegativeIntegral(
+                            battleDetail, "assist", expectedMatchId, bo, playerId);
+                    positionCounts.merge(position, 1, Integer::sum);
+                    records.add(new MatchPlayerGameSourceRecord(
+                            expectedMatchId, bo, playerId, position, heroIdNode.longValue(),
+                            player.path("heroName").asText(""), player.path("heroTitle").asText(""),
+                            teamId, winTeamId, kills, deaths, assists
+                    ));
+                }
+            }
+            if (!teamIds.contains(winTeamId)) {
+                throw new TjStatsSourceException(
+                        "MATCH_DETAIL: matchWin 不属于本局战队，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            if (!positionCounts.keySet().equals(Set.of("TOP", "JUN", "MID", "BOT", "SUP"))
+                    || positionCounts.values().stream().anyMatch(count -> count != 2)) {
+                throw new TjStatsSourceException(
+                        "MATCH_DETAIL: 每局五个分路必须各出现 2 次，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+        }
+        return List.copyOf(records);
+    }
+
+    private static boolean isOfficialEmptyGamePlaceholder(JsonNode teamInfos) {
+        for (JsonNode team : teamInfos) {
+            JsonNode teamId = team.get("teamId");
+            JsonNode playerInfos = team.get("playerInfos");
+            if (teamId == null || !teamId.isIntegralNumber() || teamId.longValue() != 0
+                    || playerInfos == null || !playerInfos.isArray() || !playerInfos.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static long requireNonNegativeIntegral(JsonNode parent,
+                                                   String field,
+                                                   long matchId,
+                                                   long bo,
+                                                   long playerId) {
+        JsonNode value = parent.get(field);
+        if (value == null || !value.isIntegralNumber() || value.longValue() < 0) {
+            throw new TjStatsSourceException(
+                    "MATCH_DETAIL: " + field + " 必须是非负整数，matchId=" + matchId
+                            + "，bo=" + bo + "，playerId=" + playerId);
+        }
+        return value.longValue();
+    }
+
+    private static String normalizeMatchPosition(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        normalized = switch (normalized) {
+            case "JUG" -> "JUN";
+            case "AD" -> "BOT";
+            default -> normalized;
+        };
+        if (!Set.of("TOP", "JUN", "MID", "BOT", "SUP").contains(normalized)) {
+            throw new TjStatsSourceException("MATCH_DETAIL: 未知选手分路：" + value);
+        }
+        return normalized;
     }
 
     private JsonNode validatedData(String rawJson) {
@@ -376,9 +554,9 @@ public class TjStatsResponseParser {
             if (isBlank(p.playerName())) {
                 throw new TjStatsSourceException(prefix + ": playerName 不能为空");
             }
-            // matchCount > 0
-            if (p.matchCount() <= 0) {
-                throw new TjStatsSourceException(prefix + ": matchCount 必须大于 0，实际值: " + p.matchCount());
+            // 历史数据偶尔把系列赛数记为 0，但局数仍为正；两者同时为 0 的记录已在前面过滤。
+            if (p.matchCount() < 0) {
+                throw new TjStatsSourceException(prefix + ": matchCount 不得小于 0，实际值: " + p.matchCount());
             }
             if (p.boCount() <= 0) {
                 throw new TjStatsSourceException(prefix + ": boCount 必须大于 0，实际值: " + p.boCount());

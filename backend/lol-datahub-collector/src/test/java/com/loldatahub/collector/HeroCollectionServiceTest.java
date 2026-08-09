@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.ChampionStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.model.ChampionPositionPlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
@@ -107,6 +108,29 @@ class HeroCollectionServiceTest {
         verify(writeMapper, times(10)).insertPositionSnapshot(any());
         verify(systemStateMapper).incrementDataVersion();
         verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(21), isNull());
+    }
+
+    @Test
+    void blankHistoricalRolesUsePerGameMatchDetails() {
+        mockValidStage(100L, false, false);
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            when(client.fetchPlayerHeroRecords(playerId, 1L, 100L))
+                    .thenReturn(heroRecordJson(playerId, 100L, false, true));
+        }
+        when(client.fetchMatchDetail(1100L)).thenReturn(matchDetailJson(1100L));
+        when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+        executeTransactionsImmediately();
+
+        CollectionResult result = service.collect(1L, List.of(100L));
+
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        ArgumentCaptor<ChampionPositionPlayerStageStatWrite> rows =
+                ArgumentCaptor.forClass(ChampionPositionPlayerStageStatWrite.class);
+        verify(writeMapper, times(10)).upsertPositionCurrent(rows.capture());
+        assertThat(rows.getAllValues())
+                .extracting(ChampionPositionPlayerStageStatWrite::position)
+                .containsExactlyInAnyOrder("TOP", "JUN", "MID", "BOT", "SUP",
+                        "TOP", "JUN", "MID", "BOT", "SUP");
     }
 
     @Test
@@ -246,6 +270,10 @@ class HeroCollectionServiceTest {
     }
 
     private String heroRecordJson(long playerId, long stageId, boolean corruptKill) {
+        return heroRecordJson(playerId, stageId, corruptKill, false);
+    }
+
+    private String heroRecordJson(long playerId, long stageId, boolean corruptKill, boolean blankRole) {
         String position = RECORD_POSITIONS.get((int) ((playerId - 1) % 5));
         long teamId = playerId <= 5 ? 1 : 2;
         Map<String, Object> record = new LinkedHashMap<>();
@@ -253,7 +281,7 @@ class HeroCollectionServiceTest {
         record.put("heroName", "Hero" + playerId);
         record.put("matchID", 1000 + stageId);
         record.put("bo", 1);
-        record.put("role", position);
+        record.put("role", blankRole ? "" : position);
         record.put("isRole", true);
         record.put("kill", corruptKill ? 99 : 1);
         record.put("death", 0);
@@ -263,6 +291,33 @@ class HeroCollectionServiceTest {
         return json(Map.of("success", true, "data", Map.of(
                 "playerID", playerId,
                 "heroRecordList", List.of(record)
+        )));
+    }
+
+    private String matchDetailJson(long matchId) {
+        List<Map<String, Object>> teamOnePlayers = new ArrayList<>();
+        List<Map<String, Object>> teamTwoPlayers = new ArrayList<>();
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            Map<String, Object> player = Map.of(
+                    "playerId", playerId,
+                    "playerLocation", RECORD_POSITIONS.get((int) ((playerId - 1) % 5)),
+                    "heroId", playerId,
+                    "heroName", "Hero" + playerId,
+                    "heroTitle", "Title" + playerId,
+                    "battleDetail", Map.of("kills", 1, "death", 0, "assist", 2)
+            );
+            (playerId <= 5 ? teamOnePlayers : teamTwoPlayers).add(player);
+        }
+        return json(Map.of("success", true, "data", Map.of(
+                "matchId", matchId,
+                "matchInfos", List.of(Map.of(
+                        "bo", 1,
+                        "matchWin", 1,
+                        "teamInfos", List.of(
+                                Map.of("teamId", 1, "playerInfos", teamOnePlayers),
+                                Map.of("teamId", 2, "playerInfos", teamTwoPlayers)
+                        )
+                ))
         )));
     }
 

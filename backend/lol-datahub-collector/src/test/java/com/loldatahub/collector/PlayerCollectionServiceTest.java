@@ -101,7 +101,8 @@ class PlayerCollectionServiceTest {
     void sameHashSkipsWritesAndFinishesNoChange() {
         String json = validJson();
         when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
-        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(sha256(json));
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(
+                sha256(PlayerCollectionService.CONTENT_SCHEMA_VERSION + "\n" + json));
 
         CollectionResult result = service.collect(1L, List.of(100L));
 

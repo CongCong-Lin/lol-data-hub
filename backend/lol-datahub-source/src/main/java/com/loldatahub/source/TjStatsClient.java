@@ -42,6 +42,10 @@ public class TjStatsClient {
         );
     }
 
+    public String fetchMatchDetail(long matchId) {
+        return get("/compound/matchDetail?matchId={matchId}", matchId);
+    }
+
     private String get(String uri, Object... uriVariables) {
         RestClientException lastFailure = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

@@ -19,6 +19,7 @@ https://open.tjstats.com/match-auth-app/open/v1
 | 选手聚合 | `/compound/public/player` | `seasonId`, `stageIds` |
 | 战队聚合 | `/compound/public/team` | `seasonId`, `stageIds` |
 | 选手英雄记录 | `/compound/heroRecord` | `playerId`, `seasonId`, `stageIds` |
+| 比赛逐局详情 | `/compound/matchDetail` | `matchId` |
 
 这些接口是官网前端使用的内部接口，不等同于有稳定性承诺的开放 API。请求凭据必须通过
 `TJSTATS_AUTHORIZATION` 环境变量注入，禁止写入源码或下发给浏览器。
@@ -49,6 +50,12 @@ https://open.tjstats.com/match-auth-app/open/v1
 `/compound/heroRecord` 的逐选手、逐局记录。官网英雄聚合响应中的 `heroLocation` 是宽泛标签，不能代表
 所选赛段的真实登场分路，因此平台不再用它生成分路或执行筛选。
 
+2023—2025 年的部分历史响应存在 `role` 为空、英雄 ID 为 0 或某名选手的逐局记录缺失等官方数据异常。
+采集器会按需读取 `/compound/matchDetail`，优先用逐局详情补充分路和缺失选手记录。对于官网返回的
+`heroId=0` 占位行，仅在英雄聚合的 Pick、胜场、K/D/A 剩余量能够唯一、精确匹配时才恢复英雄身份；
+存在多解或无法精确匹配时整批拒绝发布。若逐局详情本身是官网空占位数据，才会把该选手在当前赛段的
+`playerLocation` 作为最后兜底，并继续执行完整性校验。
+
 采集发布前会校验逐局记录数等于比赛局数 × 10、每局由两支各 5 人战队组成、五个分路各出现 2 次，
 并要求逐局 Pick/胜场/K/D/A 合计与官网英雄聚合完全一致。任何一项失败都会保留原始响应并拒绝覆盖
 当前数据。查询支持最低出场次数过滤（默认 `minimumPickCount=10`）以及
@@ -66,6 +73,8 @@ https://open.tjstats.com/match-auth-app/open/v1
 
 通过 `/compound/public/player` 接口采集。保存选手的 KDA、场均数据等指标。
 查询时支持按位置筛选和最低比赛场次过滤（默认 `minimumMatchCount=5`）。
+历史接口可能返回 `matchCount=0` 但 `boCount>0` 的真实替补登场记录，因此仅当两者同时为 0 时才按
+未登场记录过滤。采集内容哈希包含处理规则版本，解析规则升级后即使官网原文未变，也会重新发布修正后的数据。
 
 ## 快照与版本分析
 

@@ -1,6 +1,7 @@
 package com.loldatahub.source;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loldatahub.source.model.PlayerStatSourceRecord;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -750,12 +751,39 @@ class TjStatsResponseParserTest {
         }
 
         @Test
-        void rejectsZeroMatchCount() {
+        void rejectsStageWithNoActivePlayers() {
             String json = playerJson("""
-                    {"playerId": 1, "playerName": "JackeyLove", "matchCount": 0, "mvpCount": 0, "mvpVotes": 0, "totalKills": 0, "totalAssists": 0, "totalDeath": 0}""");
+                    {"playerId": 1, "playerName": "JackeyLove", "matchCount": 0, "boCount": 0, "mvpCount": 0, "mvpVotes": 0, "totalKills": 0, "totalAssists": 0, "totalDeath": 0}""");
             assertThatThrownBy(() -> parser.parsePlayerStage(json))
                     .isInstanceOf(TjStatsSourceException.class)
-                    .hasMessageContaining("matchCount 必须大于 0");
+                    .hasMessageContaining("至少需要包含一名有出场记录的选手");
+        }
+
+        @Test
+        void filtersRosterPlayersWithoutAppearances() {
+            String json = playerJson("""
+                    {"playerId": 1, "playerName": "Active", "matchCount": 2, "boCount": 5, "mvpCount": 1, "mvpVotes": 10, "totalKills": 8, "totalAssists": 12, "totalDeath": 4},
+                    {"playerId": 2, "playerName": "Reserve", "matchCount": 0, "boCount": 0, "mvpCount": 0, "mvpVotes": 0, "totalKills": 0, "totalAssists": 0, "totalDeath": 0}""");
+
+            var players = parser.parsePlayerStage(json);
+
+            assertThat(players).singleElement()
+                    .extracting(PlayerStatSourceRecord::playerName)
+                    .isEqualTo("Active");
+        }
+
+        @Test
+        void keepsHistoricalPlayerWhenOnlyGameCountShowsAppearance() {
+            String json = playerJson("""
+                    {"playerId": 5027, "playerName": "Baiye", "playerLocation": "AD",
+                     "matchCount": 0, "boCount": 1, "mvpCount": 0, "mvpVotes": 0,
+                     "totalKills": 2, "totalAssists": 1, "totalDeath": 3}""");
+
+            assertThat(parser.parsePlayerStage(json)).singleElement()
+                    .satisfies(player -> {
+                        assertThat(player.playerId()).isEqualTo(5027L);
+                        assertThat(player.boCount()).isEqualTo(1L);
+                    });
         }
 
         @Test
@@ -938,6 +966,66 @@ class TjStatsResponseParserTest {
     }
 
     @Nested
+    class MatchDetailValidation {
+        @Test
+        void parsesPerGamePlayerPositions() {
+            String json = """
+                    {"success":true,"data":{"matchId":9983,"matchInfos":[{"bo":2,"matchWin":2,"teamInfos":[
+                      {"teamId":2,"playerInfos":[
+                        {"playerId":1,"playerLocation":"TOP","heroId":1,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":2,"playerLocation":"JUN","heroId":2,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":3,"playerLocation":"MID","heroId":3,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":4,"playerLocation":"BOT","heroId":4,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":5,"playerLocation":"SUP","heroId":5,"battleDetail":{"kills":1,"death":0,"assist":2}}]},
+                      {"teamId":57,"playerInfos":[
+                        {"playerId":6,"playerLocation":"TOP","heroId":6,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":7,"playerLocation":"JUN","heroId":7,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":8,"playerLocation":"MID","heroId":8,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":9,"playerLocation":"BOT","heroId":9,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                        {"playerId":10,"playerLocation":"SUP","heroId":10,"battleDetail":{"kills":1,"death":0,"assist":2}}]}
+                    ]}]}}
+                    """;
+
+            var positions = parser.parseMatchPlayerPositions(json, 9983);
+
+            assertThat(positions).hasSize(10);
+            assertThat(positions).filteredOn(row -> row.playerId() == 1L)
+                    .singleElement()
+                    .satisfies(row -> {
+                        assertThat(row.bo()).isEqualTo(2);
+                        assertThat(row.position()).isEqualTo("TOP");
+                    });
+        }
+
+        @Test
+        void skipsOfficialEmptyGamePlaceholderButKeepsCompleteGames() {
+            String json = """
+                    {"success":true,"data":{"matchId":12001,"matchInfos":[
+                      {"bo":1,"matchWin":1,"teamInfos":[
+                        {"teamId":1,"playerInfos":[
+                          {"playerId":1,"playerLocation":"TOP","heroId":1,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":2,"playerLocation":"JUN","heroId":2,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":3,"playerLocation":"MID","heroId":3,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":4,"playerLocation":"BOT","heroId":4,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":5,"playerLocation":"SUP","heroId":5,"battleDetail":{"kills":1,"death":0,"assist":2}}]},
+                        {"teamId":2,"playerInfos":[
+                          {"playerId":6,"playerLocation":"TOP","heroId":6,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":7,"playerLocation":"JUN","heroId":7,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":8,"playerLocation":"MID","heroId":8,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":9,"playerLocation":"BOT","heroId":9,"battleDetail":{"kills":1,"death":0,"assist":2}},
+                          {"playerId":10,"playerLocation":"SUP","heroId":10,"battleDetail":{"kills":1,"death":0,"assist":2}}]}
+                      ]},
+                      {"bo":2,"matchWin":1,"teamInfos":[
+                        {"teamId":0,"playerInfos":[]},{"teamId":0,"playerInfos":[]}
+                      ]}
+                    ]}}
+                    """;
+
+            assertThat(parser.parseMatchPlayerGames(json, 12001)).hasSize(10);
+        }
+    }
+
+    @Nested
     class HeroRecordValidation {
         @Test
         void parsesActualRoleAndPerGameStatistics() {
@@ -957,6 +1045,37 @@ class TjStatsResponseParserTest {
                 assertThat(record.kill()).isEqualTo(8);
                 assertThat(record.death()).isZero();
             });
+        }
+
+        @Test
+        void acceptsBlankHistoricalRoleForCollectorFallback() {
+            String json = """
+                    {"success":true,"data":{"playerID":100,"heroRecordList":[
+                      {"heroID":50,"matchID":1,"bo":1,"role":"","kill":0,"death":0,"assist":0,
+                       "teamID":1,"winTeamID":1}
+                    ]}}
+                    """;
+
+            var payload = parser.parsePlayerHeroRecords(json, 100);
+
+            assertThat(payload.records()).singleElement()
+                    .extracting(record -> record.role())
+                    .isEqualTo("");
+        }
+
+        @Test
+        void acceptsOfficialZeroHeroPlaceholderWhenHeroIdentityIsBlank() {
+            String json = """
+                    {"success":true,"data":{"playerID":100,"heroRecordList":[
+                      {"heroID":0,"heroName":"","heroTitle":"","matchID":12001,"bo":2,"role":"",
+                       "kill":5,"death":3,"assist":1,"teamID":587,"winTeamID":7}
+                    ]}}
+                    """;
+
+            assertThat(parser.parsePlayerHeroRecords(json, 100).records())
+                    .singleElement()
+                    .extracting(record -> record.heroId())
+                    .isEqualTo(0L);
         }
 
         @Test

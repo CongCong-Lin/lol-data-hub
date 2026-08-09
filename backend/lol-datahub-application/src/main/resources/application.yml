@@ -35,6 +35,36 @@ mybatis-plus:
     banner: false
 
 lol-datahub:
+  catalog:
+    # 只控制公共查询目录，不删除数据库中已经同步的其他赛事。
+    # 顺序即前端下拉列表顺序；赛段范围与官网大数据页面保持一致。
+    visible-events:
+      - season-id: 237
+        stage-ids: [112, 113, 100, 102, 103, 104, 106]
+      - season-id: 238
+        stage-ids: [19, 18]
+      - season-id: 239
+        stage-ids: [28, 18]
+      - season-id: 218
+        stage-ids: [97, 100, 98, 105, 102, 103, 104, 106, 107, 108]
+      - season-id: 221
+        stage-ids: [101, 18]
+      - season-id: 226
+        stage-ids: [28, 18]
+      - season-id: 229
+        stage-ids: [28, 77, 18]
+      - season-id: 206
+        stage-ids: [1, 5, 90, 91, 92, 8]
+      - season-id: 208
+        stage-ids: [28, 89]
+      - season-id: 212
+        stage-ids: [28, 77, 18]
+      - season-id: 190
+        stage-ids: [1, 5, 7, 8]
+      - season-id: 194
+        stage-ids: [28, 85]
+      - season-id: 201
+        stage-ids: [28, 77, 18]
   source:
     tjstats:
       base-url: ${TJSTATS_BASE_URL:https://open.tjstats.com/match-auth-app/open/v1}
