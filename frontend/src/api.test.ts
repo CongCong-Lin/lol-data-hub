@@ -47,4 +47,18 @@ describe('API 客户端', () => {
     await vi.advanceTimersByTimeAsync(12_001)
     await assertion
   })
+
+  it('将英雄分路编码发送给后端统计接口', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: { dataVersion: 1, minimumPickCount: 0, total: 0, items: [] },
+      message: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.championStatisticsByKeys(['239:18', '239:28'], 0, 'MID', 'winningRate', 'desc')
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('position=MID')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('stageKeys=239%3A18%2C239%3A28')
+  })
 })

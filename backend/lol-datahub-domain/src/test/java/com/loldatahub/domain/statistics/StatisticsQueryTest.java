@@ -170,6 +170,26 @@ class StatisticsQueryTest {
             var b = new ChampionStatisticsQuery(1, List.of(1L, 2L), 5, "pickcount", SortDirection.DESC);
             assertThat(a.cacheFingerprint()).isEqualTo(b.cacheFingerprint());
         }
+
+        @Test
+        void normalizesActualChampionPositionAndSeparatesCacheKeys() {
+            var top = new ChampionStatisticsQuery(
+                    List.of(new StageKey(239, 18)), 0, " top ", "winningRate", SortDirection.DESC);
+            var mid = new ChampionStatisticsQuery(
+                    List.of(new StageKey(239, 18)), 0, "MID", "winningRate", SortDirection.DESC);
+
+            assertThat(top.position()).isEqualTo("TOP");
+            assertThat(mid.position()).isEqualTo("MID");
+            assertThat(top.cacheFingerprint()).isNotEqualTo(mid.cacheFingerprint());
+        }
+
+        @Test
+        void rejectsUnknownChampionPosition() {
+            assertThatThrownBy(() -> new ChampionStatisticsQuery(
+                    List.of(new StageKey(239, 18)), 0, "AD", "winningRate", SortDirection.DESC))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("未知的英雄分路");
+        }
     }
 
     // ── TeamStatisticsQuery ───────────────────────────────────

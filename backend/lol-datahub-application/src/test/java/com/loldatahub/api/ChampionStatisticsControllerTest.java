@@ -28,7 +28,7 @@ class ChampionStatisticsControllerTest {
         when(service.query(any())).thenReturn(result);
 
         ApiResponse<ChampionStatisticsResult> response = controller.champions(
-                "237:102,239:28", null, null, 10, "bpRate", "desc"
+                "237:102,239:28", null, null, 10, null, "bpRate", "desc"
         );
 
         assertThat(response.success()).isTrue();
@@ -45,7 +45,7 @@ class ChampionStatisticsControllerTest {
         when(service.query(any())).thenReturn(result);
 
         ApiResponse<ChampionStatisticsResult> response = controller.champions(
-                null, 237L, List.of(102L, 103L), 10, "bpRate", "desc"
+                null, 237L, List.of(102L, 103L), 10, null, "bpRate", "desc"
         );
 
         assertThat(response.success()).isTrue();
@@ -59,7 +59,7 @@ class ChampionStatisticsControllerTest {
     @Test
     void bothFormatsReturn400() {
         assertThatThrownBy(() -> controller.champions(
-                "237:102", 237L, List.of(102L), 10, "bpRate", "desc"
+                "237:102", 237L, List.of(102L), 10, null, "bpRate", "desc"
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不能同时使用");
     }
@@ -67,28 +67,39 @@ class ChampionStatisticsControllerTest {
     @Test
     void missingOldStageIdsReturn400() {
         assertThatThrownBy(() -> controller.champions(
-                null, 237L, List.of(), 10, "bpRate", "desc"
+                null, 237L, List.of(), 10, null, "bpRate", "desc"
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void missingOldSeasonIdReturn400() {
         assertThatThrownBy(() -> controller.champions(
-                null, null, List.of(102L), 10, "bpRate", "desc"
+                null, null, List.of(102L), 10, null, "bpRate", "desc"
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void noParamsReturn400() {
         assertThatThrownBy(() -> controller.champions(
-                null, null, null, 10, "bpRate", "desc"
+                null, null, null, 10, null, "bpRate", "desc"
         )).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void illegalStageKeyFormatReturn400() {
         assertThatThrownBy(() -> controller.champions(
-                "237-102", null, null, 10, "bpRate", "desc"
+                "237-102", null, null, 10, null, "bpRate", "desc"
         )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void positionIsPassedAsNormalizedServerSideFilter() {
+        when(service.query(any())).thenReturn(new ChampionStatisticsResult(1L, 0, 0, List.of()));
+
+        controller.champions("239:18,239:28", null, null, 0, " mid ", "winningRate", "desc");
+
+        ArgumentCaptor<ChampionStatisticsQuery> captor = ArgumentCaptor.forClass(ChampionStatisticsQuery.class);
+        verify(service).query(captor.capture());
+        assertThat(captor.getValue().position()).isEqualTo("MID");
     }
 }

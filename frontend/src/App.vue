@@ -121,10 +121,6 @@ const totalSampleBase = computed(() =>
 
 const filteredChampionItems = computed(() => {
   let items = result.value?.items ?? []
-  const pos = positionFilter.value
-  if (pos) {
-    items = items.filter((item) => item.positions.includes(pos))
-  }
   const keyword = search.value.trim().toLowerCase()
   if (keyword) {
     items = items.filter((item) =>
@@ -214,7 +210,8 @@ function invalidateQueryResults() {
 }
 
 watch(
-  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy, sortDirection, playerPositionFilter],
+  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy, sortDirection,
+    positionFilter, playerPositionFilter],
   invalidateQueryResults,
   { flush: 'sync' },
 )
@@ -297,6 +294,7 @@ async function query() {
   const seq = ++querySeq
   const view = activeView.value
   const keys = [...selectedStageKeys.value]
+  const selectedChampionPosition = positionFilter.value
   const selectedPlayerPosition = playerPositionFilter.value
   const selectedMinimumPickCount = minimumPickCount.value
   const selectedMinimumMatchCount = minimumMatchCount.value
@@ -306,7 +304,13 @@ async function query() {
   notice.value = ''
   try {
     if (view === 'champion') {
-      const data = await api.championStatisticsByKeys(keys, selectedMinimumPickCount, sortBy.value, sortDirection.value)
+      const data = await api.championStatisticsByKeys(
+        keys,
+        selectedMinimumPickCount,
+        selectedChampionPosition,
+        sortBy.value,
+        sortDirection.value,
+      )
       if (seq === querySeq && activeView.value === view) result.value = data
     } else if (view === 'team') {
       const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, sortDirection.value)
@@ -564,6 +568,7 @@ onMounted(async () => {
               :key="opt.value"
               class="pos-chip"
               :class="{ active: positionFilter === opt.value }"
+              :aria-pressed="positionFilter === opt.value"
               @click="positionFilter = opt.value"
             >
               {{ opt.label }}
@@ -573,8 +578,11 @@ onMounted(async () => {
             <input v-model="search" type="search" placeholder="搜索英雄、称号" />
             <span>{{ filteredChampionItems.length }} 项</span>
           </div>
+          </div>
         </div>
-      </div>
+        <p v-if="positionFilter" class="position-note">
+          出场、胜负与 KDA 按实际分路独立统计；英雄被禁用时没有实际分路，禁用指标按所选赛段整体计算，BP 率为该分路出场率与整体禁用率之和。
+        </p>
 
       <div v-if="filteredChampionItems.length" class="table-scroll">
         <table class="champion-table">

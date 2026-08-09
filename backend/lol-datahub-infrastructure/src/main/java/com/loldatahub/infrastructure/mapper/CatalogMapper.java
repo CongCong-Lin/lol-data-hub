@@ -41,7 +41,11 @@ public interface CatalogMapper {
                    s.name,
                    s.start_time AS startTime,
                    s.end_time AS endTime,
-                   CASE WHEN ss.source_stage_id IS NULL THEN FALSE ELSE TRUE END AS collected,
+                   CASE WHEN ss.source_stage_id IS NOT NULL AND EXISTS (
+                       SELECT 1 FROM champion_position_player_stage_stat_current ps
+                        WHERE ps.source_season_id = s.source_season_id
+                          AND ps.source_stage_id = s.source_stage_id
+                   ) THEN TRUE ELSE FALSE END AS collected,
                    ss.sample_base_count AS sampleBaseCount,
                    ss.collected_at AS collectedAt
             FROM stage s
@@ -99,7 +103,11 @@ public interface CatalogMapper {
                    s.name,
                    s.start_time AS startTime,
                    s.end_time AS endTime,
-                   CASE WHEN ss.source_stage_id IS NULL THEN FALSE ELSE TRUE END AS collected,
+                   CASE WHEN ss.source_stage_id IS NOT NULL AND EXISTS (
+                       SELECT 1 FROM champion_position_player_stage_stat_current ps
+                        WHERE ps.source_season_id = s.source_season_id
+                          AND ps.source_stage_id = s.source_stage_id
+                   ) THEN TRUE ELSE FALSE END AS collected,
                    ss.sample_base_count AS sampleBaseCount,
                    ss.collected_at AS collectedAt
             FROM stage s
@@ -109,6 +117,11 @@ public interface CatalogMapper {
              AND ss.source_stage_id = s.source_stage_id
             <if test="collectedOnly">
             WHERE ss.source_stage_id IS NOT NULL
+              AND EXISTS (
+                  SELECT 1 FROM champion_position_player_stage_stat_current ps
+                   WHERE ps.source_season_id = s.source_season_id
+                     AND ps.source_stage_id = s.source_stage_id
+              )
             </if>
             ORDER BY se.start_time DESC, se.source_season_id DESC, s.start_time, s.source_stage_id
             </script>

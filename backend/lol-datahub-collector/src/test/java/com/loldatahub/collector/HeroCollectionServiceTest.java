@@ -1,5 +1,6 @@
 package com.loldatahub.collector;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.ChampionStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
@@ -13,7 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,34 +25,30 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HeroCollectionServiceTest {
+    private static final List<String> RECORD_POSITIONS = List.of("TOP", "JUN", "MID", "BOT", "SUP");
+    private static final List<String> PLAYER_POSITIONS = List.of("TOP", "JUG", "MID", "AD", "SUP");
 
     private TjStatsClient client;
-    private TjStatsResponseParser parser;
     private ObjectMapper objectMapper;
     private CollectionMapper collectionMapper;
     private ChampionStatWriteMapper writeMapper;
     private SystemStateMapper systemStateMapper;
-    private CatalogCollectionService catalogCollectionService;
     private TransactionTemplate transactionTemplate;
     private HeroCollectionService service;
 
     @BeforeEach
     void setUp() {
         client = mock(TjStatsClient.class);
-        parser = new TjStatsResponseParser(new ObjectMapper());
         objectMapper = new ObjectMapper();
         collectionMapper = mock(CollectionMapper.class);
         writeMapper = mock(ChampionStatWriteMapper.class);
         systemStateMapper = mock(SystemStateMapper.class);
-        catalogCollectionService = mock(CatalogCollectionService.class);
+        CatalogCollectionService catalogCollectionService = mock(CatalogCollectionService.class);
         transactionTemplate = mock(TransactionTemplate.class);
-
         service = new HeroCollectionService(
-                client, parser, objectMapper, collectionMapper,
+                client, new TjStatsResponseParser(objectMapper), objectMapper, collectionMapper,
                 writeMapper, systemStateMapper, catalogCollectionService, transactionTemplate
         );
-
-        // insertRun 时设置 runId
         doAnswer(invocation -> {
             CollectionMapper.GeneratedId holder = invocation.getArgument(4);
             holder.setId(42L);
@@ -57,8 +57,7 @@ class HeroCollectionServiceTest {
     }
 
     @Test
-    void parserFailure_rawResponseSaved_deleteNotCalled_runMarkedFailed() {
-        // 上游返回空数组（结构性校验失败），parser 会抛 TjStatsSourceException
+    void parserFailureRawResponseSavedAndCurrentDataUntouched() {
         String invalidJson = """
                 {"success": true, "data": {"boCount": 10, "list": []}}
                 """;
@@ -68,34 +67,16 @@ class HeroCollectionServiceTest {
                 .isInstanceOf(TjStatsSourceException.class)
                 .hasMessageContaining("data.list 必须是非空数组");
 
-        // 验证 raw response 已保存（在 parse 之前）
         verify(collectionMapper).insertRawResponse(
-                eq(42L),
-                eq("/compound/public/hero"),
-                anyString(),
-                eq(invalidJson),
-                anyString(),
-                any()
+                eq(42L), eq("/compound/public/hero"), anyString(), eq(invalidJson), anyString(), any()
         );
-
-        // 验证 deleteCurrentForStage 未被调用
         verify(writeMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
-
-        // 验证 run 被标记为 FAILED
-        ArgumentCaptor<String> statusCaptor = ArgumentCaptor.forClass(String.class);
-        verify(collectionMapper).finishRun(
-                eq(42L),
-                statusCaptor.capture(),
-                any(),
-                eq(0),
-                anyString()
-        );
-        assertThat(statusCaptor.getValue()).isEqualTo("FAILED");
+        verify(writeMapper, never()).deletePositionCurrentForStage(anyLong(), anyLong());
+        verify(collectionMapper).finishRun(eq(42L), eq("FAILED"), any(), eq(0), anyString());
     }
 
     @Test
-    void parserFailure_businessValidation_rawResponseSaved_deleteNotCalled() {
-        // heroId 为 0（业务校验失败）
+    void businessValidationFailureDoesNotDeleteCurrentData() {
         String invalidJson = """
                 {"success": true, "data": {"boCount": 10, "list": [{"heroId": 0, "heroCnName": "安妮", "pickCount": 0, "banCount": 0, "bpCount": 0, "winningCount": 0, "totalKills": 0, "totalDeath": 0, "totalAssists": 0}]}}
                 """;
@@ -105,124 +86,191 @@ class HeroCollectionServiceTest {
                 .isInstanceOf(TjStatsSourceException.class)
                 .hasMessageContaining("heroId 必须大于 0");
 
-        // 验证 raw response 已保存
-        verify(collectionMapper).insertRawResponse(
-                eq(42L),
-                eq("/compound/public/hero"),
-                anyString(),
-                eq(invalidJson),
-                anyString(),
-                any()
-        );
-
-        // 验证 deleteCurrentForStage 未被调用
         verify(writeMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
-
-        // 验证 run 被标记为 FAILED
+        verify(writeMapper, never()).deletePositionCurrentForStage(anyLong(), anyLong());
         verify(collectionMapper).finishRun(eq(42L), eq("FAILED"), any(), eq(0), contains("heroId 必须大于 0"));
     }
 
     @Test
-    void validResponse_deleteCurrentForStageCalled_runMarkedSuccess() {
-        String validJson = """
-                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroCnName": "安妮", "pickCount": 5, "banCount": 3, "bpCount": 8, "winningCount": 3, "totalKills": 10, "totalDeath": 5, "totalAssists": 15}]}}
-                """;
-        when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
-        // contentHash 不同，触发写入
+    void validResponsesPublishAggregateAndActualPositionRows() {
+        mockValidStage(100L, false, false);
         when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
-
-        // mock transactionTemplate.execute
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            org.springframework.transaction.support.TransactionCallback<?> cb = inv.getArgument(0);
-            return cb.doInTransaction(null);
-        });
+        executeTransactionsImmediately();
 
         CollectionResult result = service.collect(1L, List.of(100L));
 
-        // 验证 deleteCurrentForStage 被调用
-        verify(writeMapper).deleteCurrentForStage(1L, 100L);
-
-        // 验证 run 被标记为 SUCCESS
         assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.changedRecords()).isEqualTo(21);
+        verify(writeMapper).deletePositionCurrentForStage(1L, 100L);
+        verify(writeMapper).deleteCurrentForStage(1L, 100L);
+        verify(writeMapper, times(10)).upsertPositionCurrent(any());
+        verify(writeMapper, times(10)).insertPositionSnapshot(any());
+        verify(systemStateMapper).incrementDataVersion();
+        verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(21), isNull());
     }
 
     @Test
     void internalHeroNameFallsBackToRequiredDisplayName() {
-        String validJson = """
-                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroName": "Annie", "heroLogo": "http://game.gtimg.cn/images/lol/Annie.png", "pickCount": 0, "banCount": 0, "bpCount": 0, "winningCount": 0, "totalKills": 0, "totalDeath": 0, "totalAssists": 0}]}}
-                """;
-        when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
+        mockValidStage(100L, true, false);
         when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
-        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
-            org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);
-            return callback.doInTransaction(null);
-        });
+        executeTransactionsImmediately();
 
         service.collect(1L, List.of(100L));
 
-        ArgumentCaptor<ChampionWrite> champion = ArgumentCaptor.forClass(ChampionWrite.class);
-        verify(writeMapper).upsertChampion(champion.capture());
-        assertThat(champion.getValue().internalName()).isEqualTo("Annie");
-        assertThat(champion.getValue().chineseName()).isEqualTo("Annie");
-        assertThat(champion.getValue().logoUrl()).isEqualTo("https://game.gtimg.cn/images/lol/Annie.png");
+        ArgumentCaptor<ChampionWrite> champions = ArgumentCaptor.forClass(ChampionWrite.class);
+        verify(writeMapper, times(10)).upsertChampion(champions.capture());
+        ChampionWrite annie = champions.getAllValues().stream()
+                .filter(champion -> champion.championId() == 1L)
+                .findFirst()
+                .orElseThrow();
+        assertThat(annie.internalName()).isEqualTo("Annie");
+        assertThat(annie.chineseName()).isEqualTo("Annie");
+        assertThat(annie.logoUrl()).isEqualTo("https://game.gtimg.cn/images/lol/Annie.png");
+        assertThat(annie.positionsJson()).isEqualTo("[\"TOP\"]");
     }
 
     @Test
-    void multipleStages_parserFailsOnSecond_rawSavedForBoth_deleteNotCalled() {
-        String validJson = """
-                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroCnName": "安妮", "pickCount": 5, "banCount": 3, "bpCount": 8, "winningCount": 3, "totalKills": 10, "totalDeath": 5, "totalAssists": 15}]}}
-                """;
+    void multipleStagesFailBeforePublishWhenSecondHeroResponseIsInvalid() {
+        mockValidStage(100L, false, false);
         String invalidJson = """
                 {"success": true, "data": {"boCount": 10, "list": []}}
                 """;
-
-        // 第一个 stage 返回有效数据，第二个返回无效数据
-        when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
         when(client.fetchHeroStatistics(1L, 200L)).thenReturn(invalidJson);
-        when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
 
         assertThatThrownBy(() -> service.collect(1L, List.of(100L, 200L)))
                 .isInstanceOf(TjStatsSourceException.class)
                 .hasMessageContaining("data.list 必须是非空数组");
 
-        // 验证两个 stage 的 raw response 都已保存
-        verify(collectionMapper).insertRawResponse(
-                eq(42L), eq("/compound/public/hero"), anyString(), eq(validJson), anyString(), any()
-        );
-        verify(collectionMapper).insertRawResponse(
-                eq(42L), eq("/compound/public/hero"), anyString(), eq(invalidJson), anyString(), any()
-        );
-
-        // 任何一个赛段校验失败时，整批都不进入发布事务。
         verify(transactionTemplate, never()).execute(any());
         verify(writeMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
+        verify(writeMapper, never()).deletePositionCurrentForStage(anyLong(), anyLong());
         verify(systemStateMapper, never()).incrementDataVersion();
-
-        // 验证 run 被标记为 FAILED
         verify(collectionMapper).finishRun(eq(42L), eq("FAILED"), any(), eq(0), anyString());
     }
 
     @Test
     void multipleChangedStagesUseOnePublishTransaction() {
-        String validJson = """
-                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroCnName": "安妮", "pickCount": 5, "banCount": 3, "bpCount": 8, "winningCount": 3, "totalKills": 10, "totalDeath": 5, "totalAssists": 15}]}}
-                """;
-        when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
-        when(client.fetchHeroStatistics(1L, 200L)).thenReturn(validJson);
+        mockValidStage(100L, false, false);
+        mockValidStage(200L, false, false);
         when(collectionMapper.findCurrentContentHash(anyLong(), anyLong())).thenReturn("different-hash");
-        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
-            org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);
-            return callback.doInTransaction(null);
-        });
+        executeTransactionsImmediately();
 
         CollectionResult result = service.collect(1L, List.of(200L, 100L));
 
         assertThat(result.status()).isEqualTo("SUCCESS");
-        assertThat(result.changedRecords()).isEqualTo(4);
+        assertThat(result.changedRecords()).isEqualTo(42);
         verify(transactionTemplate, times(1)).execute(any());
         verify(writeMapper).deleteCurrentForStage(1L, 100L);
         verify(writeMapper).deleteCurrentForStage(1L, 200L);
         verify(systemStateMapper, times(1)).incrementDataVersion();
-        verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(4), isNull());
+    }
+
+    @Test
+    void mismatchedPerGameStatisticsAreRejectedBeforeDelete() {
+        mockValidStage(100L, false, true);
+
+        assertThatThrownBy(() -> service.collect(1L, List.of(100L)))
+                .isInstanceOf(TjStatsSourceException.class)
+                .hasMessageContaining("逐局合计与官网聚合不一致")
+                .hasMessageContaining("heroId=1");
+
+        verify(transactionTemplate, never()).execute(any());
+        verify(writeMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
+        verify(writeMapper, never()).deletePositionCurrentForStage(anyLong(), anyLong());
+        verify(collectionMapper).finishRun(eq(42L), eq("FAILED"), any(), eq(0), anyString());
+    }
+
+    private void mockValidStage(long stageId, boolean firstHeroHasOnlyInternalName, boolean corruptFirstKill) {
+        when(client.fetchHeroStatistics(1L, stageId))
+                .thenReturn(heroJson(firstHeroHasOnlyInternalName));
+        when(client.fetchPlayerStatistics(1L, stageId)).thenReturn(playerJson());
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            when(client.fetchPlayerHeroRecords(playerId, 1L, stageId))
+                    .thenReturn(heroRecordJson(playerId, stageId, corruptFirstKill && playerId == 1));
+        }
+    }
+
+    private void executeTransactionsImmediately() {
+        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(null);
+        });
+    }
+
+    private String heroJson(boolean firstHeroHasOnlyInternalName) {
+        List<Map<String, Object>> heroes = new ArrayList<>();
+        for (long heroId = 1; heroId <= 10; heroId++) {
+            Map<String, Object> hero = new LinkedHashMap<>();
+            hero.put("heroId", heroId);
+            hero.put("heroName", heroId == 1 ? "Annie" : "Hero" + heroId);
+            if (!(firstHeroHasOnlyInternalName && heroId == 1)) {
+                hero.put("heroCnName", heroId == 1 ? "安妮" : "英雄" + heroId);
+            }
+            if (heroId == 1) {
+                hero.put("heroLogo", "http://game.gtimg.cn/images/lol/Annie.png");
+            }
+            hero.put("pickCount", 1);
+            hero.put("banCount", 0);
+            hero.put("bpCount", 1);
+            hero.put("winningCount", heroId <= 5 ? 1 : 0);
+            hero.put("totalKills", 1);
+            hero.put("totalDeath", 0);
+            hero.put("totalAssists", 2);
+            heroes.add(hero);
+        }
+        return json(Map.of("success", true, "data", Map.of(
+                "boCount", 1,
+                "updatedAt", 1748345653,
+                "gameVersion", List.of("15.10"),
+                "list", heroes
+        )));
+    }
+
+    private String playerJson() {
+        List<Map<String, Object>> players = new ArrayList<>();
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            players.add(Map.of(
+                    "playerId", playerId,
+                    "playerName", "Player" + playerId,
+                    "playerLocation", PLAYER_POSITIONS.get((int) ((playerId - 1) % 5)),
+                    "matchCount", 1,
+                    "boCount", 1,
+                    "mvpCount", 0,
+                    "mvpVotes", 0,
+                    "totalKills", 1,
+                    "totalAssists", 2,
+                    "totalDeath", 0
+            ));
+        }
+        return json(Map.of("success", true, "data", players));
+    }
+
+    private String heroRecordJson(long playerId, long stageId, boolean corruptKill) {
+        String position = RECORD_POSITIONS.get((int) ((playerId - 1) % 5));
+        long teamId = playerId <= 5 ? 1 : 2;
+        Map<String, Object> record = new LinkedHashMap<>();
+        record.put("heroID", playerId);
+        record.put("heroName", "Hero" + playerId);
+        record.put("matchID", 1000 + stageId);
+        record.put("bo", 1);
+        record.put("role", position);
+        record.put("isRole", true);
+        record.put("kill", corruptKill ? 99 : 1);
+        record.put("death", 0);
+        record.put("assist", 2);
+        record.put("teamID", teamId);
+        record.put("winTeamID", 1);
+        return json(Map.of("success", true, "data", Map.of(
+                "playerID", playerId,
+                "heroRecordList", List.of(record)
+        )));
+    }
+
+    private String json(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

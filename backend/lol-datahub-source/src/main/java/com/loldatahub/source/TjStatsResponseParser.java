@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.source.model.HeroStagePayload;
+import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.HeroStatSourceRecord;
+import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import com.loldatahub.source.model.SeasonSourceRecord;
 import com.loldatahub.source.model.SeasonStagesSourceRecord;
@@ -163,6 +165,61 @@ public class TjStatsResponseParser {
 
         validatePlayers(players);
         return players;
+    }
+
+    public PlayerHeroRecordPayload parsePlayerHeroRecords(String rawJson, long expectedPlayerId) {
+        if (expectedPlayerId <= 0) {
+            throw new IllegalArgumentException("期望选手 ID 必须大于 0");
+        }
+        JsonNode data = validatedData(rawJson);
+        if (!data.isObject()) {
+            throw new TjStatsSourceException("HERO_RECORD: data 必须是对象");
+        }
+
+        JsonNode playerIdNode = data.get("playerID");
+        if (playerIdNode == null || !playerIdNode.isIntegralNumber()) {
+            throw new TjStatsSourceException("HERO_RECORD: 缺少整数类型关键字段 playerID");
+        }
+        long playerId = playerIdNode.longValue();
+        if (playerId != expectedPlayerId) {
+            throw new TjStatsSourceException(
+                    "HERO_RECORD: 返回选手 ID 与请求不一致，期望 " + expectedPlayerId + "，实际 " + playerId);
+        }
+
+        JsonNode listNode = data.get("heroRecordList");
+        if (listNode == null || !listNode.isArray() || listNode.isEmpty()) {
+            throw new TjStatsSourceException("HERO_RECORD: heroRecordList 必须是非空数组，playerId=" + playerId);
+        }
+        requireIntegralFields(listNode, "HERO_RECORD", "heroID", "matchID", "bo", "kill", "death",
+                "assist", "teamID", "winTeamID");
+        List<HeroRecordSourceRecord> records = objectMapper.convertValue(
+                listNode,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, HeroRecordSourceRecord.class)
+        );
+
+        Set<String> gameKeys = new HashSet<>();
+        Set<String> validRoles = Set.of("TOP", "JUN", "MID", "BOT", "SUP");
+        for (int index = 0; index < records.size(); index++) {
+            HeroRecordSourceRecord record = records.get(index);
+            String prefix = "HERO_RECORD[" + index + "]";
+            if (record.heroId() <= 0 || record.matchId() <= 0 || record.bo() <= 0
+                    || record.teamId() <= 0 || record.winTeamId() <= 0) {
+                throw new TjStatsSourceException(prefix + ": 英雄、比赛、局次与战队 ID 必须大于 0");
+            }
+            requireNonNegative(prefix, "kill", record.kill());
+            requireNonNegative(prefix, "death", record.death());
+            requireNonNegative(prefix, "assist", record.assist());
+            String role = record.role() == null ? "" : record.role().trim().toUpperCase(Locale.ROOT);
+            if (!validRoles.contains(role)) {
+                throw new TjStatsSourceException(
+                        prefix + ": role 必须属于 TOP/JUN/MID/BOT/SUP，实际值: " + record.role());
+            }
+            String gameKey = record.matchId() + ":" + record.bo();
+            if (!gameKeys.add(gameKey)) {
+                throw new TjStatsSourceException(prefix + ": 同一选手存在重复对局记录 " + gameKey);
+            }
+        }
+        return new PlayerHeroRecordPayload(playerId, records);
     }
 
     private JsonNode validatedData(String rawJson) {

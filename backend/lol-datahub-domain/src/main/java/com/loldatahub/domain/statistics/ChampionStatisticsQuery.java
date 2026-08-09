@@ -7,6 +7,7 @@ import java.util.Set;
 public record ChampionStatisticsQuery(
         List<StageKey> stages,
         int minimumPickCount,
+        String position,
         String sortBy,
         SortDirection sortDirection
 ) {
@@ -16,13 +17,24 @@ public record ChampionStatisticsQuery(
     private static final String DEFAULT_SORT_BY = "bpRate";
     private static final int MAX_STAGES = 50;
     private static final int MAX_THRESHOLD = 10000;
+    private static final Set<String> ALLOWED_POSITIONS = Set.of("TOP", "JUN", "MID", "BOT", "SUP");
 
     /**
      * 旧参数兼容构造器：从 (seasonId, stageIds, ...) 转换为 canonical 形式。
      */
     public ChampionStatisticsQuery(long seasonId, List<Long> stageIds, int minimumPickCount,
                                    String sortBy, SortDirection sortDirection) {
-        this(StageKey.fromSeasonStages(seasonId, stageIds), minimumPickCount, sortBy, sortDirection);
+        this(StageKey.fromSeasonStages(seasonId, stageIds), minimumPickCount, null, sortBy, sortDirection);
+    }
+
+    public ChampionStatisticsQuery(long seasonId, List<Long> stageIds, int minimumPickCount,
+                                   String position, String sortBy, SortDirection sortDirection) {
+        this(StageKey.fromSeasonStages(seasonId, stageIds), minimumPickCount, position, sortBy, sortDirection);
+    }
+
+    public ChampionStatisticsQuery(List<StageKey> stages, int minimumPickCount,
+                                   String sortBy, SortDirection sortDirection) {
+        this(stages, minimumPickCount, null, sortBy, sortDirection);
     }
 
     public ChampionStatisticsQuery {
@@ -42,12 +54,24 @@ public record ChampionStatisticsQuery(
         if (minimumPickCount > MAX_THRESHOLD) {
             throw new IllegalArgumentException("最低出场次数不能超过 " + MAX_THRESHOLD);
         }
+        position = normalizePosition(position);
         if (sortBy == null || sortBy.isBlank()) {
             sortBy = DEFAULT_SORT_BY;
         } else {
             sortBy = normalizeSortBy(sortBy);
         }
         sortDirection = sortDirection == null ? SortDirection.DESC : sortDirection;
+    }
+
+    private static String normalizePosition(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (!ALLOWED_POSITIONS.contains(normalized)) {
+            throw new IllegalArgumentException("未知的英雄分路：" + value);
+        }
+        return normalized;
     }
 
     private static String normalizeSortBy(String value) {
@@ -69,7 +93,8 @@ public record ChampionStatisticsQuery(
                 .map(StageKey::canonical)
                 .reduce((a, b) -> a + "," + b)
                 .orElse("");
-        return stageKeysStr + ":" + minimumPickCount + ":"
+        String pos = position == null ? "" : position;
+        return stageKeysStr + ":" + minimumPickCount + ":" + pos + ":"
                 + sortBy + ":" + sortDirection.name();
     }
 }

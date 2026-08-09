@@ -177,6 +177,7 @@ export const api = {
     seasonId: number,
     stageIds: number[],
     minimumPickCount: number,
+    position: string,
     sortBy: string,
     sortDirection: string,
   ) => {
@@ -187,6 +188,7 @@ export const api = {
       sortBy,
       sortDirection,
     })
+    if (position) params.set('position', position)
     return request<ChampionStatisticsResult>(`/api/v1/statistics/champions?${params}`)
   },
   teamStatistics: (
@@ -226,6 +228,7 @@ export const api = {
   championStatisticsByKeys: (
     stageKeys: string[],
     minimumPickCount: number,
+    position: string,
     sortBy: string,
     sortDirection: string,
   ) => {
@@ -235,6 +238,7 @@ export const api = {
       sortBy,
       sortDirection,
     })
+    if (position) params.set('position', position)
     return request<ChampionStatisticsResult>(`/api/v1/statistics/champions?${params}`)
   },
   teamStatisticsByKeys: (

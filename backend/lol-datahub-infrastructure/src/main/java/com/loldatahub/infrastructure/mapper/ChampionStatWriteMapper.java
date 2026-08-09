@@ -1,6 +1,7 @@
 package com.loldatahub.infrastructure.mapper;
 
 import com.loldatahub.infrastructure.model.ChampionStageStatWrite;
+import com.loldatahub.infrastructure.model.ChampionPositionPlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -16,6 +17,12 @@ public interface ChampionStatWriteMapper {
             WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
             """)
     int deleteCurrentForStage(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
+
+    @Delete("""
+            DELETE FROM champion_position_player_stage_stat_current
+            WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
+            """)
+    int deletePositionCurrentForStage(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
 
     @Insert("""
             INSERT INTO champion
@@ -81,4 +88,31 @@ public interface ChampionStatWriteMapper {
                     CAST(#{positionsJson} AS JSON), #{collectedAt})
             """)
     void insertSnapshot(ChampionStageStatWrite stat);
+
+    @Insert("""
+            INSERT INTO champion_position_player_stage_stat_current
+                (source_season_id, source_stage_id, source_champion_id, position,
+                 source_player_id, player_name, pick_count, winning_count,
+                 total_kills, total_deaths, total_assists, collection_run_id, collected_at)
+            VALUES (#{seasonId}, #{stageId}, #{championId}, #{position},
+                    #{playerId}, #{playerName}, #{pickCount}, #{winningCount},
+                    #{totalKills}, #{totalDeaths}, #{totalAssists}, #{runId}, #{collectedAt})
+            ON DUPLICATE KEY UPDATE player_name = VALUES(player_name),
+                pick_count = VALUES(pick_count), winning_count = VALUES(winning_count),
+                total_kills = VALUES(total_kills), total_deaths = VALUES(total_deaths),
+                total_assists = VALUES(total_assists), collection_run_id = VALUES(collection_run_id),
+                collected_at = VALUES(collected_at)
+            """)
+    void upsertPositionCurrent(ChampionPositionPlayerStageStatWrite stat);
+
+    @Insert("""
+            INSERT INTO champion_position_player_stage_stat_snapshot
+                (collection_run_id, source_season_id, source_stage_id, source_champion_id,
+                 position, source_player_id, player_name, pick_count, winning_count,
+                 total_kills, total_deaths, total_assists, collected_at)
+            VALUES (#{runId}, #{seasonId}, #{stageId}, #{championId},
+                    #{position}, #{playerId}, #{playerName}, #{pickCount}, #{winningCount},
+                    #{totalKills}, #{totalDeaths}, #{totalAssists}, #{collectedAt})
+            """)
+    void insertPositionSnapshot(ChampionPositionPlayerStageStatWrite stat);
 }

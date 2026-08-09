@@ -27,12 +27,13 @@ public class ChampionStatisticsController {
             @RequestParam(required = false) Long seasonId,
             @RequestParam(required = false) List<Long> stageIds,
             @RequestParam(defaultValue = "10") int minimumPickCount,
+            @RequestParam(required = false) String position,
             @RequestParam(defaultValue = "bpRate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection
     ) {
         List<StageKey> stages = StageKeyParamParser.parse(stageKeys, seasonId, stageIds);
         var query = new ChampionStatisticsQuery(
-                stages, minimumPickCount, sortBy,
+                stages, minimumPickCount, position, sortBy,
                 SortDirection.from(sortDirection)
         );
         return ApiResponse.success(service.query(query));

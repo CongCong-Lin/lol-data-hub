@@ -66,14 +66,14 @@ public class ChampionStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集英雄数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s4:v" + dataVersion + ":champion:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s5:v" + dataVersion + ":champion:" + query.cacheFingerprint();
         List<ChampionStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new ChampionStatisticsResult(dataVersion, query.minimumPickCount(), cached.size(), cached);
         }
 
         List<ChampionStatistics> items = new ArrayList<>(mapper.aggregateChampions(
-                stages, query.minimumPickCount()
+                stages, query.minimumPickCount(), query.position()
         ).stream().map(row -> map(row, query.minimumPickCount())).toList());
         items.sort(comparator(query));
         writeCache(cacheKey, items);
@@ -125,6 +125,15 @@ public class ChampionStatisticsService {
     List<String> mergePositionsFromCsv(String csv) {
         if (csv == null || csv.isBlank()) {
             return List.of();
+        }
+        if (!csv.contains("[") && !csv.contains("|")) {
+            Set<String> values = Arrays.stream(csv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+            return List.of("TOP", "JUN", "MID", "BOT", "SUP").stream()
+                    .filter(values::contains)
+                    .toList();
         }
         LinkedHashSet<String> merged = new LinkedHashSet<>();
         for (String segment : csv.split("\\|")) {

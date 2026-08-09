@@ -937,6 +937,57 @@ class TjStatsResponseParserTest {
         }
     }
 
+    @Nested
+    class HeroRecordValidation {
+        @Test
+        void parsesActualRoleAndPerGameStatistics() {
+            String json = """
+                    {"success":true,"data":{"playerID":2562,"heroRecordList":[
+                      {"heroID":50,"heroName":"斯维因","matchID":13336,"bo":2,"role":"MID",
+                       "isRole":true,"kill":8,"death":0,"assist":9,"teamID":57,"winTeamID":57}
+                    ]}}
+                    """;
+
+            var payload = parser.parsePlayerHeroRecords(json, 2562);
+
+            assertThat(payload.playerId()).isEqualTo(2562);
+            assertThat(payload.records()).singleElement().satisfies(record -> {
+                assertThat(record.heroId()).isEqualTo(50);
+                assertThat(record.role()).isEqualTo("MID");
+                assertThat(record.kill()).isEqualTo(8);
+                assertThat(record.death()).isZero();
+            });
+        }
+
+        @Test
+        void rejectsUnexpectedPlayerId() {
+            String json = """
+                    {"success":true,"data":{"playerID":99,"heroRecordList":[
+                      {"heroID":50,"matchID":1,"bo":1,"role":"MID","kill":0,"death":0,"assist":0,
+                       "teamID":1,"winTeamID":1}
+                    ]}}
+                    """;
+
+            assertThatThrownBy(() -> parser.parsePlayerHeroRecords(json, 100))
+                    .isInstanceOf(TjStatsSourceException.class)
+                    .hasMessageContaining("返回选手 ID 与请求不一致");
+        }
+
+        @Test
+        void rejectsUnknownRole() {
+            String json = """
+                    {"success":true,"data":{"playerID":100,"heroRecordList":[
+                      {"heroID":50,"matchID":1,"bo":1,"role":"ADC","kill":0,"death":0,"assist":0,
+                       "teamID":1,"winTeamID":1}
+                    ]}}
+                    """;
+
+            assertThatThrownBy(() -> parser.parsePlayerHeroRecords(json, 100))
+                    .isInstanceOf(TjStatsSourceException.class)
+                    .hasMessageContaining("TOP/JUN/MID/BOT/SUP");
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // 不含 Authorization 信息
     // ══════════════════════════════════════════════════════════════════════

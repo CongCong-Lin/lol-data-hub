@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.mapper.ChampionStatisticsMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.model.ChampionAggregateRow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,7 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ChampionStatisticsServiceTest {
@@ -31,7 +34,7 @@ class ChampionStatisticsServiceTest {
         ValueOperations<String, String> ops = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(ops);
         service = new ChampionStatisticsService(mapper, systemStateMapper, redisTemplate,
-                new ObjectMapper(), Duration.ofHours(12));
+                new ObjectMapper().findAndRegisterModules(), Duration.ofHours(12));
     }
 
     @Test
@@ -60,6 +63,37 @@ class ChampionStatisticsServiceTest {
         var result = service.mergePositionsFromCsv(csv);
 
         assertThat(result).containsExactly("JUN", "SUP");
+    }
+
+    @Test
+    void actualPositionCsvUsesCanonicalLaneOrder() {
+        assertThat(service.mergePositionsFromCsv("MID,TOP,SUP"))
+                .containsExactly("TOP", "MID", "SUP");
+    }
+
+    @Test
+    void positionFilterIsDelegatedAndMapsIndependentCounts() {
+        StageKey stage = new StageKey(239, 18);
+        when(mapper.findCollectedStageKeys(any())).thenReturn(List.of(stage));
+        when(mapper.aggregateChampions(any(), anyInt(), eq("TOP"))).thenReturn(List.of(
+                new ChampionAggregateRow(
+                        50, "斯维因", "诺克萨斯统领", null, "TOP", "Zeus",
+                        53, 2, 4, 6, 2, 11, 7, 19, null
+                )
+        ));
+        var query = new com.loldatahub.domain.statistics.ChampionStatisticsQuery(
+                List.of(stage), 0, "TOP", "winningRate",
+                com.loldatahub.domain.statistics.SortDirection.DESC);
+
+        ChampionStatisticsResult result = service.query(query);
+
+        assertThat(result.items()).singleElement().satisfies(swain -> {
+            assertThat(swain.positions()).containsExactly("TOP");
+            assertThat(swain.pickCount()).isEqualTo(2);
+            assertThat(swain.winningCount()).isEqualTo(2);
+            assertThat(swain.totalKills()).isEqualTo(11);
+        });
+        verify(mapper).aggregateChampions(List.of(stage), 0, "TOP");
     }
 
     @Test

@@ -122,7 +122,7 @@ describe('查询状态', () => {
     await wrapper.get('#minimum').setValue('11')
     expect(wrapper.text()).not.toContain('安妮')
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(
-      ['237:100'], 10, 'bpRate', 'desc',
+      ['237:100'], 10, '', 'bpRate', 'desc',
     )
 
     wrapper.unmount()
@@ -146,6 +146,23 @@ describe('查询状态', () => {
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenCalledWith(
       ['237:100'], 5, 'TOP', 'kda', 'desc',
     )
+    wrapper.unmount()
+  })
+
+  it('将英雄实际分路作为统计条件传给后端', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const topPosition = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上单')
+    expect(topPosition).toBeDefined()
+    await topPosition!.trigger('click')
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(
+      ['237:100'], 10, 'TOP', 'bpRate', 'desc',
+    )
+    expect(wrapper.text()).toContain('出场、胜负与 KDA 按实际分路独立统计')
     wrapper.unmount()
   })
 

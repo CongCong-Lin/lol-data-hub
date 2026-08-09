@@ -95,6 +95,7 @@ button.ghost { border: 1px solid var(--line); color: #dce7ee; background: transp
 .message.success { border-color: var(--cyan); color: #a9e7e5; }
 .table-panel { margin-top: 22px; }
 .table-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; padding: 22px; border-bottom: 1px solid var(--line); }
+.position-note { margin: 0; padding: 10px 22px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; }
 h2 { margin: 0; font-size: 28px; font-weight: 650; }
 .toolbar-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .position-filter { display: flex; gap: 6px; }
