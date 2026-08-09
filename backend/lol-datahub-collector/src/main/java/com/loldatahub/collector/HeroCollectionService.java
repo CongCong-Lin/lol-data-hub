@@ -111,8 +111,11 @@ public class HeroCollectionService {
                     );
                     writeMapper.deleteCurrentForStage(seasonId, stageId);
                     for (var hero : payload.heroes()) {
+                        String chineseName = hero.heroCnName() == null || hero.heroCnName().isBlank()
+                                ? hero.heroName()
+                                : hero.heroCnName();
                         writeMapper.upsertChampion(new ChampionWrite(
-                                hero.heroId(), hero.heroName(), hero.heroCnName(), hero.heroCnTitle(),
+                                hero.heroId(), hero.heroName(), chineseName, hero.heroCnTitle(),
                                 hero.heroLogo(), toJson(hero.heroLocation())
                         ));
                         ChampionStageStatWrite stat = new ChampionStageStatWrite(

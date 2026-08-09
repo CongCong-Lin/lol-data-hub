@@ -7,7 +7,14 @@ public enum SortDirection {
     DESC;
 
     public static SortDirection from(String value) {
-        return "asc".equalsIgnoreCase(value) ? ASC : DESC;
+        if (value == null || value.isBlank()) {
+            return DESC;
+        }
+        return switch (value.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "asc" -> ASC;
+            case "desc" -> DESC;
+            default -> throw new IllegalArgumentException("不支持的排序方向：" + value);
+        };
     }
 
     public <T> Comparator<T> apply(Comparator<T> comparator) {

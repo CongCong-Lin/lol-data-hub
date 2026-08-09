@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.ChampionStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.model.ChampionWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -143,6 +144,26 @@ class HeroCollectionServiceTest {
 
         // 验证 run 被标记为 SUCCESS
         assertThat(result.status()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void internalHeroNameFallsBackToRequiredDisplayName() {
+        String validJson = """
+                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroName": "Annie", "pickCount": 0, "banCount": 0, "bpCount": 0, "winningCount": 0, "totalKills": 0, "totalDeath": 0, "totalAssists": 0}]}}
+                """;
+        when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
+        when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(null);
+        });
+
+        service.collect(1L, List.of(100L));
+
+        ArgumentCaptor<ChampionWrite> champion = ArgumentCaptor.forClass(ChampionWrite.class);
+        verify(writeMapper).upsertChampion(champion.capture());
+        assertThat(champion.getValue().internalName()).isEqualTo("Annie");
+        assertThat(champion.getValue().chineseName()).isEqualTo("Annie");
     }
 
     @Test
