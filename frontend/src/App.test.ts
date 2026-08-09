@@ -238,12 +238,17 @@ describe('查询状态', () => {
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(20)
-    expect(wrapper.get('.pagination-row-count').text()).toContain('第 1–20 项，共 25 项')
+    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(10)
+    expect(wrapper.get('.pagination-row-count').text()).toContain('第 1–10 项，共 25 项')
     expect(wrapper.findAll('.page-size-select option').map((option) => option.text()))
       .toEqual(['10', '20', '50', '100'])
 
     await wrapper.get('.pagination-next').trigger('click')
+    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(10)
+    expect(wrapper.get('.pagination-row-count').text()).toContain('第 11–20 项，共 25 项')
+    expect(wrapper.text()).toContain('英雄20')
+
+    await wrapper.get('button[aria-label="第 3 页"]').trigger('click')
     expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(5)
     expect(wrapper.get('.pagination-row-count').text()).toContain('第 21–25 项，共 25 项')
     expect(wrapper.text()).toContain('英雄25')
