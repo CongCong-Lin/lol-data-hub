@@ -194,4 +194,30 @@ describe('查询状态', () => {
     expect(wrapper.get('.field-error').text()).toContain('0 到 10000 之间的整数')
     wrapper.unmount()
   })
+
+  it('可以一键清空所有已选赛段', async () => {
+    vi.mocked(api.availability).mockResolvedValue([
+      stages[0],
+      {
+        ...stages[0],
+        sourceStageId: 101,
+        name: '第二赛段',
+        sampleBaseCount: 36,
+      },
+    ])
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.findAll('.basket-item')).toHaveLength(2)
+    expect(wrapper.get('.basket-clear').text()).toBe('清空全部')
+
+    await wrapper.get('.basket-clear').trigger('click')
+
+    expect(wrapper.findAll('.basket-item')).toHaveLength(0)
+    expect(wrapper.find('.basket-clear').exists()).toBe(false)
+    expect(wrapper.findAll('button.stage-chip.selected')).toHaveLength(0)
+    expect(wrapper.get('button.primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('请在上方赛段列表中勾选要查询的赛段')
+    wrapper.unmount()
+  })
 })

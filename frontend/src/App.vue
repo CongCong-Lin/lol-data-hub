@@ -365,6 +365,12 @@ function removeStage(compositeKey: string) {
   invalidateQueryResults()
 }
 
+function clearSelectedStages() {
+  if (selectedStageKeys.value.size === 0) return
+  selectedStageKeys.value = new Set()
+  invalidateQueryResults()
+}
+
 function percent(value: number) {
   return `${(value * 100).toFixed(2)}%`
 }
@@ -516,10 +522,18 @@ onMounted(async () => {
         <div class="basket-section">
           <div class="basket-heading">
             <span>已选跨赛事赛段</span>
-            <small v-if="selectedStageKeys.size > 0">
-              {{ selectedSeasonCount }} 个赛事 · {{ selectedStageKeys.size }} 个赛段
-              <template v-if="activeView === 'champion'"> · 样本合计 {{ totalSampleBase }}</template>
-            </small>
+            <div v-if="selectedStageKeys.size > 0" class="basket-heading-actions">
+              <small>
+                {{ selectedSeasonCount }} 个赛事 · {{ selectedStageKeys.size }} 个赛段
+                <template v-if="activeView === 'champion'"> · 样本合计 {{ totalSampleBase }}</template>
+              </small>
+              <button
+                type="button"
+                class="basket-clear"
+                aria-label="取消所有已选赛段"
+                @click="clearSelectedStages"
+              >清空全部</button>
+            </div>
           </div>
           <div v-if="selectedStageKeys.size === 0" class="empty-inline">
             请在上方赛段列表中勾选要查询的赛段，支持跨赛事选择（如 LPL 赛段 + MSI 赛段，需已有采集数据）。
