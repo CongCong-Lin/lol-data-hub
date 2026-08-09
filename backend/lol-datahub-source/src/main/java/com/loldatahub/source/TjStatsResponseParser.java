@@ -8,6 +8,7 @@ import com.loldatahub.source.model.HeroStatSourceRecord;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import com.loldatahub.source.model.SeasonSourceRecord;
 import com.loldatahub.source.model.SeasonStagesSourceRecord;
+import com.loldatahub.source.model.StageSourceRecord;
 import com.loldatahub.source.model.TeamStatSourceRecord;
 
 import java.math.BigDecimal;
@@ -34,8 +35,43 @@ public class TjStatsResponseParser {
         );
     }
 
-    public SeasonStagesSourceRecord parseStages(String rawJson) {
-        return objectMapper.convertValue(validatedData(rawJson), SeasonStagesSourceRecord.class);
+    public SeasonStagesSourceRecord parseStages(String rawJson, long expectedSeasonId) {
+        if (expectedSeasonId <= 0) {
+            throw new IllegalArgumentException("期望赛季 ID 必须大于 0");
+        }
+
+        JsonNode data = validatedData(rawJson);
+        if (!data.isObject()) {
+            throw new TjStatsSourceException("STAGE: data 必须是对象");
+        }
+        JsonNode stageInfos = data.path("stageInfos");
+        if (!stageInfos.isArray() || stageInfos.isEmpty()) {
+            throw new TjStatsSourceException("STAGE: stageInfos 必须是非空数组");
+        }
+        requireIntegralFields(stageInfos, "STAGE", "stageId");
+
+        SeasonStagesSourceRecord result = objectMapper.convertValue(data, SeasonStagesSourceRecord.class);
+        if (result.seasonId() != expectedSeasonId) {
+            throw new TjStatsSourceException(
+                    "STAGE: 返回赛季 ID 与请求不一致，期望 " + expectedSeasonId + "，实际 " + result.seasonId());
+        }
+        if (result.seasonName() == null || result.seasonName().isBlank()) {
+            throw new TjStatsSourceException("STAGE: seasonName 不能为空");
+        }
+
+        Set<Long> stageIds = new HashSet<>();
+        for (StageSourceRecord stage : result.stageInfos()) {
+            if (stage.stageId() <= 0) {
+                throw new TjStatsSourceException("STAGE: stageId 必须大于 0，实际值: " + stage.stageId());
+            }
+            if (stage.stageName() == null || stage.stageName().isBlank()) {
+                throw new TjStatsSourceException("STAGE: stageName 不能为空，stageId=" + stage.stageId());
+            }
+            if (!stageIds.add(stage.stageId())) {
+                throw new TjStatsSourceException("STAGE: stageId 重复: " + stage.stageId());
+            }
+        }
+        return result;
     }
 
     public HeroStagePayload parseHeroStage(String rawJson) {

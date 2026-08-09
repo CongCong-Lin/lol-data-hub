@@ -37,7 +37,7 @@ public class CatalogCollectionService {
                 : List.of(selectedSeasonId);
         int stageCount = 0;
         for (Long seasonId : targetSeasonIds) {
-            var seasonStages = parser.parseStages(client.fetchStages(seasonId));
+            var seasonStages = parser.parseStages(client.fetchStages(seasonId), seasonId);
             if (seasons.stream().noneMatch(item -> item.seasonId() == seasonId)) {
                 catalogMapper.upsertSeason(new Season(seasonId, seasonStages.seasonName(), null, null, false));
             }
@@ -55,4 +55,3 @@ public class CatalogCollectionService {
     public record CatalogSyncResult(int seasonCount, int stageCount, List<Long> syncedSeasonIds) {
     }
 }
-
