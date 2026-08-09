@@ -32,4 +32,9 @@ class StatisticsMathTest {
     void perGameComputesCorrectly() {
         assertThat(StatisticsMath.perGame(150, 20)).isEqualByComparingTo("7.500000");
     }
+
+    @Test
+    void kdaTreatsZeroDeathsAsOneInsteadOfDiscardingKillsAndAssists() {
+        assertThat(StatisticsMath.kda(8, 4, 0)).isEqualByComparingTo("12.000000");
+    }
 }

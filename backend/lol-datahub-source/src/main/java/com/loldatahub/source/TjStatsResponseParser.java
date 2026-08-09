@@ -81,7 +81,8 @@ public class TjStatsResponseParser {
         if (!data.isArray() || data.isEmpty()) {
             throw new TjStatsSourceException("TEAM: data 必须是非空数组");
         }
-        requireIntegralFields(data, "TEAM", "teamId", "matchCount", "matchWinCount", "totalKills", "totalDeath");
+        requireIntegralFields(data, "TEAM", "teamId", "matchCount", "gameCount",
+                "matchWinCount", "totalKills", "totalDeath");
 
         List<TeamStatSourceRecord> teams = objectMapper.convertValue(
                 data,
@@ -98,8 +99,9 @@ public class TjStatsResponseParser {
         if (!data.isArray() || data.isEmpty()) {
             throw new TjStatsSourceException("PLAYER: data 必须是非空数组");
         }
-        requireIntegralFields(data, "PLAYER", "matchCount", "mvpCount", "mvpVotes",
+        requireIntegralFields(data, "PLAYER", "matchCount", "boCount", "mvpCount",
                 "totalKills", "totalAssists", "totalDeath");
+        requireNumericFields(data, "PLAYER", "mvpVotes");
 
         List<PlayerStatSourceRecord> players = objectMapper.convertValue(
                 data,
@@ -220,6 +222,13 @@ public class TjStatsResponseParser {
             if (t.matchCount() <= 0) {
                 throw new TjStatsSourceException(prefix + ": matchCount 必须大于 0，实际值: " + t.matchCount());
             }
+            if (t.gameCount() <= 0) {
+                throw new TjStatsSourceException(prefix + ": gameCount 必须大于 0，实际值: " + t.gameCount());
+            }
+            if (t.gameCount() < t.matchCount()) {
+                throw new TjStatsSourceException(
+                        prefix + ": gameCount(" + t.gameCount() + ") 不能小于 matchCount(" + t.matchCount() + ")");
+            }
             if (t.matchWinCount() < 0 || t.matchWinCount() > t.matchCount()) {
                 throw new TjStatsSourceException(
                         prefix + ": matchWinCount(" + t.matchWinCount() + ") 必须在 0..matchCount(" + t.matchCount() + ") 之间");
@@ -261,18 +270,21 @@ public class TjStatsResponseParser {
             if (p.matchCount() <= 0) {
                 throw new TjStatsSourceException(prefix + ": matchCount 必须大于 0，实际值: " + p.matchCount());
             }
+            if (p.boCount() <= 0) {
+                throw new TjStatsSourceException(prefix + ": boCount 必须大于 0，实际值: " + p.boCount());
+            }
+            if (p.boCount() < p.matchCount()) {
+                throw new TjStatsSourceException(
+                        prefix + ": boCount(" + p.boCount() + ") 不能小于 matchCount(" + p.matchCount() + ")");
+            }
             // 非负计数
             requireNonNegative(prefix, "mvpCount", p.mvpCount());
-            requireNonNegative(prefix, "mvpVotes", p.mvpVotes());
+            requireNonNegativeDecimal(prefix, "mvpVotes", p.mvpVotes());
             requireNonNegative(prefix, "totalKills", p.totalKills());
             requireNonNegative(prefix, "totalAssists", p.totalAssists());
             requireNonNegative(prefix, "totalDeath", p.totalDeath());
 
-            // mvpCount <= matchCount
-            if (p.mvpCount() > p.matchCount()) {
-                throw new TjStatsSourceException(
-                        prefix + ": mvpCount(" + p.mvpCount() + ") 不能超过 matchCount(" + p.matchCount() + ")");
-            }
+            // mvpCount 允许大于 matchCount（官网数据可能跨赛事累计）
             // playerLocation 校验
             if (p.playerLocation() != null && !p.playerLocation().isBlank()) {
                 String loc = p.playerLocation().trim().toUpperCase(Locale.ROOT);
@@ -329,6 +341,22 @@ public class TjStatsResponseParser {
                 if (value == null || value.isNull() || !value.isIntegralNumber()) {
                     throw new TjStatsSourceException(
                             type + "[" + index + "]: 缺少整数类型关键字段 " + field);
+                }
+            }
+        }
+    }
+
+    private static void requireNumericFields(JsonNode records, String type, String... fields) {
+        for (int index = 0; index < records.size(); index++) {
+            JsonNode record = records.get(index);
+            if (!record.isObject()) {
+                throw new TjStatsSourceException(type + "[" + index + "]: 记录必须是对象");
+            }
+            for (String field : fields) {
+                JsonNode value = record.get(field);
+                if (value == null || value.isNull() || !value.isNumber()) {
+                    throw new TjStatsSourceException(
+                            type + "[" + index + "]: 缺少数值类型关键字段 " + field);
                 }
             }
         }

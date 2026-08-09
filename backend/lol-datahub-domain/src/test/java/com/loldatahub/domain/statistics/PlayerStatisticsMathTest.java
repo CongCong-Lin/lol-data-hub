@@ -30,6 +30,11 @@ class PlayerStatisticsMathTest {
     }
 
     @Test
+    void kdaTreatsZeroDeathsAsOneInsteadOfReturningZero() {
+        assertThat(PlayerStatisticsMath.kda(8, 4, 0)).isEqualByComparingTo("12.000000");
+    }
+
+    @Test
     void splitCsvHandlesNull() {
         assertThat(PlayerStatisticsMath.splitCsv(null)).isEmpty();
     }

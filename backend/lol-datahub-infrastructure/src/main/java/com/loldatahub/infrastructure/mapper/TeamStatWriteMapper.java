@@ -39,15 +39,16 @@ public interface TeamStatWriteMapper {
 
     @Insert("""
             INSERT INTO team_stage_stat_current
-                (source_season_id, source_stage_id, source_team_id, match_count, match_win_count,
+                (source_season_id, source_stage_id, source_team_id, match_count, game_count, match_win_count,
                  total_kills, total_deaths, source_ward_placed_per_game, source_ward_killed_per_game,
                  source_gold_per_game, source_baron_kill_per_game, source_drake_kill_per_game,
                  collection_run_id, collected_at)
-            VALUES (#{seasonId}, #{stageId}, #{teamId}, #{matchCount}, #{matchWinCount},
+            VALUES (#{seasonId}, #{stageId}, #{teamId}, #{matchCount}, #{gameCount}, #{matchWinCount},
                     #{totalKills}, #{totalDeaths}, #{sourceWardPlacedPerGame}, #{sourceWardKilledPerGame},
                     #{sourceGoldPerGame}, #{sourceBaronKillPerGame}, #{sourceDrakeKillPerGame},
                     #{runId}, #{collectedAt})
             ON DUPLICATE KEY UPDATE match_count = VALUES(match_count),
+                game_count = VALUES(game_count),
                 match_win_count = VALUES(match_win_count), total_kills = VALUES(total_kills),
                 total_deaths = VALUES(total_deaths),
                 source_ward_placed_per_game = VALUES(source_ward_placed_per_game),
@@ -61,13 +62,13 @@ public interface TeamStatWriteMapper {
 
     @Insert("""
             INSERT INTO team_stage_stat_snapshot
-                (collection_run_id, source_season_id, source_stage_id, source_team_id,
-                 match_count, match_win_count, total_kills, total_deaths,
+                 (collection_run_id, source_season_id, source_stage_id, source_team_id,
+                 match_count, game_count, match_win_count, total_kills, total_deaths,
                  source_ward_placed_per_game, source_ward_killed_per_game,
                  source_gold_per_game, source_baron_kill_per_game, source_drake_kill_per_game,
                  collected_at)
             VALUES (#{runId}, #{seasonId}, #{stageId}, #{teamId},
-                    #{matchCount}, #{matchWinCount}, #{totalKills}, #{totalDeaths},
+                    #{matchCount}, #{gameCount}, #{matchWinCount}, #{totalKills}, #{totalDeaths},
                     #{sourceWardPlacedPerGame}, #{sourceWardKilledPerGame},
                     #{sourceGoldPerGame}, #{sourceBaronKillPerGame}, #{sourceDrakeKillPerGame},
                     #{collectedAt})

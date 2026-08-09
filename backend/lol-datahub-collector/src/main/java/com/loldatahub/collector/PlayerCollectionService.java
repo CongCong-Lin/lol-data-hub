@@ -104,7 +104,7 @@ public class PlayerCollectionService {
                         PlayerStageStatWrite stat = new PlayerStageStatWrite(
                                 runId, seasonId, stageId, playerKey,
                                 player.teamName(), player.teamLogo(), player.playerLocation(),
-                                player.matchCount(), player.mvpCount(), player.mvpVotes(),
+                                player.matchCount(), player.boCount(), player.mvpCount(), player.mvpVotes(),
                                 player.totalKills(), player.totalAssists(), player.totalDeath(),
                                 player.goldPerGame(), player.creepScorePerGame(),
                                 player.wardPlacedPerGame(), player.wardKilledPerGame(),

@@ -81,7 +81,7 @@ class TeamCollectionServiceTest {
     void parserOrBusinessValidationFailureDoesNotDeleteCurrentAndMarksRunFailed() {
         String invalidJson = """
                 {"success":true,"data":[{"teamId":0,"teamName":"TES","matchCount":20,
-                "matchWinCount":15,"totalKills":300,"totalDeath":200}]}
+                "gameCount":55,"matchWinCount":15,"totalKills":300,"totalDeath":200}]}
                 """;
         when(client.fetchTeamStatistics(1L, 100L)).thenReturn(invalidJson);
 
@@ -126,7 +126,7 @@ class TeamCollectionServiceTest {
     private static String validJson() {
         return """
                 {"success":true,"data":[{"teamId":100,"teamName":"TES","matchCount":20,
-                "matchWinCount":15,"totalKills":300,"totalDeath":200}]}
+                "gameCount":55,"matchWinCount":15,"totalKills":300,"totalDeath":200}]}
                 """;
     }
 

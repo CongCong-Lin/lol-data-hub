@@ -65,22 +65,15 @@ public class PlayerStatisticsService {
         }
 
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s3:v" + dataVersion + ":player:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s4:v" + dataVersion + ":player:" + query.cacheFingerprint();
         List<PlayerStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new PlayerStatisticsResult(dataVersion, query.minimumMatchCount(), cached.size(), cached);
         }
 
         List<PlayerStatistics> items = new ArrayList<>(mapper.aggregatePlayers(
-                stages, query.minimumMatchCount()
+                stages, query.minimumMatchCount(), query.position()
         ).stream().map(row -> map(row, query)).toList());
-
-        if (query.position() != null) {
-            items = items.stream()
-                    .filter(p -> p.positions().stream()
-                            .anyMatch(pos -> pos.equalsIgnoreCase(query.position())))
-                    .toList();
-        }
 
         List<PlayerStatistics> sorted = new ArrayList<>(items);
         sorted.sort(comparator(query));
@@ -92,15 +85,16 @@ public class PlayerStatisticsService {
         List<String> teamNames = PlayerStatisticsMath.splitCsv(row.teamNamesCsv());
         List<String> positions = PlayerStatisticsMath.splitCsv(row.positionsCsv());
         long matchCount = row.matchCount();
+        long gameCount = row.gameCount();
         return new PlayerStatistics(
                 row.playerKey(), row.sourcePlayerId(), row.playerName(), row.avatarUrl(),
                 teamNames, positions,
-                matchCount, row.mvpCount(), row.mvpVotes(),
+                matchCount, gameCount, row.mvpCount(), row.mvpVotes(),
                 row.totalKills(), row.totalAssists(), row.totalDeaths(),
-                PlayerStatisticsMath.ratio(row.totalKills() + row.totalAssists(), row.totalDeaths()),
-                PlayerStatisticsMath.perGame(row.totalKills(), matchCount),
-                PlayerStatisticsMath.perGame(row.totalAssists(), matchCount),
-                PlayerStatisticsMath.perGame(row.totalDeaths(), matchCount),
+                PlayerStatisticsMath.kda(row.totalKills(), row.totalAssists(), row.totalDeaths()),
+                PlayerStatisticsMath.perGame(row.totalKills(), gameCount),
+                PlayerStatisticsMath.perGame(row.totalAssists(), gameCount),
+                PlayerStatisticsMath.perGame(row.totalDeaths(), gameCount),
                 row.weightedGoldPerGame(),
                 row.weightedCreepScorePerGame(),
                 row.weightedWardPlacedPerGame(),

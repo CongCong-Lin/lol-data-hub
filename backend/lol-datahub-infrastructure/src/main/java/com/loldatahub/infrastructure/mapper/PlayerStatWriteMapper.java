@@ -40,18 +40,19 @@ public interface PlayerStatWriteMapper {
 
     @Insert("""
             INSERT INTO player_stage_stat_current
-                (source_season_id, source_stage_id, player_key, team_name, team_logo, player_position,
-                 match_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
+                 (source_season_id, source_stage_id, player_key, team_name, team_logo, player_position,
+                 match_count, game_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
                  source_gold_per_game, source_creep_score_per_game, source_ward_placed_per_game,
                  source_ward_killed_per_game, source_kill_participant_percent, source_gold_gap_per_game,
                  source_damage_percent, source_gold_percent, collection_run_id, collected_at)
             VALUES (#{seasonId}, #{stageId}, #{playerKey}, #{teamName}, #{teamLogo}, #{playerPosition},
-                    #{matchCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
+                    #{matchCount}, #{gameCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
                     #{sourceGoldPerGame}, #{sourceCreepScorePerGame}, #{sourceWardPlacedPerGame},
                     #{sourceWardKilledPerGame}, #{sourceKillParticipantPercent}, #{sourceGoldGapPerGame},
                     #{sourceDamagePercent}, #{sourceGoldPercent}, #{runId}, #{collectedAt})
             ON DUPLICATE KEY UPDATE team_name = VALUES(team_name), team_logo = VALUES(team_logo),
                 player_position = VALUES(player_position), match_count = VALUES(match_count),
+                game_count = VALUES(game_count),
                 mvp_count = VALUES(mvp_count), mvp_votes = VALUES(mvp_votes),
                 total_kills = VALUES(total_kills), total_assists = VALUES(total_assists),
                 total_deaths = VALUES(total_deaths),
@@ -71,13 +72,13 @@ public interface PlayerStatWriteMapper {
             INSERT INTO player_stage_stat_snapshot
                 (collection_run_id, source_season_id, source_stage_id, player_key,
                  team_name, team_logo, player_position,
-                 match_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
+                 match_count, game_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
                  source_gold_per_game, source_creep_score_per_game, source_ward_placed_per_game,
                  source_ward_killed_per_game, source_kill_participant_percent, source_gold_gap_per_game,
                  source_damage_percent, source_gold_percent, collected_at)
             VALUES (#{runId}, #{seasonId}, #{stageId}, #{playerKey},
                     #{teamName}, #{teamLogo}, #{playerPosition},
-                    #{matchCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
+                    #{matchCount}, #{gameCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
                     #{sourceGoldPerGame}, #{sourceCreepScorePerGame}, #{sourceWardPlacedPerGame},
                     #{sourceWardKilledPerGame}, #{sourceKillParticipantPercent}, #{sourceGoldGapPerGame},
                     #{sourceDamagePercent}, #{sourceGoldPercent}, #{collectedAt})

@@ -60,6 +60,7 @@ class TjStatsResponseParserTest {
                     "teamName": "TES",
                     "teamLogo": "https://example.com/tes.png",
                     "matchCount": 20,
+                    "gameCount": 55,
                     "matchWinCount": 15,
                     "winningRate": 0.75,
                     "totalKills": 300,
@@ -79,6 +80,7 @@ class TjStatsResponseParserTest {
             assertThat(team.teamId()).isEqualTo(100);
             assertThat(team.teamName()).isEqualTo("TES");
             assertThat(team.matchCount()).isEqualTo(20);
+            assertThat(team.gameCount()).isEqualTo(55);
             assertThat(team.matchWinCount()).isEqualTo(15);
             assertThat(team.totalKills()).isEqualTo(300);
             assertThat(team.wardPlacedPerGameTeam()).isEqualByComparingTo("50.5");
@@ -99,6 +101,7 @@ class TjStatsResponseParserTest {
                     "teamName": "TES",
                     "teamLogo": "https://example.com/tes.png",
                     "matchCount": 20,
+                    "boCount": 55,
                     "mvpCount": 5,
                     "mvpVotes": 100,
                     "kda": 6.5,
@@ -123,6 +126,7 @@ class TjStatsResponseParserTest {
             assertThat(player.playerId()).isEqualTo(12345L);
             assertThat(player.playerName()).isEqualTo("JackeyLove");
             assertThat(player.matchCount()).isEqualTo(20);
+            assertThat(player.boCount()).isEqualTo(55);
             assertThat(player.totalKills()).isEqualTo(150);
             assertThat(player.goldPerGame()).isEqualByComparingTo("15000.0");
         });
@@ -138,6 +142,7 @@ class TjStatsResponseParserTest {
                     "playerLocation": "MID",
                     "teamName": "TES",
                     "matchCount": 15,
+                    "boCount": 40,
                     "mvpCount": 3,
                     "mvpVotes": 50,
                     "totalKills": 100,
@@ -233,7 +238,7 @@ class TjStatsResponseParserTest {
         void acceptsSuccessFieldAbsent() {
             // success 字段不存在时视为成功（兼容不返回 success 的接口）
             String json = """
-                    {"data": [{"teamId": 1, "teamName": "T1", "matchCount": 10, "matchWinCount": 5, "totalKills": 100, "totalDeath": 80}]}
+                    {"data": [{"teamId": 1, "teamName": "T1", "matchCount": 10, "gameCount": 25, "matchWinCount": 5, "totalKills": 100, "totalDeath": 80}]}
                     """;
             var teams = parser.parseTeamStage(json);
             assertThat(teams).hasSize(1);
@@ -535,9 +540,10 @@ class TjStatsResponseParserTest {
     @Nested
     class TeamBusinessValidation {
         private String teamJson(String teamFields) {
+            String enrichedFields = teamFields.replaceFirst("\\{", "{\"gameCount\": 1000,");
             return """
                     {"success": true, "data": [%s]}
-                    """.formatted(teamFields);
+                    """.formatted(enrichedFields);
         }
 
         @Test
@@ -600,8 +606,8 @@ class TjStatsResponseParserTest {
         void rejectsDuplicateTeamId() {
             String json = """
                     {"success": true, "data": [
-                      {"teamId": 1, "teamName": "T1", "matchCount": 10, "matchWinCount": 5, "totalKills": 100, "totalDeath": 80},
-                      {"teamId": 1, "teamName": "T2", "matchCount": 8, "matchWinCount": 4, "totalKills": 80, "totalDeath": 60}
+                      {"teamId": 1, "teamName": "T1", "matchCount": 10, "gameCount": 25, "matchWinCount": 5, "totalKills": 100, "totalDeath": 80},
+                      {"teamId": 1, "teamName": "T2", "matchCount": 8, "gameCount": 20, "matchWinCount": 4, "totalKills": 80, "totalDeath": 60}
                     ]}
                     """;
             assertThatThrownBy(() -> parser.parseTeamStage(json))
@@ -667,9 +673,10 @@ class TjStatsResponseParserTest {
     @Nested
     class PlayerBusinessValidation {
         private String playerJson(String playerFields) {
+            String enrichedFields = playerFields.replaceFirst("\\{", "{\"boCount\": 1000,");
             return """
                     {"success": true, "data": [%s]}
-                    """.formatted(playerFields);
+                    """.formatted(enrichedFields);
         }
 
         @Test
@@ -727,13 +734,13 @@ class TjStatsResponseParserTest {
         }
 
         @Test
-        void rejectsMvpCountExceedsMatchCount() {
+        void acceptsMvpCountExceedingMatchCount() {
+            // mvpCount 允许大于 matchCount（官网数据可能跨赛事累计）
             String json = playerJson("""
                     {"playerId": 1, "playerName": "JackeyLove", "matchCount": 5, "mvpCount": 10, "mvpVotes": 50, "totalKills": 80, "totalAssists": 100, "totalDeath": 30}""");
-            assertThatThrownBy(() -> parser.parsePlayerStage(json))
-                    .isInstanceOf(TjStatsSourceException.class)
-                    .hasMessageContaining("mvpCount")
-                    .hasMessageContaining("不能超过 matchCount");
+            var players = parser.parsePlayerStage(json);
+            assertThat(players).singleElement().satisfies(p ->
+                    assertThat(p.mvpCount()).isEqualTo(10));
         }
 
         @Test
@@ -789,8 +796,8 @@ class TjStatsResponseParserTest {
         void rejectsDuplicateIdentityByPlayerId() {
             String json = """
                     {"success": true, "data": [
-                      {"playerId": 100, "playerName": "PlayerA", "matchCount": 10, "mvpCount": 2, "mvpVotes": 50, "totalKills": 80, "totalAssists": 100, "totalDeath": 30},
-                      {"playerId": 100, "playerName": "PlayerB", "matchCount": 8, "mvpCount": 1, "mvpVotes": 30, "totalKills": 60, "totalAssists": 80, "totalDeath": 25}
+                      {"playerId": 100, "playerName": "PlayerA", "matchCount": 10, "boCount": 25, "mvpCount": 2, "mvpVotes": 50, "totalKills": 80, "totalAssists": 100, "totalDeath": 30},
+                      {"playerId": 100, "playerName": "PlayerB", "matchCount": 8, "boCount": 20, "mvpCount": 1, "mvpVotes": 30, "totalKills": 60, "totalAssists": 80, "totalDeath": 25}
                     ]}
                     """;
             assertThatThrownBy(() -> parser.parsePlayerStage(json))
@@ -803,8 +810,8 @@ class TjStatsResponseParserTest {
         void rejectsDuplicateIdentityByPlayerName() {
             String json = """
                     {"success": true, "data": [
-                      {"playerName": "Rookie", "matchCount": 10, "mvpCount": 2, "mvpVotes": 50, "totalKills": 80, "totalAssists": 100, "totalDeath": 30},
-                      {"playerName": "rookie", "matchCount": 8, "mvpCount": 1, "mvpVotes": 30, "totalKills": 60, "totalAssists": 80, "totalDeath": 25}
+                      {"playerName": "Rookie", "matchCount": 10, "boCount": 25, "mvpCount": 2, "mvpVotes": 50, "totalKills": 80, "totalAssists": 100, "totalDeath": 30},
+                      {"playerName": "rookie", "matchCount": 8, "boCount": 20, "mvpCount": 1, "mvpVotes": 30, "totalKills": 60, "totalAssists": 80, "totalDeath": 25}
                     ]}
                     """;
             assertThatThrownBy(() -> parser.parsePlayerStage(json))
@@ -894,7 +901,8 @@ class TjStatsResponseParserTest {
         }
 
         @Test
-        void rejectsMissingPrimitiveCountField() {
+        void rejectsMissingMvpVotes() {
+            // 该字段缺失会让未知值被写成 0，必须在发布前拒绝。
             String json = playerJson("""
                     {"playerId": 1, "playerName": "JackeyLove", "matchCount": 10, "mvpCount": 2,
                      "totalKills": 80, "totalAssists": 100, "totalDeath": 30}""");

@@ -101,7 +101,7 @@ public class TeamCollectionService {
                         ));
                         TeamStageStatWrite stat = new TeamStageStatWrite(
                                 runId, seasonId, stageId, team.teamId(),
-                                team.matchCount(), team.matchWinCount(),
+                                team.matchCount(), team.gameCount(), team.matchWinCount(),
                                 team.totalKills(), team.totalDeath(),
                                 team.wardPlacedPerGameTeam(), team.wardKilledPerGameTeam(),
                                 team.goldPerGameTeam(), team.baronKillPerGameTeam(),

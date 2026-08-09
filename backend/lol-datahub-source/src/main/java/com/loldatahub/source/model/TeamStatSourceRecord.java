@@ -10,6 +10,7 @@ public record TeamStatSourceRecord(
         String teamName,
         String teamLogo,
         long matchCount,
+        long gameCount,
         long matchWinCount,
         BigDecimal winningRate,
         long totalKills,

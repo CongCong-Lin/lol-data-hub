@@ -66,7 +66,7 @@ public class ChampionStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集英雄数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s3:v" + dataVersion + ":champion:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s4:v" + dataVersion + ":champion:" + query.cacheFingerprint();
         List<ChampionStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new ChampionStatisticsResult(dataVersion, query.minimumPickCount(), cached.size(), cached);
@@ -90,7 +90,7 @@ public class ChampionStatisticsService {
                 StatisticsMath.ratio(row.banCount(), row.sampleBaseCount()),
                 StatisticsMath.ratio(row.bpCount(), row.sampleBaseCount()),
                 StatisticsMath.ratio(row.winningCount(), pickCount),
-                StatisticsMath.ratio(row.totalKills() + row.totalAssists(), row.totalDeaths()),
+                StatisticsMath.kda(row.totalKills(), row.totalAssists(), row.totalDeaths()),
                 StatisticsMath.perGame(row.totalKills(), pickCount),
                 StatisticsMath.perGame(row.totalAssists(), pickCount),
                 StatisticsMath.perGame(row.totalDeaths(), pickCount),

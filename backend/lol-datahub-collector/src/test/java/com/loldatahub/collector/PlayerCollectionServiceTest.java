@@ -81,7 +81,7 @@ class PlayerCollectionServiceTest {
     void parserOrBusinessValidationFailureDoesNotDeleteCurrentAndMarksRunFailed() {
         String invalidJson = """
                 {"success":true,"data":[{"playerId":12345,"playerName":"","matchCount":20,
-                "mvpCount":5,"mvpVotes":100,"totalKills":150,"totalAssists":200,"totalDeath":50}]}
+                "boCount":55,"mvpCount":5,"mvpVotes":100,"totalKills":150,"totalAssists":200,"totalDeath":50}]}
                 """;
         when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(invalidJson);
 
@@ -126,7 +126,7 @@ class PlayerCollectionServiceTest {
     private static String validJson() {
         return """
                 {"success":true,"data":[{"playerId":12345,"teamId":100,"playerName":"JackeyLove",
-                "teamName":"TES","matchCount":20,"mvpCount":5,"mvpVotes":100,
+                "teamName":"TES","matchCount":20,"boCount":55,"mvpCount":5,"mvpVotes":100,
                 "totalKills":150,"totalAssists":200,"totalDeath":50}]}
                 """;
     }

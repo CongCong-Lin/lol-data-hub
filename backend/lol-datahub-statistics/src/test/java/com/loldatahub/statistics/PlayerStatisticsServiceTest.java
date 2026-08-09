@@ -51,12 +51,12 @@ class PlayerStatisticsServiceTest {
         List<StageKey> normalized = List.of(new StageKey(237, 102), new StageKey(239, 28));
         when(mapper.findCollectedStageKeys(eq(normalized))).thenReturn(normalized);
         when(systemStateMapper.currentDataVersion()).thenReturn(8L);
-        when(mapper.aggregatePlayers(eq(normalized), eq(5))).thenReturn(List.of(
+        when(mapper.aggregatePlayers(eq(normalized), eq(5), eq(null))).thenReturn(List.of(
                 new PlayerAggregateRow("p1", 11L, "Zed", "zed.png", "Team A,Team B", "TOP,MID",
-                        8L, 2L, 10L, 80L, 40L, 20L, bd("12000"), bd("220"), bd("5"), bd("2"),
+                        8L, 20L, 2L, bd("10"), 80L, 40L, 20L, bd("12000"), bd("220"), bd("5"), bd("2"),
                         bd("65"), bd("100"), bd("28"), bd("48")),
                 new PlayerAggregateRow("p2", 12L, "Alpha", "alpha.png", "Team C", "JUG",
-                        2L, 0L, 1L, 100L, 20L, 50L, bd("11000"), bd("180"), bd("4"), bd("1"),
+                        2L, 5L, 0L, bd("1"), 100L, 20L, 50L, bd("11000"), bd("180"), bd("4"), bd("1"),
                         bd("55"), bd("-50"), bd("22"), bd("45"))
         ));
 
@@ -77,8 +77,9 @@ class PlayerStatisticsServiceTest {
         assertThat(result.items().get(0).teamNames()).containsExactly("Team A", "Team B");
         assertThat(result.items().get(0).positions()).containsExactly("TOP", "MID");
         assertThat(result.items().get(0).kda()).isEqualByComparingTo("6.000000");
-        assertThat(result.items().get(0).killPerGame()).isEqualByComparingTo("10.000000");
-        verify(mapper).aggregatePlayers(eq(normalized), eq(5));
+        assertThat(result.items().get(0).gameCount()).isEqualTo(20);
+        assertThat(result.items().get(0).killPerGame()).isEqualByComparingTo("4.000000");
+        verify(mapper).aggregatePlayers(eq(normalized), eq(5), eq(null));
     }
 
     @Test
@@ -86,12 +87,9 @@ class PlayerStatisticsServiceTest {
         List<StageKey> stages = List.of(new StageKey(237, 100));
         when(mapper.findCollectedStageKeys(eq(stages))).thenReturn(stages);
         when(systemStateMapper.currentDataVersion()).thenReturn(3L);
-        when(mapper.aggregatePlayers(eq(stages), eq(0))).thenReturn(List.of(
+        when(mapper.aggregatePlayers(eq(stages), eq(0), eq("TOP"))).thenReturn(List.of(
                 new PlayerAggregateRow("p1", 11L, "Zed", null, "Team A", "TOP,MID",
-                        1L, 0L, 0L, 1L, 1L, 1L, bd("1"), bd("1"), bd("1"), bd("1"),
-                        bd("1"), bd("1"), bd("1"), bd("1")),
-                new PlayerAggregateRow("p2", 12L, "Alpha", null, "Team B", "JUG",
-                        1L, 0L, 0L, 2L, 1L, 1L, bd("1"), bd("1"), bd("1"), bd("1"),
+                        1L, 3L, 0L, bd("0"), 1L, 1L, 1L, bd("1"), bd("1"), bd("1"), bd("1"),
                         bd("1"), bd("1"), bd("1"), bd("1"))
         ));
 
@@ -103,6 +101,7 @@ class PlayerStatisticsServiceTest {
         assertThat(query.position()).isEqualTo("TOP");
         assertThat(result.items()).extracting(PlayerStatistics::playerName)
                 .containsExactly("Zed");
+        verify(mapper).aggregatePlayers(eq(stages), eq(0), eq("TOP"));
     }
 
     @Test
@@ -111,7 +110,7 @@ class PlayerStatisticsServiceTest {
         when(mapper.findCollectedStageKeys(eq(stages))).thenReturn(stages);
         when(systemStateMapper.currentDataVersion()).thenReturn(12L);
         PlayerStatistics cached = new PlayerStatistics("p-cache", 99L, "Cached", "cached.png",
-                List.of("Team"), List.of("MID"), 10L, 2L, 5L, 70L, 40L, 20L,
+                List.of("Team"), List.of("MID"), 10L, 25L, 2L, bd("5"), 70L, 40L, 20L,
                 bd("5.5"), bd("7"), bd("4"), bd("2"), bd("12000"), bd("200"),
                 bd("5"), bd("2"), bd("60"), bd("100"), bd("25"), bd("50"), true);
         when(valueOperations.get(anyString())).thenReturn(new ObjectMapper().writeValueAsString(List.of(cached)));
@@ -123,7 +122,7 @@ class PlayerStatisticsServiceTest {
 
         assertThat(result.items()).containsExactly(cached);
         assertThat(result.total()).isEqualTo(1);
-        verify(mapper, never()).aggregatePlayers(any(), anyInt());
+        verify(mapper, never()).aggregatePlayers(any(), anyInt(), any());
     }
 
     private static BigDecimal bd(String value) {

@@ -16,23 +16,24 @@ public interface TeamStatisticsMapper {
                    t.name AS teamName,
                    t.logo_url AS teamLogo,
                    SUM(ts.match_count) AS matchCount,
+                   SUM(COALESCE(ts.game_count, ts.match_count)) AS gameCount,
                    SUM(ts.match_win_count) AS matchWinCount,
                    SUM(ts.total_kills) AS totalKills,
                    SUM(ts.total_deaths) AS totalDeaths,
-                   COALESCE(SUM(ts.source_ward_placed_per_game * ts.match_count)
-                       / NULLIF(SUM(CASE WHEN ts.source_ward_placed_per_game IS NOT NULL THEN ts.match_count ELSE 0 END), 0), 0)
+                   COALESCE(SUM(ts.source_ward_placed_per_game * COALESCE(ts.game_count, ts.match_count))
+                       / NULLIF(SUM(CASE WHEN ts.source_ward_placed_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedWardPlacedPerGame,
-                   COALESCE(SUM(ts.source_ward_killed_per_game * ts.match_count)
-                       / NULLIF(SUM(CASE WHEN ts.source_ward_killed_per_game IS NOT NULL THEN ts.match_count ELSE 0 END), 0), 0)
+                   COALESCE(SUM(ts.source_ward_killed_per_game * COALESCE(ts.game_count, ts.match_count))
+                       / NULLIF(SUM(CASE WHEN ts.source_ward_killed_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedWardKilledPerGame,
-                   COALESCE(SUM(ts.source_gold_per_game * ts.match_count)
-                       / NULLIF(SUM(CASE WHEN ts.source_gold_per_game IS NOT NULL THEN ts.match_count ELSE 0 END), 0), 0)
+                   COALESCE(SUM(ts.source_gold_per_game * COALESCE(ts.game_count, ts.match_count))
+                       / NULLIF(SUM(CASE WHEN ts.source_gold_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedGoldPerGame,
-                   COALESCE(SUM(ts.source_baron_kill_per_game * ts.match_count)
-                       / NULLIF(SUM(CASE WHEN ts.source_baron_kill_per_game IS NOT NULL THEN ts.match_count ELSE 0 END), 0), 0)
+                   COALESCE(SUM(ts.source_baron_kill_per_game * COALESCE(ts.game_count, ts.match_count))
+                       / NULLIF(SUM(CASE WHEN ts.source_baron_kill_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedBaronKillPerGame,
-                   COALESCE(SUM(ts.source_drake_kill_per_game * ts.match_count)
-                       / NULLIF(SUM(CASE WHEN ts.source_drake_kill_per_game IS NOT NULL THEN ts.match_count ELSE 0 END), 0), 0)
+                   COALESCE(SUM(ts.source_drake_kill_per_game * COALESCE(ts.game_count, ts.match_count))
+                       / NULLIF(SUM(CASE WHEN ts.source_drake_kill_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedDrakeKillPerGame
               FROM team_stage_stat_current ts
               JOIN team t ON t.source_team_id = ts.source_team_id

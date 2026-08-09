@@ -7,6 +7,7 @@ public record TeamAggregateRow(
         String teamName,
         String teamLogo,
         long matchCount,
+        long gameCount,
         long matchWinCount,
         long totalKills,
         long totalDeaths,

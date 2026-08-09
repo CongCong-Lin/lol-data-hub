@@ -52,9 +52,9 @@ class TeamStatisticsServiceTest {
         when(mapper.findCollectedStageKeys(eq(normalized))).thenReturn(normalized);
         when(systemStateMapper.currentDataVersion()).thenReturn(7L);
         when(mapper.aggregateTeams(eq(normalized), eq(5))).thenReturn(List.of(
-                new TeamAggregateRow(1L, "Alpha", "alpha.png", 6L, 4L, 60L, 30L,
+                new TeamAggregateRow(1L, "Alpha", "alpha.png", 6L, 12L, 4L, 60L, 30L,
                         bd("10.5"), bd("2.5"), bd("12000"), bd("0.5"), bd("2.0")),
-                new TeamAggregateRow(2L, "Beta", "beta.png", 3L, 2L, 100L, 80L,
+                new TeamAggregateRow(2L, "Beta", "beta.png", 3L, 8L, 2L, 100L, 80L,
                         bd("8"), bd("3"), bd("11000"), bd("1"), bd("1.5"))
         ));
 
@@ -73,7 +73,8 @@ class TeamStatisticsServiceTest {
         assertThat(result.items().get(0).sampleQualified()).isFalse();
         assertThat(result.items().get(1).sampleQualified()).isTrue();
         assertThat(result.items().get(1).winningRate()).isEqualByComparingTo("0.666667");
-        assertThat(result.items().get(1).killPerGame()).isEqualByComparingTo("10.000000");
+        assertThat(result.items().get(1).gameCount()).isEqualTo(12);
+        assertThat(result.items().get(1).killPerGame()).isEqualByComparingTo("5.000000");
         verify(mapper).aggregateTeams(eq(normalized), eq(5));
     }
 
@@ -82,7 +83,7 @@ class TeamStatisticsServiceTest {
         List<StageKey> stages = List.of(new StageKey(237, 100));
         when(mapper.findCollectedStageKeys(eq(stages))).thenReturn(stages);
         when(systemStateMapper.currentDataVersion()).thenReturn(9L);
-        TeamStatistics cached = new TeamStatistics(11L, "Cached", "cached.png", 12L, 8L,
+        TeamStatistics cached = new TeamStatistics(11L, "Cached", "cached.png", 12L, 30L, 8L,
                 bd("0.666667"), 120L, bd("10"), 60L, bd("5"), bd("3"), bd("1"),
                 bd("12500"), bd("0.5"), bd("2"), true);
         when(valueOperations.get(anyString())).thenReturn(new ObjectMapper().writeValueAsString(List.of(cached)));

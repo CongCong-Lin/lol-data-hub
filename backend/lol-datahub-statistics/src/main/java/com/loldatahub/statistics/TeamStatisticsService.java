@@ -65,7 +65,7 @@ public class TeamStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集战队数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s3:v" + dataVersion + ":team:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s4:v" + dataVersion + ":team:" + query.cacheFingerprint();
         List<TeamStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new TeamStatisticsResult(dataVersion, query.minimumMatchCount(), cached.size(), cached);
@@ -82,12 +82,12 @@ public class TeamStatisticsService {
     private TeamStatistics map(TeamAggregateRow row, int minimumMatchCount) {
         return new TeamStatistics(
                 row.teamId(), row.teamName(), row.teamLogo(),
-                row.matchCount(), row.matchWinCount(),
+                row.matchCount(), row.gameCount(), row.matchWinCount(),
                 TeamStatisticsMath.ratio(row.matchWinCount(), row.matchCount()),
                 row.totalKills(),
-                TeamStatisticsMath.ratio(row.totalKills(), row.matchCount()),
+                TeamStatisticsMath.ratio(row.totalKills(), row.gameCount()),
                 row.totalDeaths(),
-                TeamStatisticsMath.ratio(row.totalDeaths(), row.matchCount()),
+                TeamStatisticsMath.ratio(row.totalDeaths(), row.gameCount()),
                 row.weightedWardPlacedPerGame(),
                 row.weightedWardKilledPerGame(),
                 row.weightedGoldPerGame(),

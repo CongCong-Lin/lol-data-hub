@@ -9,6 +9,7 @@ public record TeamStageStatWrite(
         long stageId,
         long teamId,
         long matchCount,
+        long gameCount,
         long matchWinCount,
         long totalKills,
         long totalDeaths,

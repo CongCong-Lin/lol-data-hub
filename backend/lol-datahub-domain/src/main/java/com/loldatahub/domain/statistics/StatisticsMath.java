@@ -22,5 +22,9 @@ public final class StatisticsMath {
         return BigDecimal.valueOf(total)
                 .divide(BigDecimal.valueOf(matchCount), 6, RoundingMode.HALF_UP);
     }
-}
 
+    public static BigDecimal kda(long kills, long assists, long deaths) {
+        return BigDecimal.valueOf(kills + assists)
+                .divide(BigDecimal.valueOf(Math.max(deaths, 1L)), 6, RoundingMode.HALF_UP);
+    }
+}
