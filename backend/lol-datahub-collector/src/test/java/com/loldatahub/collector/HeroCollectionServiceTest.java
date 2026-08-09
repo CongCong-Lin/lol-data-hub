@@ -149,7 +149,7 @@ class HeroCollectionServiceTest {
     @Test
     void internalHeroNameFallsBackToRequiredDisplayName() {
         String validJson = """
-                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroName": "Annie", "pickCount": 0, "banCount": 0, "bpCount": 0, "winningCount": 0, "totalKills": 0, "totalDeath": 0, "totalAssists": 0}]}}
+                {"success": true, "data": {"boCount": 10, "updatedAt": 1748345653, "gameVersion": ["15.10"], "list": [{"heroId": 1, "heroName": "Annie", "heroLogo": "http://game.gtimg.cn/images/lol/Annie.png", "pickCount": 0, "banCount": 0, "bpCount": 0, "winningCount": 0, "totalKills": 0, "totalDeath": 0, "totalAssists": 0}]}}
                 """;
         when(client.fetchHeroStatistics(1L, 100L)).thenReturn(validJson);
         when(collectionMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
@@ -164,6 +164,7 @@ class HeroCollectionServiceTest {
         verify(writeMapper).upsertChampion(champion.capture());
         assertThat(champion.getValue().internalName()).isEqualTo("Annie");
         assertThat(champion.getValue().chineseName()).isEqualTo("Annie");
+        assertThat(champion.getValue().logoUrl()).isEqualTo("https://game.gtimg.cn/images/lol/Annie.png");
     }
 
     @Test

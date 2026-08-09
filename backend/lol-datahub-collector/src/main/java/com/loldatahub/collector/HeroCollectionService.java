@@ -116,7 +116,7 @@ public class HeroCollectionService {
                                 : hero.heroCnName();
                         writeMapper.upsertChampion(new ChampionWrite(
                                 hero.heroId(), hero.heroName(), chineseName, hero.heroCnTitle(),
-                                hero.heroLogo(), toJson(hero.heroLocation())
+                                normalizeLogoUrl(hero.heroLogo()), toJson(hero.heroLocation())
                         ));
                         ChampionStageStatWrite stat = new ChampionStageStatWrite(
                                 runId, seasonId, stageId, hero.heroId(), hero.pickCount(), hero.banCount(),
@@ -174,6 +174,13 @@ public class HeroCollectionService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("运行环境不支持 SHA-256", exception);
         }
+    }
+
+    private static String normalizeLogoUrl(String logoUrl) {
+        if (logoUrl != null && logoUrl.startsWith("http://game.gtimg.cn/")) {
+            return "https://" + logoUrl.substring("http://".length());
+        }
+        return logoUrl;
     }
 
     private record HeroStageCandidate(
