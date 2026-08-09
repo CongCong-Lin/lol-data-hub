@@ -42,6 +42,7 @@ h1 .title-tail { white-space: nowrap; }
 .controls { display: grid; grid-template-columns: minmax(230px, 1.4fr) 180px 180px 180px auto; gap: 18px; padding: 22px; }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field label, .stage-heading span { font-size: 13px; color: #cbd5df; font-weight: 700; }
+.field-error { color: #ff9d9d; font-size: 12px; }
 input, select { width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 11px 12px; color: #edf4f8; background: #0a151f; outline: none; }
 input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(59,199,196,.1); }
 .actions { display: flex; align-items: flex-end; gap: 9px; }

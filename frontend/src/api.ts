@@ -65,6 +65,7 @@ export interface TeamStatistics {
   teamName: string
   teamLogo: string | null
   matchCount: number
+  gameCount: number
   matchWinCount: number
   winningRate: number
   totalKills: number
@@ -94,6 +95,7 @@ export interface PlayerStatistics {
   teamNames: string[]
   positions: string[]
   matchCount: number
+  gameCount: number
   mvpCount: number
   mvpVotes: number
   totalKills: number
@@ -121,16 +123,48 @@ export interface PlayerStatisticsResult {
   items: PlayerStatistics[]
 }
 
+const REQUEST_TIMEOUT_MS = 12_000
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  })
-  const body = (await response.json()) as ApiResponse<T>
-  if (!response.ok || !body.success) {
-    throw new Error(body.message || `请求失败：HTTP ${response.status}`)
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(path, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    })
+    const text = await response.text()
+    let body: ApiResponse<T> | null = null
+    if (text) {
+      try {
+        body = JSON.parse(text) as ApiResponse<T>
+      } catch {
+        if (response.ok) {
+          throw new Error('服务返回了无法识别的响应')
+        }
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(body?.message || `请求失败：HTTP ${response.status}`)
+    }
+    if (!body || body.success !== true) {
+      throw new Error(body?.message || '服务返回了无效的业务响应')
+    }
+    return body.data
+  } catch (reason) {
+    if (reason instanceof Error && reason.name === 'AbortError') {
+      throw new Error('请求超时，请稍后重试')
+    }
+    if (reason instanceof TypeError) {
+      throw new Error('无法连接服务，请检查网络或稍后重试')
+    }
+    throw reason
+  } finally {
+    globalThis.clearTimeout(timeoutId)
   }
-  return body.data
 }
 
 export const api = {

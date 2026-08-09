@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   api,
   type ChampionStatisticsResult,
@@ -66,11 +66,6 @@ const MAX_STAGE_SELECTION = 50
 
 function makeKey(seasonId: number, stageId: number): string {
   return `${seasonId}:${stageId}`
-}
-
-function parseKey(key: string): { seasonId: number; stageId: number } {
-  const idx = key.indexOf(':')
-  return { seasonId: Number(key.slice(0, idx)), stageId: Number(key.slice(idx + 1)) }
 }
 
 const activeView = ref<ActiveView>('champion')
@@ -183,10 +178,46 @@ const currentDataVersion = computed(() => {
   return playerResult.value?.dataVersion
 })
 
+function isValidMinimum(value: number): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 10_000
+}
+
+const minimumPickCountValid = computed(() => isValidMinimum(minimumPickCount.value))
+const minimumMatchCountValid = computed(() => isValidMinimum(minimumMatchCount.value))
+const activeMinimumValid = computed(() =>
+  activeView.value === 'champion' ? minimumPickCountValid.value : minimumMatchCountValid.value,
+)
+
 const canQuery = computed(() => {
   if (busy.value || availabilityLoading.value) return false
-  return selectedStageKeys.value.size > 0
+  return selectedStageKeys.value.size > 0 && activeMinimumValid.value
 })
+
+function clearStatisticsResults() {
+  result.value = null
+  teamResult.value = null
+  playerResult.value = null
+}
+
+function clearActiveResult(view: ActiveView) {
+  if (view === 'champion') result.value = null
+  else if (view === 'team') teamResult.value = null
+  else playerResult.value = null
+}
+
+function invalidateQueryResults() {
+  querySeq++
+  busy.value = false
+  clearStatisticsResults()
+  notice.value = ''
+  error.value = ''
+}
+
+watch(
+  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy, sortDirection, playerPositionFilter],
+  invalidateQueryResults,
+  { flush: 'sync' },
+)
 
 /* ---- methods ---- */
 
@@ -199,12 +230,13 @@ async function loadSeasons() {
 
 async function loadAvailability() {
   const seq = ++loadAvailabilitySeq
+  const previouslySelected = new Set(selectedStageKeys.value)
   querySeq++
   busy.value = false
   const type = VIEW_STAT_TYPE[activeView.value]
-  result.value = null
-  teamResult.value = null
-  playerResult.value = null
+  clearStatisticsResults()
+  allAvailability.value = []
+  selectedStageKeys.value = new Set()
   notice.value = ''
   error.value = ''
   availabilityLoading.value = true
@@ -217,7 +249,7 @@ async function loadAvailability() {
     const collectedKeys = new Set(
       data.filter((s) => s.collected).map((s) => makeKey(s.sourceSeasonId, s.sourceStageId)),
     )
-    const preserved = new Set([...selectedStageKeys.value].filter((k) => collectedKeys.has(k)))
+    const preserved = new Set([...previouslySelected].filter((k) => collectedKeys.has(k)))
 
     /* 若交集为空，自动选择默认赛事所有已采集赛段 */
     if (preserved.size === 0) {
@@ -249,6 +281,7 @@ function autoSelectDefaults(data: Stage[], target: Set<string>) {
   const first = groups.entries().next().value
   if (first) {
     for (const s of first[1]) {
+      if (target.size >= MAX_STAGE_SELECTION) break
       target.add(makeKey(s.sourceSeasonId, s.sourceStageId))
     }
     browsedSeasonId.value = first[0]
@@ -256,22 +289,36 @@ function autoSelectDefaults(data: Stage[], target: Set<string>) {
 }
 
 async function query() {
+  if (!activeMinimumValid.value) {
+    error.value = '最低样本数必须是 0 到 10000 之间的整数'
+    return
+  }
   if (!canQuery.value) return
   const seq = ++querySeq
   const view = activeView.value
   const keys = [...selectedStageKeys.value]
+  const selectedPlayerPosition = playerPositionFilter.value
+  const selectedMinimumPickCount = minimumPickCount.value
+  const selectedMinimumMatchCount = minimumMatchCount.value
+  clearActiveResult(view)
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
     if (view === 'champion') {
-      const data = await api.championStatisticsByKeys(keys, minimumPickCount.value, sortBy.value, sortDirection.value)
+      const data = await api.championStatisticsByKeys(keys, selectedMinimumPickCount, sortBy.value, sortDirection.value)
       if (seq === querySeq && activeView.value === view) result.value = data
     } else if (view === 'team') {
-      const data = await api.teamStatisticsByKeys(keys, minimumMatchCount.value, teamSortBy.value, sortDirection.value)
+      const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, sortDirection.value)
       if (seq === querySeq && activeView.value === view) teamResult.value = data
     } else {
-      const data = await api.playerStatisticsByKeys(keys, minimumMatchCount.value, '', playerSortBy.value, sortDirection.value)
+      const data = await api.playerStatisticsByKeys(
+        keys,
+        selectedMinimumMatchCount,
+        selectedPlayerPosition,
+        playerSortBy.value,
+        sortDirection.value,
+      )
       if (seq === querySeq && activeView.value === view) playerResult.value = data
     }
     if (seq === querySeq) notice.value = '查询完成'
@@ -285,9 +332,7 @@ async function query() {
 function switchView(view: ActiveView) {
   if (activeView.value === view) return
   activeView.value = view
-  result.value = null
-  teamResult.value = null
-  playerResult.value = null
+  clearStatisticsResults()
   notice.value = ''
   error.value = ''
   void loadAvailability()
@@ -306,12 +351,14 @@ function toggleStage(compositeKey: string, collected: boolean) {
     newSet.add(compositeKey)
   }
   selectedStageKeys.value = newSet
+  invalidateQueryResults()
 }
 
 function removeStage(compositeKey: string) {
   const newSet = new Set(selectedStageKeys.value)
   newSet.delete(compositeKey)
   selectedStageKeys.value = newSet
+  invalidateQueryResults()
 }
 
 function percent(value: number) {
@@ -399,11 +446,13 @@ onMounted(async () => {
       </div>
       <div v-if="activeView === 'champion'" class="field compact">
         <label for="minimum">最低出场次数</label>
-        <input id="minimum" v-model.number="minimumPickCount" type="number" min="0" />
+        <input id="minimum" v-model.number="minimumPickCount" type="number" min="0" max="10000" step="1" />
+        <small v-if="!minimumPickCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
       <div v-else class="field compact">
         <label for="minimumMatch">最低比赛场数</label>
-        <input id="minimumMatch" v-model.number="minimumMatchCount" type="number" min="0" />
+        <input id="minimumMatch" v-model.number="minimumMatchCount" type="number" min="0" max="10000" step="1" />
+        <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
       <div v-if="activeView === 'champion'" class="field compact">
         <label for="sort">排序指标</label>
@@ -608,7 +657,8 @@ onMounted(async () => {
           <thead>
             <tr>
               <th>战队</th>
-              <th>比赛</th>
+              <th>系列赛</th>
+              <th>对局</th>
               <th>胜场</th>
               <th>胜率</th>
               <th>总击杀</th>
@@ -631,6 +681,7 @@ onMounted(async () => {
                 </div>
               </td>
               <td>{{ item.matchCount }}</td>
+              <td>{{ item.gameCount }}</td>
               <td>{{ item.matchWinCount }}</td>
               <td class="accent">{{ percent(item.winningRate) }}</td>
               <td>{{ item.totalKills }}</td>
@@ -684,13 +735,17 @@ onMounted(async () => {
             <tr>
               <th>选手</th>
               <th>位置</th>
-              <th>比赛</th>
+              <th>系列赛</th>
+              <th>对局</th>
               <th>MVP</th>
               <th>MVP 票数</th>
               <th>KDA</th>
               <th>总击杀</th>
+              <th>场均击杀</th>
               <th>总助攻</th>
+              <th>场均助攻</th>
               <th>总死亡</th>
+              <th>场均死亡</th>
               <th>场均经济</th>
               <th>场均补刀</th>
               <th>参团率</th>
@@ -713,12 +768,16 @@ onMounted(async () => {
               </td>
               <td>{{ fmtPositions(item.positions) }}</td>
               <td>{{ item.matchCount }}</td>
+              <td>{{ item.gameCount }}</td>
               <td>{{ item.mvpCount }}</td>
               <td>{{ item.mvpVotes }}</td>
               <td class="accent">{{ fmtDecimal(item.kda) }}</td>
               <td>{{ item.totalKills }}</td>
+              <td>{{ fmtDecimal(item.killPerGame) }}</td>
               <td>{{ item.totalAssists }}</td>
+              <td>{{ fmtDecimal(item.assistPerGame) }}</td>
               <td>{{ item.totalDeaths }}</td>
+              <td>{{ fmtDecimal(item.deathPerGame) }}</td>
               <td>{{ fmtGold(item.goldPerGame) }}</td>
               <td>{{ fmtDecimal(item.creepScorePerGame) }}</td>
               <td class="accent">{{ percent(item.killParticipantPercent) }}</td>
