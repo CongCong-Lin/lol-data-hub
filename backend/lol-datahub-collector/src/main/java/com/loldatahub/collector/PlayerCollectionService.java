@@ -11,6 +11,7 @@ import com.loldatahub.infrastructure.model.PlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.PlayerWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
+import com.loldatahub.source.model.PlayerStatSourceRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -61,16 +62,17 @@ public class PlayerCollectionService {
             throw new IllegalArgumentException("至少需要指定一个赛段");
         }
         List<Long> normalizedStageIds = stageIds.stream().distinct().sorted().toList();
-        catalogCollectionService.sync(seasonId);
 
         CollectionMapper.GeneratedId holder = new CollectionMapper.GeneratedId();
         OffsetDateTime startedAt = OffsetDateTime.now(ZoneOffset.UTC);
         collectionMapper.insertRun("PLAYER", seasonId, toJson(normalizedStageIds), startedAt, holder);
         long runId = holder.getId();
-        int changedRecords = 0;
-        List<Long> unchanged = new ArrayList<>();
 
         try {
+            catalogCollectionService.sync(seasonId);
+            List<Long> unchanged = new ArrayList<>();
+            List<PlayerStageCandidate> changedStages = new ArrayList<>();
+
             for (Long stageId : normalizedStageIds) {
                 String rawJson = client.fetchPlayerStatistics(seasonId, stageId);
                 String contentHash = sha256(rawJson);
@@ -92,11 +94,25 @@ public class PlayerCollectionService {
                     continue;
                 }
 
-                Integer stageChanges = transactionTemplate.execute(status -> {
-                    writeMapper.upsertCollectionCurrent(seasonId, stageId, contentHash, collectedAt, runId);
+                changedStages.add(new PlayerStageCandidate(stageId, contentHash, collectedAt, players));
+            }
+
+            if (changedStages.isEmpty()) {
+                collectionMapper.finishRun(runId, "NO_CHANGE", OffsetDateTime.now(ZoneOffset.UTC), 0, null);
+                return new CollectionResult(runId, "NO_CHANGE", 0, unchanged);
+            }
+
+            int changedRecords = changedStages.stream()
+                    .mapToInt(candidate -> 1 + candidate.players().size())
+                    .sum();
+            Integer committedRecords = transactionTemplate.execute(status -> {
+                for (PlayerStageCandidate candidate : changedStages) {
+                    long stageId = candidate.stageId();
+                    writeMapper.upsertCollectionCurrent(
+                            seasonId, stageId, candidate.contentHash(), candidate.collectedAt(), runId
+                    );
                     writeMapper.deleteCurrentForStage(seasonId, stageId);
-                    int count = 1;
-                    for (var player : players) {
+                    for (var player : candidate.players()) {
                         String playerKey = PlayerIdentity.resolve(player.playerId(), player.playerName());
                         writeMapper.upsertPlayer(new PlayerWrite(
                                 playerKey, player.playerId(), player.playerName(), player.playerAvatar()
@@ -110,33 +126,39 @@ public class PlayerCollectionService {
                                 player.wardPlacedPerGame(), player.wardKilledPerGame(),
                                 player.killParticipantPercent(), player.goldGapPerGame(),
                                 player.damagePercent(), player.goldPercent(),
-                                collectedAt
+                                candidate.collectedAt()
                         );
                         writeMapper.upsertCurrent(stat);
                         writeMapper.insertSnapshot(stat);
-                        count++;
                     }
-                    return count;
-                });
-                changedRecords += stageChanges == null ? 0 : stageChanges;
-            }
-
-            if (changedRecords > 0) {
+                }
                 systemStateMapper.incrementDataVersion();
+                collectionMapper.finishRun(
+                        runId, "SUCCESS", OffsetDateTime.now(ZoneOffset.UTC), changedRecords, null
+                );
+                return changedRecords;
+            });
+            if (committedRecords == null) {
+                throw new IllegalStateException("采集事务未返回提交结果");
             }
-            String status = changedRecords > 0 ? "SUCCESS" : "NO_CHANGE";
-            collectionMapper.finishRun(runId, status, OffsetDateTime.now(ZoneOffset.UTC), changedRecords, null);
-            return new CollectionResult(runId, status, changedRecords, unchanged);
+            return new CollectionResult(runId, "SUCCESS", committedRecords, unchanged);
         } catch (RuntimeException exception) {
-            if (changedRecords > 0) {
-                systemStateMapper.incrementDataVersion();
-            }
-            String message = exception.getMessage();
-            collectionMapper.finishRun(
-                    runId, "FAILED", OffsetDateTime.now(ZoneOffset.UTC), changedRecords,
-                    message == null ? exception.getClass().getSimpleName() : message.substring(0, Math.min(1900, message.length()))
-            );
+            markFailed(runId, exception);
             throw exception;
+        }
+    }
+
+    private void markFailed(long runId, RuntimeException exception) {
+        String message = exception.getMessage();
+        String errorMessage = message == null
+                ? exception.getClass().getSimpleName()
+                : message.substring(0, Math.min(1900, message.length()));
+        try {
+            collectionMapper.finishRun(
+                    runId, "FAILED", OffsetDateTime.now(ZoneOffset.UTC), 0, errorMessage
+            );
+        } catch (RuntimeException finishException) {
+            exception.addSuppressed(finishException);
         }
     }
 
@@ -155,5 +177,13 @@ public class PlayerCollectionService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("运行环境不支持 SHA-256", exception);
         }
+    }
+
+    private record PlayerStageCandidate(
+            long stageId,
+            String contentHash,
+            OffsetDateTime collectedAt,
+            List<PlayerStatSourceRecord> players
+    ) {
     }
 }

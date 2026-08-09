@@ -116,6 +116,48 @@ class TeamCollectionServiceTest {
         verify(systemStateMapper, never()).incrementDataVersion();
     }
 
+    @Test
+    void secondStageValidationFailureDoesNotPublishFirstStage() {
+        String validJson = validJson();
+        String invalidJson = """
+                {"success":true,"data":[{"teamId":0,"teamName":"TES","matchCount":20,
+                "gameCount":55,"matchWinCount":15,"totalKills":300,"totalDeath":200}]}
+                """;
+        when(client.fetchTeamStatistics(1L, 100L)).thenReturn(validJson);
+        when(client.fetchTeamStatistics(1L, 200L)).thenReturn(invalidJson);
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+
+        assertThatThrownBy(() -> service.collect(1L, List.of(100L, 200L)))
+                .isInstanceOf(TjStatsSourceException.class);
+
+        verify(collectionMapper, times(2)).insertRawResponse(
+                eq(42L), eq("/compound/public/team"), anyString(), anyString(), anyString(), any()
+        );
+        verify(transactionTemplate, never()).execute(any());
+        verify(writeMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
+        verify(systemStateMapper, never()).incrementDataVersion();
+        verify(collectionMapper).finishRun(eq(42L), eq("FAILED"), any(), eq(0), anyString());
+    }
+
+    @Test
+    void multipleChangedStagesUseOnePublishTransaction() {
+        String json = validJson();
+        when(client.fetchTeamStatistics(1L, 100L)).thenReturn(json);
+        when(client.fetchTeamStatistics(1L, 200L)).thenReturn(json);
+        when(statisticsMapper.findCurrentContentHash(anyLong(), anyLong())).thenReturn("different-hash");
+        executeTransactionsImmediately();
+
+        CollectionResult result = service.collect(1L, List.of(200L, 100L));
+
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.changedRecords()).isEqualTo(4);
+        verify(transactionTemplate, times(1)).execute(any());
+        verify(writeMapper).deleteCurrentForStage(1L, 100L);
+        verify(writeMapper).deleteCurrentForStage(1L, 200L);
+        verify(systemStateMapper, times(1)).incrementDataVersion();
+        verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(4), isNull());
+    }
+
     private void executeTransactionsImmediately() {
         when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);
