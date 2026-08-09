@@ -1,3 +1,9 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   frontend:
     build:
@@ -15,6 +21,9 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - app
+    logging: *default-logging
     restart: unless-stopped
 
   backend:
@@ -45,6 +54,10 @@ services:
       timeout: 5s
       retries: 10
       start_period: 40s
+    networks:
+      - app
+      - data
+    logging: *default-logging
     restart: unless-stopped
 
   mysql:
@@ -65,6 +78,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - data
+    logging: *default-logging
     restart: unless-stopped
 
   redis:
@@ -72,18 +88,27 @@ services:
     container_name: lol-datahub-redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-    command: ["sh", "-c", "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --requirepass \"$${REDIS_PASSWORD}\"; else exec redis-server; fi"]
+      REDIS_MAXMEMORY: ${REDIS_MAXMEMORY:-256mb}
+    command: ["sh", "-c", "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --requirepass \"$${REDIS_PASSWORD}\" --maxmemory \"$${REDIS_MAXMEMORY}\" --maxmemory-policy allkeys-lru; else exec redis-server --maxmemory \"$${REDIS_MAXMEMORY}\" --maxmemory-policy allkeys-lru; fi"]
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - lol-datahub-redis:/data
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - data
+    logging: *default-logging
     restart: unless-stopped
 
 volumes:
   lol-datahub-mysql:
   lol-datahub-redis:
+
+networks:
+  app:
+  data:
+    internal: true

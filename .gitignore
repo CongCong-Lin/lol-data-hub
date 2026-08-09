@@ -6,7 +6,8 @@ target/
 node_modules/
 frontend/dist/
 *.tsbuildinfo
-.env
+.env*
+!.env.example
 *.log
 .mvn/repository/
 .claude/
