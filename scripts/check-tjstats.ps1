@@ -10,13 +10,16 @@
     tjstats API 基础地址，默认 https://open.tjstats.com/match-auth-app/open/v1。
 .PARAMETER TimeoutSec
     HTTP 请求超时秒数，默认 15。
+.PARAMETER NetworkOnly
+    仅检查网络可达性；不要求采集凭据和内部令牌已配置。
 .EXAMPLE
     .\scripts\check-tjstats.ps1
     .\scripts\check-tjstats.ps1 -BaseUrl "https://custom.example.com/v1" -TimeoutSec 30
 #>
 param(
     [string]$BaseUrl = '',
-    [int]$TimeoutSec = 15
+    [int]$TimeoutSec = 15,
+    [switch]$NetworkOnly
 )
 
 $ErrorActionPreference = 'Continue'
@@ -122,6 +125,13 @@ $tokenStatus   = if ($tokenSet)  { 'SET' } else { 'NOT_SET' }
 Write-Host ("  {0,-30} 状态: {1}" -f 'TJSTATS_AUTHORIZATION', $tjAuthStatus)
 Write-Host ("  {0,-30} 状态: {1}" -f 'INTERNAL_API_TOKEN', $tokenStatus)
 Write-Host ""
+
+if (-not $NetworkOnly -and (-not $tjAuthSet -or -not $tokenSet)) {
+    $hasFailure = $true
+    Write-Host "  [FAIL] 采集就绪检查需要同时配置 TJSTATS_AUTHORIZATION 和 INTERNAL_API_TOKEN。" -ForegroundColor Red
+    Write-Host "         如果只检查网络，请使用 -NetworkOnly。" -ForegroundColor Yellow
+    Write-Host ""
+}
 
 # ---------- 第一组：LPL 官网只读检查 ----------
 

@@ -1,23 +1,30 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    验证 docker-compose.yml 已启动服务的健康状态和关键接口可用性。
+    验证 Docker Compose 服务、三类统计接口、MySQL 数据与 Redis 缓存。
 .DESCRIPTION
-    只读检查，不删除容器、不执行 down、不修改数据库。
+    只读验收：不执行采集、不修改数据库、不输出凭据。
 .PARAMETER StageKeys
-    英雄统计 API 的 stageKeys 参数，默认 '237:112,237:113,237:100'。
-.PARAMETER MinimumPickCount
-    英雄统计 API 的 minimumPickCount 参数，默认 10。
+    用于三类统计的已采集复合赛段键。
+.PARAMETER EnvFile
+    Compose 环境文件，默认为项目根目录下的 .env。
 #>
 param(
     [string]$StageKeys = '237:112,237:113,237:100',
-    [int]$MinimumPickCount = 10
+    [int]$MinimumPickCount = 10,
+    [int]$MinimumMatchCount = 5,
+    [string]$EnvFile = '.env'
 )
 
 $ErrorActionPreference = 'Stop'
-$composeFile = 'deploy/docker-compose.yml'
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$composeFile = Join-Path $repoRoot 'deploy/docker-compose.yml'
+$envFilePath = if ([System.IO.Path]::IsPathRooted($EnvFile)) {
+    [System.IO.Path]::GetFullPath($EnvFile)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $repoRoot $EnvFile))
+}
 
-# ---------- 工具函数 ----------
 $passCount = 0
 $failCount = 0
 
@@ -32,96 +39,179 @@ function Write-Check {
     }
 }
 
-# ---------- 1. docker compose ps 检查 ----------
-Write-Host "`n=== 1. 服务状态检查 ===" -ForegroundColor Cyan
+function Test-HttpStatus {
+    param([string]$Url, [int]$ExpectedStatus, [string]$Name, [string]$Method = 'GET')
+    $actualStatus = 0
+    try {
+        $response = Invoke-WebRequest -Uri $Url -Method $Method -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+        $actualStatus = [int]$response.StatusCode
+    } catch {
+        if ($null -ne $_.Exception.Response) {
+            $actualStatus = [int]$_.Exception.Response.StatusCode.value__
+        }
+    }
+    Write-Check $Name ($actualStatus -eq $ExpectedStatus) "(实际: $actualStatus，期望: $ExpectedStatus)"
+}
 
-try {
-    $psOutput = docker compose -f $composeFile ps --format json 2>&1
-    $services = $psOutput | ForEach-Object { $_ | ConvertFrom-Json }
-} catch {
-    Write-Host "[FATAL] 无法执行 docker compose ps，请确认已启动服务。" -ForegroundColor Red
+function Test-JsonApi {
+    param(
+        [string]$Url,
+        [string]$Name,
+        [switch]$RequireItems,
+        [switch]$RequireNonEmptyData
+    )
+    try {
+        $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
+        $body = $response.Content | ConvertFrom-Json
+        $ok = $response.StatusCode -eq 200 -and $body.success -eq $true -and $null -ne $body.data
+        if ($RequireItems) {
+            $ok = $ok -and [int64]$body.data.dataVersion -gt 0 `
+                -and [int64]$body.data.total -gt 0 `
+                -and @($body.data.items).Count -gt 0
+        }
+        if ($RequireNonEmptyData) {
+            $ok = $ok -and @($body.data).Count -gt 0
+        }
+        Write-Check $Name $ok '(响应必须为 success=true 且包含非空数据)'
+    } catch {
+        Write-Check $Name $false "($($_.Exception.Message))"
+    }
+}
+
+Write-Host "`n=== 1. Compose 健康状态 ===" -ForegroundColor Cyan
+$composeArgs = @('compose')
+if (Test-Path -LiteralPath $envFilePath) {
+    $composeArgs += @('--env-file', $envFilePath)
+}
+$composeArgs += @('-f', $composeFile, 'ps', '--format', 'json')
+$psOutput = & docker $composeArgs 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[FATAL] docker compose ps 执行失败。" -ForegroundColor Red
     exit 1
 }
 
-$requiredServices = @('backend', 'frontend', 'mysql', 'redis')
-foreach ($svc in $requiredServices) {
-    $found = $services | Where-Object { $_.Service -eq $svc }
-    if ($found) {
-        # 状态中包含 "running" 或 "healthy" 视为可用
-        $state = if ($null -ne $found.State) { $found.State } elseif ($null -ne $found.Status) { $found.Status } else { '' }
-        $state = $state.ToLower()
-        $isUp = $state -match 'running|healthy|up'
-        Write-Check "服务 [$svc] 存在且状态可用" $isUp "(状态: $state)"
+try {
+    $services = @($psOutput | Where-Object { $_.ToString().Trim().StartsWith('{') } | ForEach-Object {
+        $_ | ConvertFrom-Json
+    })
+} catch {
+    Write-Host "[FATAL] 无法解析 docker compose ps JSON。" -ForegroundColor Red
+    exit 1
+}
+
+foreach ($serviceName in @('backend', 'frontend', 'mysql', 'redis')) {
+    $service = $services | Where-Object { $_.Service -eq $serviceName } | Select-Object -First 1
+    $state = if ($null -ne $service) { [string]$service.State } else { '' }
+    $health = if ($null -ne $service) { [string]$service.Health } else { '' }
+    $ok = $null -ne $service -and $state.ToLowerInvariant() -eq 'running' `
+        -and $health.ToLowerInvariant() -eq 'healthy'
+    Write-Check "服务 [$serviceName] running + healthy" $ok "(state=$state, health=$health)"
+}
+
+Write-Host "`n=== 2. 公共 HTTP 与 JSON 接口 ===" -ForegroundColor Cyan
+Test-HttpStatus 'http://localhost:8081/' 200 '前端首页'
+Test-JsonApi 'http://localhost:8081/api/v1/catalog/seasons' '赛事目录' -RequireNonEmptyData
+
+$encodedStageKeys = [uri]::EscapeDataString($StageKeys)
+$heroUrl = "http://localhost:8081/api/v1/statistics/champions?stageKeys=${encodedStageKeys}&minimumPickCount=${MinimumPickCount}"
+$teamUrl = "http://localhost:8081/api/v1/statistics/teams?stageKeys=${encodedStageKeys}&minimumMatchCount=${MinimumMatchCount}"
+$playerUrl = "http://localhost:8081/api/v1/statistics/players?stageKeys=${encodedStageKeys}&minimumMatchCount=${MinimumMatchCount}"
+Test-JsonApi $heroUrl '英雄统计第一次查询' -RequireItems
+Test-JsonApi $heroUrl '英雄统计第二次查询（缓存候选）' -RequireItems
+Test-JsonApi $teamUrl '战队统计' -RequireItems
+Test-JsonApi $playerUrl '选手统计' -RequireItems
+Test-HttpStatus 'http://localhost:8081/api/internal/catalog/sync' 404 'Nginx 隔离内部接口' 'POST'
+
+Write-Host "`n=== 3. MySQL 当前数据 ===" -ForegroundColor Cyan
+$dbOutput = @()
+$dbExitCode = 1
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    $containerEnvOutput = docker inspect lol-datahub-mysql --format '{{json .Config.Env}}' 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $containerEnv = $containerEnvOutput | ConvertFrom-Json
+        $dbUser = (($containerEnv | Where-Object { $_ -like 'MYSQL_USER=*' }) -split '=', 2)[1]
+        $dbPassword = (($containerEnv | Where-Object { $_ -like 'MYSQL_PASSWORD=*' }) -split '=', 2)[1]
+        $dbName = (($containerEnv | Where-Object { $_ -like 'MYSQL_DATABASE=*' }) -split '=', 2)[1]
+        $dbQuery = "SELECT 'HERO',COUNT(*) FROM champion_stage_stat_current UNION ALL SELECT 'TEAM',COUNT(*) FROM team_stage_stat_current UNION ALL SELECT 'PLAYER',COUNT(*) FROM player_stage_stat_current"
+        $dbOutput = docker exec -e "MYSQL_PWD=$dbPassword" lol-datahub-mysql `
+            mysql -u $dbUser -D $dbName -N -e $dbQuery 2>&1
+        $dbExitCode = $LASTEXITCODE
+    }
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+$rowCounts = @{}
+if ($dbExitCode -eq 0) {
+    foreach ($line in $dbOutput) {
+        if ($line -match '^(HERO|TEAM|PLAYER)\s+([0-9]+)$') {
+            $rowCounts[$Matches[1]] = [int64]$Matches[2]
+        }
+    }
+}
+foreach ($type in @('HERO', 'TEAM', 'PLAYER')) {
+    $count = if ($rowCounts.ContainsKey($type)) { $rowCounts[$type] } else { 0 }
+    Write-Check "MySQL $type current 非空" ($dbExitCode -eq 0 -and $count -gt 0) "(rows=$count, exit=$dbExitCode)"
+}
+
+Write-Host "`n=== 4. Redis 连接与统计缓存 ===" -ForegroundColor Cyan
+$redisPassword = ''
+$redisInspectOk = $false
+$ErrorActionPreference = 'Continue'
+try {
+    $redisEnvOutput = docker inspect lol-datahub-redis --format '{{json .Config.Env}}' 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $redisContainerEnv = $redisEnvOutput | ConvertFrom-Json
+        $redisPasswordEntry = $redisContainerEnv | Where-Object { $_ -like 'REDIS_PASSWORD=*' } | Select-Object -First 1
+        if ($null -ne $redisPasswordEntry) {
+            $redisPassword = ($redisPasswordEntry -split '=', 2)[1]
+        }
+        $redisInspectOk = $true
+    }
+    if ($redisPassword.Length -gt 0) {
+        $redisPingOutput = @(docker exec -e "REDISCLI_AUTH=$redisPassword" lol-datahub-redis redis-cli ping 2>&1)
     } else {
-        Write-Check "服务 [$svc] 存在且状态可用" $false "(未找到)"
+        $redisPingOutput = @(docker exec lol-datahub-redis redis-cli ping 2>&1)
     }
+    $redisPingExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
 }
+$redisPingLines = @($redisPingOutput | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ })
+$redisPingOk = $redisInspectOk -and $redisPingExitCode -eq 0 `
+    -and $redisPingLines.Count -eq 1 -and $redisPingLines[0] -eq 'PONG'
+Write-Check 'Redis 认证配置与 PING 一致' $redisPingOk "(exit=$redisPingExitCode)"
 
-# ---------- 2. HTTP 接口检查 ----------
-Write-Host "`n=== 2. HTTP 接口检查 ===" -ForegroundColor Cyan
-
-function Test-HttpStatus {
-    param([string]$Url, [int]$ExpectedStatus, [string]$Name, [hashtable]$Headers = @{})
-    try {
-        $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 15 -Headers $Headers -ErrorAction SilentlyContinue
-        $ok = $response.StatusCode -eq $ExpectedStatus
-        Write-Check $Name $ok "(实际状态码: $($response.StatusCode), 期望: $ExpectedStatus)"
-    } catch {
-        $actualStatus = $_.Exception.Response.StatusCode.value__
-        $ok = $actualStatus -eq $ExpectedStatus
-        Write-Check $Name $ok "(实际状态码: $actualStatus, 期望: $ExpectedStatus)"
+$ErrorActionPreference = 'Continue'
+try {
+    if ($redisPassword.Length -gt 0) {
+        $redisScanOutput = @(docker exec -e "REDISCLI_AUTH=$redisPassword" lol-datahub-redis `
+            redis-cli --scan --pattern 'loldatahub:stats:s4:*' 2>&1)
+    } else {
+        $redisScanOutput = @(docker exec lol-datahub-redis `
+            redis-cli --scan --pattern 'loldatahub:stats:s4:*' 2>&1)
     }
+    $redisScanExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+$redisScanLines = @($redisScanOutput | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ })
+$redisHasError = @($redisScanLines | Where-Object { $_ -match '(?i)(AUTH failed|NOAUTH|^ERR )' }).Count -gt 0
+$redisKeys = @($redisScanLines | Where-Object { $_ -match '^loldatahub:stats:s4:' })
+$redisScanOk = $redisScanExitCode -eq 0 -and -not $redisHasError
+Write-Check 'Redis 扫描命令无认证或执行错误' $redisScanOk "(exit=$redisScanExitCode)"
+foreach ($type in @('champion', 'team', 'player')) {
+    $hasTypeKey = @($redisKeys | Where-Object { $_ -match ":${type}:" }).Count -gt 0
+    Write-Check "Redis 存在 $type 统计缓存" $hasTypeKey "(总键数=$($redisKeys.Count))"
 }
 
-# 2a. 前端首页
-Test-HttpStatus 'http://localhost:8081' 200 '前端首页 http://localhost:8081'
-
-# 2b. 赛季目录 API（经 Nginx 代理）
-Test-HttpStatus 'http://localhost:8081/api/v1/catalog/seasons' 200 '赛季目录 /api/v1/catalog/seasons'
-
-# ---------- 3. 英雄统计 API 两次请求 ----------
-Write-Host "`n=== 3. 英雄统计 API（两次请求） ===" -ForegroundColor Cyan
-
-$heroUrl = 'http://localhost:8081/api/v1/statistics/champions?stageKeys=' + $StageKeys + '&minimumPickCount=' + $MinimumPickCount
-for ($i = 1; $i -le 2; $i++) {
-    Test-HttpStatus $heroUrl 200 "英雄统计 API 第 ${i} 次请求"
-}
-
-# ---------- 4. Nginx 隔离检查：内部接口应返回 404 ----------
-Write-Host "`n=== 4. Nginx 内部接口隔离检查 ===" -ForegroundColor Cyan
-
-try {
-    $response = Invoke-WebRequest -Uri 'http://localhost:8081/api/internal/catalog/sync' `
-        -Method POST `
-        -Headers @{ 'X-Internal-Token' = 'verify-compose-dummy-token' } `
-        -UseBasicParsing -TimeoutSec 15 -ErrorAction SilentlyContinue
-    $actualStatus = $response.StatusCode
-} catch {
-    $actualStatus = $_.Exception.Response.StatusCode.value__
-}
-
-Write-Check 'Nginx 内部接口 /api/internal/catalog/sync 返回 404' ($actualStatus -eq 404) "(实际状态码: $actualStatus, 期望: 404)"
-
-# ---------- 5. Redis 键检查 ----------
-Write-Host "`n=== 5. Redis 数据键检查 ===" -ForegroundColor Cyan
-
-try {
-    $redisKeys = docker exec lol-datahub-redis redis-cli --scan --pattern 'loldatahub:stats:s3:*' 2>&1
-    $keyList = @($redisKeys | Where-Object { $_ -and $_ -notmatch '^Warning:' })
-    $hasKeys = $keyList.Count -gt 0
-    Write-Check "Redis 中存在 loldatahub:stats:s3:* 键" $hasKeys "(找到 $($keyList.Count) 个键)"
-} catch {
-    Write-Check "Redis 中存在 loldatahub:stats:s3:* 键" $false "(无法连接 Redis: $_)"
-}
-
-# ---------- 汇总 ----------
 Write-Host "`n========== 汇总 ==========" -ForegroundColor Cyan
 Write-Host "通过: $passCount  失败: $failCount"
-
 if ($failCount -gt 0) {
     Write-Host "`n验收未通过，请检查上方 [FAIL] 项。" -ForegroundColor Red
     exit 1
-} else {
-    Write-Host "`n全部验收通过。" -ForegroundColor Green
-    exit 0
 }
+
+Write-Host "`n全部验收通过。" -ForegroundColor Green
+exit 0

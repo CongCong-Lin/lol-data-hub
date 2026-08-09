@@ -71,70 +71,73 @@ if (-not (Test-Path -Path $outputPath)) {
     New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 }
 
-# ---------- Generate backup filename with UTC timestamp ----------
-$timestamp = [System.DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss')
-$backupFile = "${Database}_${timestamp}.sql"
+# ---------- Generate a unique backup filename ----------
+$timestamp = [System.DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss_fff')
+$operationId = [guid]::NewGuid().ToString('N')
+$backupFile = "${Database}_${timestamp}_$($operationId.Substring(0, 8)).sql"
 $backupPath = Join-Path -Path $outputPath -ChildPath $backupFile
 
 # ---------- Execute mysqldump ----------
 Write-Host "Backing up database $Database to $backupPath ..." -ForegroundColor Cyan
 
-# Execute mysqldump inside container:
-# - Use MYSQL_PWD env var so the password never appears on the mysqldump command line.
-# - Write a temp .sh script (ASCII, no BOM) and docker cp into the container,
-#   then execute it. This avoids all PowerShell/native-command quoting and encoding issues.
-# --single-transaction: InnoDB consistent read
-# --routines: include stored procedures
-# --events: include events
-# --triggers: include triggers
-$tempSh = Join-Path ([System.IO.Path]::GetTempPath()) "backup_$([guid]::NewGuid().ToString('N')).sh"
-$errorPath = "$backupPath.stderr"
+# The dump is written to a file inside the container and copied byte-for-byte with docker cp.
+# Do not redirect mysqldump stdout in Windows PowerShell 5.1: native stdout would be decoded
+# and re-encoded as UTF-16, which can silently corrupt a UTF-8 SQL dump.
+$tempSh = Join-Path ([System.IO.Path]::GetTempPath()) "backup_${operationId}.sh"
+$containerScript = "/tmp/loldatahub_backup_${operationId}.sh"
+$containerDump = "/tmp/loldatahub_backup_${operationId}.sql"
 
 try {
-    # Write dump script as ASCII (no BOM) to temp file
-    $dumpScript = "MYSQL_PWD=`"`$MYSQL_ROOT_PASSWORD`" mysqldump -uroot --single-transaction --routines --events --triggers $Database"
+    # Write an ASCII shell script without BOM. Database is restricted to [A-Za-z0-9_].
+    $dumpScript = "MYSQL_PWD=`"`$MYSQL_ROOT_PASSWORD`" mysqldump -uroot --no-tablespaces --single-transaction --routines --events --triggers --default-character-set=utf8mb4 --result-file=`"${containerDump}`" $Database"
     [System.IO.File]::WriteAllText($tempSh, $dumpScript, [System.Text.ASCIIEncoding]::new())
 
-    # Copy script into container and execute
-    $containerScript = '/tmp/loldatahub_backup.sh'
-    docker cp $tempSh "${containerName}:${containerScript}" 2> $errorPath
+    $copyScriptOutput = docker cp $tempSh "${containerName}:${containerScript}" 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "docker cp failed with code ${LASTEXITCODE}"
+        throw "docker cp script failed: $($copyScriptOutput -join [Environment]::NewLine)"
     }
 
-    docker exec $containerName sh $containerScript > $backupPath 2> $errorPath
+    $dumpOutput = docker exec $containerName sh $containerScript 2>&1
     $dumpExitCode = $LASTEXITCODE
-
-    # Cleanup script inside container
-    docker exec $containerName rm -f $containerScript 2> $null
-
     if ($dumpExitCode -ne 0) {
-        $errorText = if (Test-Path $errorPath) { (Get-Content $errorPath -Raw).Trim() } else { 'unknown mysqldump error' }
-        throw "mysqldump exited with code ${dumpExitCode}: $errorText"
+        throw "mysqldump exited with code ${dumpExitCode}: $($dumpOutput -join [Environment]::NewLine)"
     }
 
-    # Check backup file size
+    $copyDumpOutput = docker cp "${containerName}:${containerDump}" $backupPath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker cp dump failed: $($copyDumpOutput -join [Environment]::NewLine)"
+    }
+
     $fileInfo = Get-Item -Path $backupPath
     if ($fileInfo.Length -lt 1024) {
-        Write-Host "[WARNING] Backup file is too small ($($fileInfo.Length) bytes), backup may have failed." -ForegroundColor Yellow
+        throw "Backup file is too small ($($fileInfo.Length) bytes)."
     }
 
+    $stream = [System.IO.File]::OpenRead($backupPath)
+    try {
+        $headerBytes = New-Object byte[] ([Math]::Min(512, $fileInfo.Length))
+        $readLength = $stream.Read($headerBytes, 0, $headerBytes.Length)
+        $header = [System.Text.Encoding]::UTF8.GetString($headerBytes, 0, $readLength)
+    } finally {
+        $stream.Dispose()
+    }
+    if ($header -notmatch '(?i)(MySQL|MariaDB).*dump') {
+        throw 'Backup header is not a recognizable SQL dump.'
+    }
+
+    $sha256 = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $sizeMB = [math]::Round($fileInfo.Length / 1MB, 2)
     Write-Host "[SUCCESS] Backup completed: $backupPath ($sizeMB MB)" -ForegroundColor Green
-    Remove-Item -Path $errorPath -Force -ErrorAction SilentlyContinue
+    Write-Host "SHA-256: $sha256" -ForegroundColor Green
     exit 0
 } catch {
     Write-Host "[ERROR] Backup failed: $_" -ForegroundColor Red
-    # Clean up partial files
     if (Test-Path -Path $backupPath) {
         Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
     }
-    if (Test-Path -Path $errorPath) {
-        Remove-Item -Path $errorPath -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 } finally {
-    # Always cleanup temp file
+    docker exec $containerName rm -f $containerScript $containerDump 2>$null | Out-Null
     if (Test-Path -Path $tempSh) {
         Remove-Item -Path $tempSh -Force -ErrorAction SilentlyContinue
     }
