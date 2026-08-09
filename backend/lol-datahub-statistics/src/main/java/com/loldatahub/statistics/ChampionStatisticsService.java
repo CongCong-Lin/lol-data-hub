@@ -66,7 +66,7 @@ public class ChampionStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集英雄数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s5:v" + dataVersion + ":champion:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s6:v" + dataVersion + ":champion:" + query.cacheFingerprint();
         List<ChampionStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new ChampionStatisticsResult(dataVersion, query.minimumPickCount(), cached.size(), cached);
@@ -108,7 +108,14 @@ public class ChampionStatisticsService {
             case "championName" -> Comparator.comparing(ChampionStatistics::championName);
             default -> Comparator.comparing(ChampionStatistics::bpRate);
         };
-        return query.sortDirection().apply(comparator).thenComparing(ChampionStatistics::championName);
+        Comparator<ChampionStatistics> ordered = query.sortDirection().apply(comparator);
+        if ("winningRate".equals(query.sortBy())) {
+            ordered = ordered.thenComparing(
+                    Comparator.comparingLong(ChampionStatistics::pickCount).reversed()
+            );
+        }
+        return ordered.thenComparing(ChampionStatistics::championName)
+                .thenComparingLong(ChampionStatistics::championId);
     }
 
     private List<String> parsePositions(String json) {

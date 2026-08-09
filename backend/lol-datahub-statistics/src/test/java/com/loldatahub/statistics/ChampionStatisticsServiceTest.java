@@ -97,6 +97,28 @@ class ChampionStatisticsServiceTest {
     }
 
     @Test
+    void equalWinningRateUsesHigherPickCountAsTieBreakerForBothDirections() {
+        StageKey stage = new StageKey(239, 18);
+        when(mapper.findCollectedStageKeys(any())).thenReturn(List.of(stage));
+        when(mapper.aggregateChampions(any(), anyInt(), eq(null))).thenReturn(List.of(
+                aggregateRow(1, "低样本", 4, 2),
+                aggregateRow(2, "中样本", 10, 5),
+                aggregateRow(3, "高样本", 20, 10)
+        ));
+
+        for (var direction : com.loldatahub.domain.statistics.SortDirection.values()) {
+            var query = new com.loldatahub.domain.statistics.ChampionStatisticsQuery(
+                    List.of(stage), 0, null, "winningRate", direction);
+
+            ChampionStatisticsResult result = service.query(query);
+
+            assertThat(result.items())
+                    .extracting(item -> item.pickCount())
+                    .containsExactly(20L, 10L, 4L);
+        }
+    }
+
+    @Test
     void missingCompositeStageKeyReportedPrecisely() {
         // 请求 237:102 和 239:28，但只有 237:102 已采集
         List<StageKey> requested = List.of(new StageKey(237, 102), new StageKey(239, 28));
@@ -109,5 +131,12 @@ class ChampionStatisticsServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("239:28")
                 .hasMessageContaining("尚未采集");
+    }
+
+    private ChampionAggregateRow aggregateRow(long championId, String name, long picks, long wins) {
+        return new ChampionAggregateRow(
+                championId, name, null, null, "MID", null,
+                100, picks, 0, picks, wins, 0, 0, 0, null
+        );
     }
 }
