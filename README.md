@@ -22,7 +22,7 @@
 ### 1. 配置环境变量
 
 ```powershell
-cp .env.example .env
+Copy-Item .env.example .env
 # 编辑 .env，填入 TJSTATS_AUTHORIZATION 和 INTERNAL_API_TOKEN
 ```
 
@@ -40,7 +40,7 @@ $env:INTERNAL_API_TOKEN = "你的内部接口令牌"
 ### 2. 启动全部服务
 
 ```powershell
-docker compose -f deploy/docker-compose.yml up -d
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
 使用默认配置时，启动后访问 `http://localhost:8081`；修改 `FRONTEND_PORT` 后请使用对应端口。
@@ -53,13 +53,15 @@ docker compose -f deploy/docker-compose.yml up -d
 .\scripts\verify-compose.ps1
 ```
 
-可选参数：`-StageKeys`（英雄统计 stageKeys，默认 `237:112,237:113,237:100`）和 `-MinimumPickCount`（最低出场次数，默认 `10`）。
+可选参数：`-StageKeys`（三类统计共用赛段）、`-MinimumPickCount`、`-MinimumMatchCount` 和 `-EnvFile`。
 
 ### 4. 初始化赛季目录
 
 ```powershell
-curl -X POST http://localhost:8080/api/internal/catalog/sync `
-  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN"
+$headers = @{ 'X-Internal-Token' = $env:INTERNAL_API_TOKEN }
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/api/internal/catalog/sync?seasonId=237' `
+  -Headers $headers
 ```
 
 ### 5. 手动采集数据
@@ -67,28 +69,31 @@ curl -X POST http://localhost:8080/api/internal/catalog/sync `
 英雄统计采集示例：
 
 ```powershell
-curl -X POST http://localhost:8080/api/internal/collections/heroes `
-  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
-  -H "Content-Type: application/json" `
-  -d '{"seasonId": 237, "stageIds": [112, 113, 100]}'
+$headers = @{ 'X-Internal-Token' = $env:INTERNAL_API_TOKEN }
+$body = @{ seasonId = 237; stageIds = @(112, 113, 100) } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/api/internal/collections/heroes' `
+  -Headers $headers -ContentType 'application/json' -Body $body
 ```
 
 战队统计采集：
 
 ```powershell
-curl -X POST http://localhost:8080/api/internal/collections/teams `
-  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
-  -H "Content-Type: application/json" `
-  -d '{"seasonId": 237, "stageIds": [112]}'
+$headers = @{ 'X-Internal-Token' = $env:INTERNAL_API_TOKEN }
+$body = @{ seasonId = 237; stageIds = @(112, 113, 100) } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/api/internal/collections/teams' `
+  -Headers $headers -ContentType 'application/json' -Body $body
 ```
 
 选手统计采集：
 
 ```powershell
-curl -X POST http://localhost:8080/api/internal/collections/players `
-  -H "X-Internal-Token: $env:INTERNAL_API_TOKEN" `
-  -H "Content-Type: application/json" `
-  -d '{"seasonId": 237, "stageIds": [112]}'
+$headers = @{ 'X-Internal-Token' = $env:INTERNAL_API_TOKEN }
+$body = @{ seasonId = 237; stageIds = @(112, 113, 100) } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/api/internal/collections/players' `
+  -Headers $headers -ContentType 'application/json' -Body $body
 ```
 
 ## 本地开发
@@ -97,7 +102,7 @@ curl -X POST http://localhost:8080/api/internal/collections/players `
 
 ```powershell
 # 启动 MySQL 和 Redis
-docker compose -f deploy/docker-compose.yml up -d mysql redis
+docker compose --env-file .env -f deploy/docker-compose.yml up -d mysql redis
 
 # 设置凭据
 $env:TJSTATS_AUTHORIZATION = "你的值"
@@ -114,7 +119,7 @@ java -jar backend/lol-datahub-application/target/lol-datahub-application-0.1.0-S
 ### 前端
 
 ```powershell
-cd frontend
+Set-Location frontend
 npm install
 npm run dev
 ```
@@ -125,7 +130,9 @@ npm run dev
 
 ```powershell
 mvn test
-cd frontend && npm run build
+Set-Location frontend
+npm test
+npm run build
 ```
 
 ## 数据库备份
@@ -143,9 +150,9 @@ cd frontend && npm run build
 .\scripts\backup-mysql.ps1 -Database "lol_data_hub" -OutputDirectory "backups"
 ```
 
-备份文件命名格式：`{数据库名}_{UTC时间戳}.sql`，例如 `lol_data_hub_20260808_120000.sql`。
+备份文件命名格式：`{数据库名}_{UTC时间戳}_{唯一后缀}.sql`。
 
-> **注意**：备份使用 `mysqldump --single-transaction` 保证 InnoDB 一致性读，包含存储过程、事件和触发器。备份过程为只读操作，不会修改数据库。
+> **注意**：备份在容器内直接生成 UTF-8 SQL，再通过 `docker cp` 按字节复制，避免 PowerShell 5.1 重编码。脚本会校验文件头、最小大小并输出 SHA-256。
 
 ## 主要接口
 
@@ -191,6 +198,7 @@ cd frontend && npm run build
 | `MYSQL_PORT` | 否 | `3307` | MySQL 宿主端口（仅绑定 127.0.0.1） |
 | `REDIS_PORT` | 否 | `6379` | Redis 宿主端口（仅绑定 127.0.0.1） |
 | `REDIS_PASSWORD` | 否 | 空 | Redis 密码；生产环境建议设置，留空时兼容本地无密码 Redis |
+| `REDIS_MAXMEMORY` | 否 | `256mb` | Redis 缓存内存上限，超限按 allkeys-lru 淘汰 |
 | `MYSQL_DATABASE` | 否 | `lol_data_hub` | MySQL 数据库名 |
 | `MYSQL_USERNAME` | 否 | `loldatahub` | MySQL 应用账号 |
 | `MYSQL_PASSWORD` | 否 | `loldatahub` | MySQL 应用账号密码（生产环境必须修改） |
@@ -215,15 +223,22 @@ lol-datahub:
 .\scripts\check-tjstats.ps1
 ```
 
-可选参数：`-BaseUrl`（tjstats API 地址，默认使用 `TJSTATS_BASE_URL` 环境变量或内置值）和 `-TimeoutSec`（超时秒数，默认 `15`）。
+可选参数：`-BaseUrl`、`-TimeoutSec` 和 `-NetworkOnly`。默认模式同时校验采集所需的两个变量；只验证网络时使用 `-NetworkOnly`。
 
 脚本仅输出 HTTP 状态码、耗时和环境变量就绪情况（SET / NOT_SET），不输出任何变量值或响应体。检查失败时以非 0 退出。
+
+使用 Clash Verge Rev 的 TUN + 规则模式时，可运行下列脚本，把 LPL、TJStats 和赛事静态资源域名置于 `DIRECT`，其余流量继续遵循原订阅规则。脚本会先备份 Clash 的全局扩展脚本和运行时配置：
+
+```powershell
+.\scripts\configure-clash-lpl-direct.ps1
+```
 
 ## 已知限制
 
 - **tjstats 数据源可达性**：`open.tjstats.com` 在代理或 VPN 环境下可能不可用，需通过 `TJSTATS_BASE_URL` 切换到境内转发服务。
-- **当前已实现的采集**：英雄统计已完整实现并可采集。战队和选手统计的采集接口已就绪，但具体数据尚需通过采集接口触发后才能查询。
+- **当前已实现的采集**：英雄、战队和选手三类采集与查询均已实现；新赛事仍需先手动采集才会出现在可用赛段中。
 - **官网接口稳定性**：使用的接口是官网前端内部接口，不等同于有稳定性承诺的开放 API。
+- **旧赛事赛段目录**：`/schedule/stage` 对部分不受支持的旧赛事会返回 `seasonId=0` 的全局字典。采集端会拒绝请求/返回赛季不一致的响应，不会把全局字典写入指定赛事。
 - **启动时任务恢复**：应用启动时会自动检测残留的采集任务——将超过 30 分钟仍处于 `RUNNING` 状态的任务标记为 `FAILED`，并保留回收原因。此机制仅在启动时执行一次，不添加定时任务、不自动重试。
 
 ## 文档
@@ -237,7 +252,7 @@ lol-datahub:
 
 - **速率**：每 IP 每秒 10 个请求
 - **突发**：允许瞬时突发 20 个请求（`burst=20 nodelay`）
-- **超限响应**：返回 `503 Service Temporarily Unavailable`
+- **超限响应**：返回 `429 Too Many Requests`
 
 内部采集接口（`/api/internal/`）不受限流影响，仍由 Nginx 直接返回 404 隔离。
 

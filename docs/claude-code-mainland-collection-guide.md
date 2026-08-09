@@ -32,7 +32,7 @@
 3. 若未能解析到非空 Authorization，停止并报告“官网脚本中未找到当前 Authorization”，不要继续。
 4. 使用 .NET RandomNumberGenerator 生成 32 字节随机十六进制 INTERNAL_API_TOKEN。将两个值同时写入当前 PowerShell 环境和项目根目录 .env；.env 仅保留本地使用，禁止 Git 暂存。
 5. 运行 .\scripts\check-tjstats.ps1。只有 LPL 页面、rank.js 和带 Authorization 的 TJStats 检查均成功时才能继续；否则停止。
-6. 使用 docker compose -f deploy/docker-compose.yml up -d --force-recreate backend，等待 backend health 为 healthy。不要重置 MySQL、Redis volume，也不要删除容器或数据。
+6. 使用 docker compose --env-file .env -f deploy/docker-compose.yml up -d --force-recreate backend，等待 backend health 为 healthy。不要重置 MySQL、Redis volume，也不要删除容器或数据。
 7. 使用 X-Internal-Token 直连 http://localhost:8080：
    - POST /api/internal/catalog/sync?seasonId=237
    - POST /api/internal/collections/teams，请求体 {"seasonId":237,"stageIds":[112,113,100]}
@@ -46,8 +46,8 @@
      /api/v1/statistics/players?stageKeys=237:112,237:113,237:100&minimumMatchCount=5&sortBy=kda&sortDirection=desc
      每种统计的响应必须 success=true、total 大于 0；第二次请求用于验证缓存。
    - 在 MySQL 中只读统计 team_stage_stat_current、player_stage_stat_current、对应 snapshot 表和 collection_run 的行数，确认 current 行数大于 0。
-   - 在 Redis 中只读查找 loldatahub:stats:s3:*:team:* 和 loldatahub:stats:s3:*:player:* 键，确认两类键都存在。需兼容 REDIS_PASSWORD 为空或非空两种情况。
-   - 运行 mvn -q test 和在 frontend 目录运行 npm.cmd run build。
+   - 在 Redis 中只读查找 loldatahub:stats:s4:*:team:* 和 loldatahub:stats:s4:*:player:* 键，确认两类键都存在。需兼容 REDIS_PASSWORD 为空或非空两种情况。
+   - 运行 mvn -q test，并在 frontend 目录运行 npm.cmd test 和 npm.cmd run build。
    - 执行 git status --short，确认 .env 未出现在状态中，且没有凭据被暂存。
 10. 最后报告：执行命令（脱敏）、各采集 runId/status/changedRecords、MySQL 行数、两类 API total、Redis 键是否存在、测试与构建结果、失败项和待解决问题。不要报告任何实际令牌值。
 ```

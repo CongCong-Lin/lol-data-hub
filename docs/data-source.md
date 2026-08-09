@@ -13,7 +13,7 @@ https://open.tjstats.com/match-auth-app/open/v1
 | 用途 | 路径 | 主要参数 |
 | --- | --- | --- |
 | 赛季目录 | `/schedule/season` | 无 |
-| 赛段目录 | `/schedule/stage` | `seasonId` |
+| 赛段目录 | `/schedule/stage` | `seasonId`；必须校验响应中的 `data.seasonId` 与请求一致 |
 | 比赛列表 | `/schedule/match` | `seasonId` |
 | 英雄聚合 | `/compound/public/hero` | `seasonId`, `stageIds` |
 | 选手聚合 | `/compound/public/player` | `seasonId`, `stageIds` |
@@ -22,6 +22,8 @@ https://open.tjstats.com/match-auth-app/open/v1
 
 这些接口是官网前端使用的内部接口，不等同于有稳定性承诺的开放 API。请求凭据必须通过
 `TJSTATS_AUTHORIZATION` 环境变量注入，禁止写入源码或下发给浏览器。
+
+`/schedule/stage` 对部分不受支持的旧赛季不会返回 404，而是返回 `seasonId=0`、包含大量通用赛段的全局字典。目录同步必须把请求赛季 ID 当作响应契约的一部分；不一致时整批拒绝，禁止把该字典挂到请求赛季。当前实现还校验非空赛季名、非空赛段数组、正数且不重复的赛段 ID。
 
 > **网络限制**：`open.tjstats.com` 在代理或 VPN 环境下可能不稳定或不可达。如果部署环境无法直连，可通过 `TJSTATS_BASE_URL` 切换到受控的境内转发服务。
 
