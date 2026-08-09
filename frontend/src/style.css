@@ -149,6 +149,21 @@ tbody tr:hover { background: rgba(59,199,196,.04); }
 .player-table th { font-size: 11px; }
 .player-table td { font-size: 13px; }
 
+.pagination {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 16px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px;
+}
+.pagination-meta, .pagination-meta label, .pagination-buttons { display: flex; align-items: center; gap: 8px; }
+.pagination-row-count { white-space: nowrap; }
+.page-size-select { width: auto; min-width: 64px; padding: 6px 24px 6px 9px; }
+.pagination-buttons { flex-wrap: wrap; justify-content: flex-end; }
+.pagination-buttons button {
+  min-width: 34px; height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: 4px;
+  color: #9fb0be; background: #0a151f; font-size: 12px; font-weight: 700;
+}
+.pagination-buttons button:hover:not(:disabled) { border-color: var(--cyan); color: #e7ffff; }
+.pagination-buttons button.active { border-color: var(--cyan); color: #071019; background: var(--cyan); }
+
 @media (max-width: 960px) {
   .hero { align-items: stretch; flex-direction: column; }
   .status-card { width: 100%; }
@@ -164,4 +179,7 @@ tbody tr:hover { background: rgba(59,199,196,.04); }
   .basket-heading-actions { justify-content: space-between; }
   .toolbar-right { align-items: stretch; }
   .search-wrap { min-width: 100%; }
+  .pagination { align-items: stretch; flex-direction: column; }
+  .pagination-meta { justify-content: space-between; }
+  .pagination-buttons { justify-content: flex-start; }
 }

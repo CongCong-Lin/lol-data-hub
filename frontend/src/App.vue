@@ -9,6 +9,7 @@ import {
   type StatisticType,
   type TeamStatisticsResult,
 } from './api'
+import PaginationControls from './PaginationControls.vue'
 
 type ActiveView = 'champion' | 'team' | 'player'
 
@@ -84,6 +85,8 @@ const playerPositionFilter = ref('')
 const search = ref('')
 const teamSearch = ref('')
 const playerSearch = ref('')
+const currentPage = ref(1)
+const pageSize = ref(20)
 const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
@@ -153,6 +156,15 @@ const filteredPlayerItems = computed(() => {
   return items
 })
 
+function paginate<T>(items: T[]): T[] {
+  const start = (currentPage.value - 1) * pageSize.value
+  return items.slice(start, start + pageSize.value)
+}
+
+const paginatedChampionItems = computed(() => paginate(filteredChampionItems.value))
+const paginatedTeamItems = computed(() => paginate(filteredTeamItems.value))
+const paginatedPlayerItems = computed(() => paginate(filteredPlayerItems.value))
+
 const latestCollectedAt = computed(() => {
   const timestamps = selectedStageDetails.value
     .map((s) => s.collectedAt)
@@ -204,6 +216,7 @@ function clearActiveResult(view: ActiveView) {
 function invalidateQueryResults() {
   querySeq++
   busy.value = false
+  currentPage.value = 1
   clearStatisticsResults()
   notice.value = ''
   error.value = ''
@@ -215,6 +228,14 @@ watch(
   invalidateQueryResults,
   { flush: 'sync' },
 )
+
+watch([search, teamSearch, playerSearch], () => {
+  currentPage.value = 1
+}, { flush: 'sync' })
+
+watch(pageSize, () => {
+  currentPage.value = 1
+}, { flush: 'sync' })
 
 /* ---- methods ---- */
 
@@ -298,6 +319,7 @@ async function query() {
   const selectedPlayerPosition = playerPositionFilter.value
   const selectedMinimumPickCount = minimumPickCount.value
   const selectedMinimumMatchCount = minimumMatchCount.value
+  currentPage.value = 1
   clearActiveResult(view)
   busy.value = true
   error.value = ''
@@ -336,6 +358,7 @@ async function query() {
 function switchView(view: ActiveView) {
   if (activeView.value === view) return
   activeView.value = view
+  currentPage.value = 1
   clearStatisticsResults()
   notice.value = ''
   error.value = ''
@@ -623,7 +646,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in filteredChampionItems" :key="item.championId">
+            <tr v-for="item in paginatedChampionItems" :key="item.championId">
               <td>
                 <div class="champion-cell">
                   <img v-if="item.championLogo" :src="item.championLogo" :alt="item.championName" />
@@ -657,6 +680,12 @@ onMounted(async () => {
         <strong v-else-if="!result">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
       </div>
+      <PaginationControls
+        v-if="filteredChampionItems.length"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredChampionItems.length"
+      />
     </section>
 
     <!-- 战队统计面板 -->
@@ -694,7 +723,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in filteredTeamItems" :key="item.teamId">
+            <tr v-for="item in paginatedTeamItems" :key="item.teamId">
               <td>
                 <div class="team-cell">
                   <img v-if="item.teamLogo" :src="item.teamLogo" :alt="item.teamName" class="team-logo" />
@@ -723,6 +752,12 @@ onMounted(async () => {
         <strong v-else-if="!teamResult">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
       </div>
+      <PaginationControls
+        v-if="filteredTeamItems.length"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredTeamItems.length"
+      />
     </section>
 
     <!-- 选手统计面板 -->
@@ -777,7 +812,7 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in filteredPlayerItems" :key="item.playerKey">
+            <tr v-for="item in paginatedPlayerItems" :key="item.playerKey">
               <td>
                 <div class="player-cell">
                   <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
@@ -815,6 +850,12 @@ onMounted(async () => {
         <strong v-else-if="!playerResult">选择赛段后点击查询</strong>
         <strong v-else>无匹配结果</strong>
       </div>
+      <PaginationControls
+        v-if="filteredPlayerItems.length"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredPlayerItems.length"
+      />
     </section>
   </main>
 </template>

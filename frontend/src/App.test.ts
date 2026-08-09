@@ -220,4 +220,35 @@ describe('查询状态', () => {
     expect(wrapper.text()).toContain('请在上方赛段列表中勾选要查询的赛段')
     wrapper.unmount()
   })
+
+  it('对统计结果分页并支持调整每页条数', async () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      ...championResult.items[0],
+      championId: index + 1,
+      championName: `英雄${index + 1}`,
+    }))
+    vi.mocked(api.championStatisticsByKeys).mockResolvedValue({
+      ...championResult,
+      total: items.length,
+      items,
+    })
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(20)
+    expect(wrapper.get('.pagination-row-count').text()).toContain('第 1–20 项，共 25 项')
+
+    await wrapper.get('.pagination-next').trigger('click')
+    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(5)
+    expect(wrapper.get('.pagination-row-count').text()).toContain('第 21–25 项，共 25 项')
+    expect(wrapper.text()).toContain('英雄25')
+
+    await wrapper.get('.page-size-select').setValue('50')
+    expect(wrapper.findAll('.champion-table tbody tr')).toHaveLength(25)
+    expect(wrapper.get('.pagination-row-count').text()).toContain('第 1–25 项，共 25 项')
+    wrapper.unmount()
+  })
 })
