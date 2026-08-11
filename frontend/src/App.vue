@@ -23,7 +23,7 @@ const CHAMPION_COLUMNS: ColumnOption[] = [
   { key: 'killPerGame', label: '场均击杀' }, { key: 'totalAssists', label: '总助攻' },
   { key: 'assistPerGame', label: '场均助攻' }, { key: 'totalDeaths', label: '总死亡' },
   { key: 'deathPerGame', label: '场均死亡' }, { key: 'kda', label: 'KDA' },
-  { key: 'mostUsedPlayers', label: '常用选手' }, { key: 'sampleBaseCount', label: '样本基数' },
+  { key: 'mostUsedPlayers', label: '常用选手' },
 ]
 
 const TEAM_COLUMNS: ColumnOption[] = [
@@ -692,7 +692,6 @@ onMounted(async () => {
               <th v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')">场均死亡</th>
               <th v-if="isColumnVisible(championVisibleColumns, 'kda')">KDA</th>
               <th v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')">常用选手</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'sampleBaseCount')">样本基数</th>
             </tr>
           </thead>
           <tbody>
@@ -720,7 +719,6 @@ onMounted(async () => {
               <td v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
               <td v-if="isColumnVisible(championVisibleColumns, 'kda')">{{ fmtDecimal(item.kda) }}</td>
               <td v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')">{{ item.mostUsedPlayers.join('、') || '—' }}</td>
-              <td v-if="isColumnVisible(championVisibleColumns, 'sampleBaseCount')">{{ item.sampleBaseCount }}</td>
             </tr>
           </tbody>
         </table>

@@ -284,7 +284,7 @@ describe('查询状态', () => {
 
     await wrapper.get('.column-menu-trigger').trigger('click')
     const championCheckboxes = wrapper.findAll('.column-menu-option input')
-    expect(championCheckboxes).toHaveLength(18)
+    expect(championCheckboxes).toHaveLength(17)
     expect(championCheckboxes.every((checkbox) => (checkbox.element as HTMLInputElement).checked)).toBe(true)
 
     const banRateOption = wrapper.findAll('.column-menu-option')
@@ -293,7 +293,7 @@ describe('查询状态', () => {
     await banRateOption!.get('input').setValue(false)
 
     expect(wrapper.findAll('.champion-table th').map((header) => header.text())).not.toContain('禁用率')
-    expect(wrapper.findAll('.champion-table tbody td')).toHaveLength(17)
+    expect(wrapper.findAll('.champion-table tbody td')).toHaveLength(16)
 
     const teamTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '战队统计')
     await teamTab!.trigger('click')
