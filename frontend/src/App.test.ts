@@ -355,11 +355,21 @@ describe('查询状态', () => {
     expect(bpRateHeader).toBeDefined()
     expect(bpRateHeader!.text()).toContain('▼')
 
+    let resolveSortedResult!: (value: ChampionStatisticsResult) => void
+    vi.mocked(api.championStatisticsByKeys).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveSortedResult = resolve
+    }))
     await bpRateHeader!.trigger('click')
+    expect(wrapper.find('.champion-table').exists()).toBe(true)
+    expect(wrapper.get('.table-scroll').attributes('aria-busy')).toBe('true')
+    expect(wrapper.text()).toContain('安妮')
+
+    resolveSortedResult(championResult)
     await flushPromises()
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
       ['237:100'], 10, '', 'bpRate', 'asc',
     )
+    expect(wrapper.get('.table-scroll').attributes('aria-busy')).toBe('false')
     expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))!.text()).toContain('▲')
 
     const winningRateHeader = wrapper.findAll('.sort-header').find((button) => button.text().includes('胜率'))

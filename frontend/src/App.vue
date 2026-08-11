@@ -107,6 +107,7 @@ const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
 const busy = ref(false)
+const sorting = ref(false)
 const availabilityLoading = ref(false)
 const notice = ref('')
 const error = ref('')
@@ -240,6 +241,7 @@ function clearActiveResult(view: ActiveView) {
 function invalidateQueryResults() {
   querySeq++
   busy.value = false
+  sorting.value = false
   currentPage.value = 1
   clearStatisticsResults()
   notice.value = ''
@@ -247,9 +249,7 @@ function invalidateQueryResults() {
 }
 
 watch(
-  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy,
-    championSortDirection, teamSortDirection, playerSortDirection,
-    positionFilter, playerPositionFilter],
+  [minimumPickCount, minimumMatchCount, positionFilter, playerPositionFilter],
   invalidateQueryResults,
   { flush: 'sync' },
 )
@@ -331,7 +331,7 @@ function autoSelectDefaults(data: Stage[], target: Set<string>) {
   }
 }
 
-async function query() {
+async function query(preserveCurrentResult = false) {
   if (!activeMinimumValid.value) {
     error.value = '最低样本数必须是 0 到 10000 之间的整数'
     return
@@ -345,7 +345,7 @@ async function query() {
   const selectedMinimumPickCount = minimumPickCount.value
   const selectedMinimumMatchCount = minimumMatchCount.value
   currentPage.value = 1
-  clearActiveResult(view)
+  if (!preserveCurrentResult) clearActiveResult(view)
   busy.value = true
   error.value = ''
   notice.value = ''
@@ -401,7 +401,10 @@ function changeSort(view: ActiveView, field: string) {
       playerSortDirection.value = 'desc'
     }
   }
-  void query()
+  sorting.value = true
+  void query(true).finally(() => {
+    sorting.value = false
+  })
 }
 
 function switchView(view: ActiveView) {
@@ -537,7 +540,7 @@ onMounted(async () => {
         <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
       <div class="actions">
-        <button class="primary" :disabled="!canQuery" @click="query">{{ busy ? '处理中…' : '查询统计' }}</button>
+        <button class="primary" :disabled="!canQuery" @click="query()">{{ busy ? '处理中…' : '查询统计' }}</button>
       </div>
 
       <!-- 赛段浏览器 -->
@@ -648,12 +651,12 @@ onMounted(async () => {
           出场、胜负与 KDA 按实际分路独立统计；英雄被禁用时没有实际分路，禁用指标按所选赛段整体计算，BP 率为该分路出场率与整体禁用率之和。
         </p>
 
-      <div v-if="filteredChampionItems.length" class="table-scroll" tabindex="0" aria-label="英雄统计表，可横向和纵向滚动">
+      <div v-if="filteredChampionItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="英雄统计表，可横向和纵向滚动">
         <table class="champion-table">
           <thead>
             <tr>
-              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'champion')" label="英雄" field="championName" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
-              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'positions')" label="分路" field="positions" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'champion')" class="champion-name-column" label="英雄" field="championName" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'positions')" class="champion-position-column" label="分路" field="positions" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickCount')" label="出场" field="pickCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickRate')" label="出场率" field="pickRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'banCount')" label="禁用" field="banCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
@@ -673,14 +676,14 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr v-for="item in paginatedChampionItems" :key="item.championId">
-              <td v-if="isColumnVisible(championVisibleColumns, 'champion')">
+              <td v-if="isColumnVisible(championVisibleColumns, 'champion')" class="champion-name-column">
                 <div class="champion-cell">
                   <img v-if="item.championLogo" :src="item.championLogo" :alt="item.championName" />
                   <span class="champion-placeholder" v-else>{{ item.championName.slice(0, 1) }}</span>
                   <div><strong>{{ item.championName }}</strong><small>{{ item.championTitle }}</small></div>
                 </div>
               </td>
-              <td v-if="isColumnVisible(championVisibleColumns, 'positions')">{{ item.positions.join(' / ') || '—' }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'positions')" class="champion-position-column">{{ item.positions.join(' / ') || '—' }}</td>
               <td v-if="isColumnVisible(championVisibleColumns, 'pickCount')">{{ item.pickCount }}</td>
               <td v-if="isColumnVisible(championVisibleColumns, 'pickRate')">{{ percent(item.pickRate) }}</td>
               <td v-if="isColumnVisible(championVisibleColumns, 'banCount')">{{ item.banCount }}</td>
@@ -729,7 +732,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredTeamItems.length" class="table-scroll" tabindex="0" aria-label="战队统计表，可横向和纵向滚动">
+      <div v-if="filteredTeamItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="战队统计表，可横向和纵向滚动">
         <table class="team-table">
           <thead>
             <tr>
@@ -815,7 +818,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredPlayerItems.length" class="table-scroll" tabindex="0" aria-label="选手统计表，可横向和纵向滚动">
+      <div v-if="filteredPlayerItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="选手统计表，可横向和纵向滚动">
         <table class="player-table">
           <thead>
             <tr>
