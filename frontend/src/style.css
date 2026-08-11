@@ -164,6 +164,11 @@ h2 { margin: 0; color: #111827; font-size: 21px; font-weight: 700; }
 .column-menu-option { display: flex; align-items: center; gap: 9px; padding: 7px 5px; color: #4b5563; font-size: 13px; cursor: pointer; }
 .column-menu-option:hover { background: #f5f7f6; }
 .column-menu-option input { width: 15px; height: 15px; min-height: 0; margin: 0; padding: 0; accent-color: var(--accent); box-shadow: none; }
+.export-button {
+  min-height: 31px; padding: 5px 11px; border: 1px solid var(--accent); border-radius: 5px;
+  color: #fff; background: var(--accent); font-size: 12px; font-weight: 650; white-space: nowrap;
+}
+.export-button:hover:not(:disabled) { background: #28744f; }
 
 .table-scroll { max-height: min(62vh, 620px); overflow: auto; scrollbar-gutter: stable; outline: none; }
 .table-scroll table { transition: opacity .16s ease; }
@@ -187,6 +192,15 @@ td { padding: 11px 14px; border-top: 1px solid var(--line); color: #374151; font
 tbody tr:hover { background: #fafcfb; }
 .champion-name-column { padding-right: 7px !important; }
 .champion-position-column { padding-left: 7px !important; }
+.champion-table .champion-name-column, .player-table .player-name-column {
+  position: sticky; left: 0; z-index: 1; background: #fff;
+  box-shadow: 1px 0 0 var(--line-strong), 5px 0 8px rgba(31, 41, 55, .04);
+}
+.champion-table thead .champion-name-column, .player-table thead .player-name-column {
+  z-index: 4; background: #f8f9fa;
+}
+.champion-table tbody tr:hover .champion-name-column,
+.player-table tbody tr:hover .player-name-column { background: #fafcfb; }
 .champion-cell { display: flex; align-items: center; gap: 8px; width: 148px; min-width: 148px; }
 .champion-cell > div { min-width: 0; max-width: 108px; }
 .champion-cell img, .champion-placeholder { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #edf0f2; }

@@ -108,6 +108,7 @@ const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
 const busy = ref(false)
 const sorting = ref(false)
+const exporting = ref(false)
 const availabilityLoading = ref(false)
 const notice = ref('')
 const error = ref('')
@@ -225,6 +226,91 @@ const canQuery = computed(() => {
   if (busy.value || availabilityLoading.value) return false
   return selectedStageKeys.value.size > 0 && activeMinimumValid.value
 })
+
+type ExportItem = ChampionStatisticsResult['items'][number]
+  | TeamStatisticsResult['items'][number]
+  | PlayerStatisticsResult['items'][number]
+
+const PERCENTAGE_EXPORT_FIELDS = new Set([
+  'pickRate', 'banRate', 'bpRate', 'winningRate',
+  'killParticipantPercent', 'damagePercent', 'goldPercent',
+])
+
+function exportValue(view: ActiveView, key: string, item: ExportItem): string | number {
+  if (view === 'champion') {
+    const champion = item as ChampionStatisticsResult['items'][number]
+    if (key === 'champion') return champion.championName
+    if (key === 'positions') return champion.positions.join(' / ')
+    if (key === 'mostUsedPlayers') return champion.mostUsedPlayers.join('、')
+    return champion[key as keyof typeof champion] as string | number
+  }
+  if (view === 'team') {
+    const team = item as TeamStatisticsResult['items'][number]
+    if (key === 'team') return team.teamName
+    return team[key as keyof typeof team] as string | number
+  }
+  const player = item as PlayerStatisticsResult['items'][number]
+  if (key === 'player') return player.playerName
+  if (key === 'positions') return player.positions.join(' / ')
+  return player[key as keyof typeof player] as string | number
+}
+
+async function exportExcel() {
+  if (exporting.value) return
+  const view = activeView.value
+  const source = view === 'champion' ? filteredChampionItems.value
+    : view === 'team' ? filteredTeamItems.value : filteredPlayerItems.value
+  const definitions = view === 'champion' ? CHAMPION_COLUMNS : view === 'team' ? TEAM_COLUMNS : PLAYER_COLUMNS
+  const visible = view === 'champion' ? championVisibleColumns.value
+    : view === 'team' ? teamVisibleColumns.value : playerVisibleColumns.value
+  const columns = definitions.filter((column) => visible.includes(column.key))
+  if (!source.length || !columns.length) return
+
+  exporting.value = true
+  error.value = ''
+  try {
+    const { Workbook } = await import('exceljs')
+    const workbook = new Workbook()
+    const sheetName = view === 'champion' ? '英雄统计' : view === 'team' ? '战队统计' : '选手统计'
+    const worksheet = workbook.addWorksheet(sheetName)
+    worksheet.columns = columns.map((column) => ({
+      header: column.label,
+      key: column.key,
+      width: Math.max(12, Math.min(28, column.label.length * 2 + 8)),
+    }))
+    worksheet.addRows(source.map((item) => Object.fromEntries(
+      columns.map((column) => [column.key, exportValue(view, column.key, item)]),
+    )))
+    worksheet.getRow(1).font = { bold: true }
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F3F5' } }
+    worksheet.views = [{ state: 'frozen', ySplit: 1, xSplit: view === 'team' ? 0 : 1 }]
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: columns.length },
+    }
+    for (const column of columns) {
+      if (PERCENTAGE_EXPORT_FIELDS.has(column.key)) worksheet.getColumn(column.key).numFmt = '0.00%'
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${sheetName}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    notice.value = `已导出 ${source.length} 条${sheetName}数据`
+  } catch (reason) {
+    error.value = reason instanceof Error ? `导出失败：${reason.message}` : `导出失败：${String(reason)}`
+  } finally {
+    exporting.value = false
+  }
+}
 
 function clearStatisticsResults() {
   result.value = null
@@ -640,6 +726,9 @@ onMounted(async () => {
               </button>
             </div>
             <ColumnVisibilityMenu v-model="championVisibleColumns" :columns="CHAMPION_COLUMNS" />
+            <button class="export-button" type="button" :disabled="exporting || !filteredChampionItems.length" @click="exportExcel">
+              {{ exporting ? '导出中…' : '导出 Excel' }}
+            </button>
           </div>
           <div class="search-wrap">
             <input v-model="search" type="search" placeholder="搜索英雄、称号" />
@@ -724,7 +813,12 @@ onMounted(async () => {
           <h2>战队统计</h2>
         </div>
         <div class="toolbar-right">
-          <ColumnVisibilityMenu v-model="teamVisibleColumns" :columns="TEAM_COLUMNS" />
+          <div class="toolbar-options-row">
+            <ColumnVisibilityMenu v-model="teamVisibleColumns" :columns="TEAM_COLUMNS" />
+            <button class="export-button" type="button" :disabled="exporting || !filteredTeamItems.length" @click="exportExcel">
+              {{ exporting ? '导出中…' : '导出 Excel' }}
+            </button>
+          </div>
           <div class="search-wrap">
             <input v-model="teamSearch" type="search" placeholder="搜索战队" />
             <span>{{ filteredTeamItems.length }} 项</span>
@@ -810,6 +904,9 @@ onMounted(async () => {
               </button>
             </div>
             <ColumnVisibilityMenu v-model="playerVisibleColumns" :columns="PLAYER_COLUMNS" />
+            <button class="export-button" type="button" :disabled="exporting || !filteredPlayerItems.length" @click="exportExcel">
+              {{ exporting ? '导出中…' : '导出 Excel' }}
+            </button>
           </div>
           <div class="search-wrap">
             <input v-model="playerSearch" type="search" placeholder="搜索选手、战队" />
