@@ -99,6 +99,10 @@ let querySeq = 0
 
 /* ---- computed ---- */
 
+const sortedSeasons = computed(() =>
+  [...seasons.value].sort((left, right) => left.sourceSeasonId - right.sourceSeasonId),
+)
+
 const browsedSeasonName = computed(() => {
   const season = seasons.value.find((s) => s.sourceSeasonId === browsedSeasonId.value)
   return season?.name ?? `赛事 #${browsedSeasonId.value}`
@@ -472,7 +476,7 @@ onMounted(async () => {
         <label for="season">赛事/赛季（浏览）</label>
         <select id="season" v-model.number="browsedSeasonId">
           <option v-if="!seasons.length" :value="browsedSeasonId">赛事 #{{ browsedSeasonId }}</option>
-          <option v-for="season in seasons" :key="season.sourceSeasonId" :value="season.sourceSeasonId">
+          <option v-for="season in sortedSeasons" :key="season.sourceSeasonId" :value="season.sourceSeasonId">
             {{ season.name }} · #{{ season.sourceSeasonId }}
           </option>
         </select>

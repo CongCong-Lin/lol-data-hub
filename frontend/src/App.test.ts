@@ -111,6 +111,22 @@ beforeEach(() => {
 })
 
 describe('查询状态', () => {
+  it('赛事下拉选项按赛事 ID 从小到大排列并保留默认选择', async () => {
+    vi.mocked(api.seasons).mockResolvedValue([
+      { sourceSeasonId: 237, name: '2026职业联赛', startTime: null, endTime: null, open: true },
+      { sourceSeasonId: 190, name: '2023职业联赛', startTime: null, endTime: null, open: true },
+      { sourceSeasonId: 239, name: '2026季中冠军赛', startTime: null, endTime: null, open: true },
+      { sourceSeasonId: 218, name: '2025职业联赛', startTime: null, endTime: null, open: true },
+    ])
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.findAll('#season option').map((option) => Number(option.attributes('value'))))
+      .toEqual([190, 218, 237, 239])
+    expect((wrapper.get('#season').element as HTMLSelectElement).value).toBe('237')
+    wrapper.unmount()
+  })
+
   it('修改服务端查询条件后不再展示旧结果', async () => {
     const wrapper = mount(App)
     await flushPromises()
