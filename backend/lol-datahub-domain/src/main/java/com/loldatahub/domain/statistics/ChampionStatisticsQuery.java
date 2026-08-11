@@ -12,7 +12,9 @@ public record ChampionStatisticsQuery(
         SortDirection sortDirection
 ) {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
-            "pickCount", "winningRate", "pickRate", "banRate", "championName", "bpRate"
+            "championName", "positions", "pickCount", "pickRate", "banCount", "banRate", "bpRate",
+            "winningCount", "winningRate", "totalKills", "killPerGame", "totalAssists",
+            "assistPerGame", "totalDeaths", "deathPerGame", "kda", "mostUsedPlayers"
     );
     private static final String DEFAULT_SORT_BY = "bpRate";
     private static final int MAX_STAGES = 50;

@@ -150,6 +150,15 @@ class StatisticsQueryTest {
             assertThat(q.sortBy()).isEqualTo("pickCount");
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {"championName", "positions", "pickCount", "pickRate", "banCount", "banRate",
+                "bpRate", "winningCount", "winningRate", "totalKills", "killPerGame", "totalAssists",
+                "assistPerGame", "totalDeaths", "deathPerGame", "kda", "mostUsedPlayers"})
+        void acceptsEveryVisibleColumnAsSortField(String field) {
+            assertThat(new ChampionStatisticsQuery(1, List.of(1L), 0, field, SortDirection.DESC).sortBy())
+                    .isEqualTo(field);
+        }
+
         @Test
         void rejectsUnknownSortField() {
             assertThatThrownBy(() -> new ChampionStatisticsQuery(1, List.of(1L), 0, "winRate", SortDirection.DESC))
@@ -213,6 +222,15 @@ class StatisticsQueryTest {
             assertThat(q.sortBy()).isEqualTo("totalKills");
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {"teamName", "matchCount", "gameCount", "matchWinCount", "winningRate",
+                "totalKills", "killPerGame", "deathPerGame", "wardPlacedPerGame", "wardKilledPerGame",
+                "goldPerGame", "baronKillPerGame", "drakeKillPerGame"})
+        void acceptsEveryVisibleColumnAsSortField(String field) {
+            assertThat(new TeamStatisticsQuery(1, List.of(1L), 0, field, SortDirection.DESC).sortBy())
+                    .isEqualTo(field);
+        }
+
         @Test
         void rejectsUnknownSortField() {
             assertThatThrownBy(() -> new TeamStatisticsQuery(1, List.of(1L), 0, "kills", SortDirection.DESC))
@@ -253,6 +271,16 @@ class StatisticsQueryTest {
         void normalizesCaseInsensitive(String input) {
             var q = new PlayerStatisticsQuery(1, List.of(1L), 0, null, input, SortDirection.ASC);
             assertThat(q.sortBy()).isEqualTo("mvpCount");
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"playerName", "positions", "matchCount", "gameCount", "mvpCount", "mvpVotes",
+                "kda", "totalKills", "killPerGame", "totalAssists", "assistPerGame", "totalDeaths",
+                "deathPerGame", "goldPerGame", "creepScorePerGame", "killParticipantPercent",
+                "goldGapPerGame", "damagePercent", "goldPercent"})
+        void acceptsEveryVisibleColumnAsSortField(String field) {
+            assertThat(new PlayerStatisticsQuery(1, List.of(1L), 0, null, field, SortDirection.DESC).sortBy())
+                    .isEqualTo(field);
         }
 
         @Test

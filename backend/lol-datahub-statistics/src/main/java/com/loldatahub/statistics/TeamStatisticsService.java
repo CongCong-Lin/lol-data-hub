@@ -99,11 +99,20 @@ public class TeamStatisticsService {
 
     private Comparator<TeamStatistics> comparator(TeamStatisticsQuery query) {
         Comparator<TeamStatistics> comparator = switch (query.sortBy()) {
+            case "teamName" -> Comparator.comparing(TeamStatistics::teamName);
+            case "matchCount" -> Comparator.comparingLong(TeamStatistics::matchCount);
+            case "gameCount" -> Comparator.comparingLong(TeamStatistics::gameCount);
+            case "matchWinCount" -> Comparator.comparingLong(TeamStatistics::matchWinCount);
+            case "winningRate" -> Comparator.comparing(TeamStatistics::winningRate);
             case "totalKills" -> Comparator.comparingLong(TeamStatistics::totalKills);
             case "killPerGame" -> Comparator.comparing(TeamStatistics::killPerGame);
-            case "matchCount" -> Comparator.comparingLong(TeamStatistics::matchCount);
+            case "deathPerGame" -> Comparator.comparing(TeamStatistics::deathPerGame);
+            case "wardPlacedPerGame" -> Comparator.comparing(TeamStatistics::wardPlacedPerGame);
+            case "wardKilledPerGame" -> Comparator.comparing(TeamStatistics::wardKilledPerGame);
+            case "goldPerGame" -> Comparator.comparing(TeamStatistics::goldPerGame);
             case "baronKillPerGame" -> Comparator.comparing(TeamStatistics::baronKillPerGame);
-            default -> Comparator.comparing(TeamStatistics::winningRate);
+            case "drakeKillPerGame" -> Comparator.comparing(TeamStatistics::drakeKillPerGame);
+            default -> throw new IllegalStateException("未实现的战队排序字段：" + query.sortBy());
         };
         return query.sortDirection().apply(comparator).thenComparing(TeamStatistics::teamName);
     }

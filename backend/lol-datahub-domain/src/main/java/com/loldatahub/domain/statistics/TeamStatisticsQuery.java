@@ -11,7 +11,9 @@ public record TeamStatisticsQuery(
         SortDirection sortDirection
 ) {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
-            "totalKills", "killPerGame", "matchCount", "baronKillPerGame", "winningRate"
+            "teamName", "matchCount", "gameCount", "matchWinCount", "winningRate", "totalKills",
+            "killPerGame", "deathPerGame", "wardPlacedPerGame", "wardKilledPerGame", "goldPerGame",
+            "baronKillPerGame", "drakeKillPerGame"
     );
     private static final String DEFAULT_SORT_BY = "winningRate";
     private static final int MAX_STAGES = 50;

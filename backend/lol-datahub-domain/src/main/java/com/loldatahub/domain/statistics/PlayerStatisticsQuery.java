@@ -12,7 +12,10 @@ public record PlayerStatisticsQuery(
         SortDirection sortDirection
 ) {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
-            "totalKills", "mvpCount", "killPerGame", "goldPerGame", "damagePercent", "matchCount", "kda"
+            "playerName", "positions", "matchCount", "gameCount", "mvpCount", "mvpVotes", "kda",
+            "totalKills", "killPerGame", "totalAssists", "assistPerGame", "totalDeaths", "deathPerGame",
+            "goldPerGame", "creepScorePerGame", "killParticipantPercent", "goldGapPerGame",
+            "damagePercent", "goldPercent"
     );
     private static final String DEFAULT_SORT_BY = "kda";
     private static final int MAX_STAGES = 50;

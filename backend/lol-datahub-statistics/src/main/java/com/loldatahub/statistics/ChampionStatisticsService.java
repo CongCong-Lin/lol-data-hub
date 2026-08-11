@@ -101,12 +101,24 @@ public class ChampionStatisticsService {
 
     private Comparator<ChampionStatistics> comparator(ChampionStatisticsQuery query) {
         Comparator<ChampionStatistics> comparator = switch (query.sortBy()) {
-            case "pickCount" -> Comparator.comparingLong(ChampionStatistics::pickCount);
-            case "winningRate" -> Comparator.comparing(ChampionStatistics::winningRate);
-            case "pickRate" -> Comparator.comparing(ChampionStatistics::pickRate);
-            case "banRate" -> Comparator.comparing(ChampionStatistics::banRate);
             case "championName" -> Comparator.comparing(ChampionStatistics::championName);
-            default -> Comparator.comparing(ChampionStatistics::bpRate);
+            case "positions" -> Comparator.comparing(value -> String.join("/", value.positions()));
+            case "pickCount" -> Comparator.comparingLong(ChampionStatistics::pickCount);
+            case "pickRate" -> Comparator.comparing(ChampionStatistics::pickRate);
+            case "banCount" -> Comparator.comparingLong(ChampionStatistics::banCount);
+            case "banRate" -> Comparator.comparing(ChampionStatistics::banRate);
+            case "bpRate" -> Comparator.comparing(ChampionStatistics::bpRate);
+            case "winningCount" -> Comparator.comparingLong(ChampionStatistics::winningCount);
+            case "winningRate" -> Comparator.comparing(ChampionStatistics::winningRate);
+            case "totalKills" -> Comparator.comparingLong(ChampionStatistics::totalKills);
+            case "killPerGame" -> Comparator.comparing(ChampionStatistics::killPerGame);
+            case "totalAssists" -> Comparator.comparingLong(ChampionStatistics::totalAssists);
+            case "assistPerGame" -> Comparator.comparing(ChampionStatistics::assistPerGame);
+            case "totalDeaths" -> Comparator.comparingLong(ChampionStatistics::totalDeaths);
+            case "deathPerGame" -> Comparator.comparing(ChampionStatistics::deathPerGame);
+            case "kda" -> Comparator.comparing(ChampionStatistics::kda);
+            case "mostUsedPlayers" -> Comparator.comparing(value -> String.join("/", value.mostUsedPlayers()));
+            default -> throw new IllegalStateException("未实现的英雄排序字段：" + query.sortBy());
         };
         Comparator<ChampionStatistics> ordered = query.sortDirection().apply(comparator);
         if ("winningRate".equals(query.sortBy())) {

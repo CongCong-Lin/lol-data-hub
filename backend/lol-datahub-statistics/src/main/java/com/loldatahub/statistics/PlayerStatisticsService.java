@@ -109,13 +109,26 @@ public class PlayerStatisticsService {
 
     private Comparator<PlayerStatistics> comparator(PlayerStatisticsQuery query) {
         Comparator<PlayerStatistics> comparator = switch (query.sortBy()) {
-            case "totalKills" -> Comparator.comparingLong(PlayerStatistics::totalKills);
-            case "mvpCount" -> Comparator.comparingLong(PlayerStatistics::mvpCount);
-            case "killPerGame" -> Comparator.comparing(PlayerStatistics::killPerGame);
-            case "goldPerGame" -> Comparator.comparing(PlayerStatistics::goldPerGame);
-            case "damagePercent" -> Comparator.comparing(PlayerStatistics::damagePercent);
+            case "playerName" -> Comparator.comparing(PlayerStatistics::playerName);
+            case "positions" -> Comparator.comparing(value -> String.join("/", value.positions()));
             case "matchCount" -> Comparator.comparingLong(PlayerStatistics::matchCount);
-            default -> Comparator.comparing(PlayerStatistics::kda);
+            case "gameCount" -> Comparator.comparingLong(PlayerStatistics::gameCount);
+            case "mvpCount" -> Comparator.comparingLong(PlayerStatistics::mvpCount);
+            case "mvpVotes" -> Comparator.comparing(PlayerStatistics::mvpVotes);
+            case "kda" -> Comparator.comparing(PlayerStatistics::kda);
+            case "totalKills" -> Comparator.comparingLong(PlayerStatistics::totalKills);
+            case "killPerGame" -> Comparator.comparing(PlayerStatistics::killPerGame);
+            case "totalAssists" -> Comparator.comparingLong(PlayerStatistics::totalAssists);
+            case "assistPerGame" -> Comparator.comparing(PlayerStatistics::assistPerGame);
+            case "totalDeaths" -> Comparator.comparingLong(PlayerStatistics::totalDeaths);
+            case "deathPerGame" -> Comparator.comparing(PlayerStatistics::deathPerGame);
+            case "goldPerGame" -> Comparator.comparing(PlayerStatistics::goldPerGame);
+            case "creepScorePerGame" -> Comparator.comparing(PlayerStatistics::creepScorePerGame);
+            case "killParticipantPercent" -> Comparator.comparing(PlayerStatistics::killParticipantPercent);
+            case "goldGapPerGame" -> Comparator.comparing(PlayerStatistics::goldGapPerGame);
+            case "damagePercent" -> Comparator.comparing(PlayerStatistics::damagePercent);
+            case "goldPercent" -> Comparator.comparing(PlayerStatistics::goldPercent);
+            default -> throw new IllegalStateException("未实现的选手排序字段：" + query.sortBy());
         };
         return query.sortDirection().apply(comparator).thenComparing(PlayerStatistics::playerName);
     }

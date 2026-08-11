@@ -652,23 +652,23 @@ onMounted(async () => {
         <table class="champion-table">
           <thead>
             <tr>
-              <th v-if="isColumnVisible(championVisibleColumns, 'champion')">英雄</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'positions')">分路</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'champion')" label="英雄" field="championName" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'positions')" label="分路" field="positions" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickCount')" label="出场" field="pickCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickRate')" label="出场率" field="pickRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
-              <th v-if="isColumnVisible(championVisibleColumns, 'banCount')">禁用</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'banCount')" label="禁用" field="banCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'banRate')" label="禁用率" field="banRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'bpRate')" label="BP 率" field="bpRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
-              <th v-if="isColumnVisible(championVisibleColumns, 'winningCount')">胜场</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'winningCount')" label="胜场" field="winningCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'winningRate')" label="胜率" field="winningRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
-              <th v-if="isColumnVisible(championVisibleColumns, 'totalKills')">总击杀</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'killPerGame')">场均击杀</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'totalAssists')">总助攻</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'assistPerGame')">场均助攻</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'totalDeaths')">总死亡</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')">场均死亡</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'kda')">KDA</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')">常用选手</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'totalAssists')" label="总助攻" field="totalAssists" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'assistPerGame')" label="场均助攻" field="assistPerGame" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'totalDeaths')" label="总死亡" field="totalDeaths" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')" label="场均死亡" field="deathPerGame" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'kda')" label="KDA" field="kda" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')" label="常用选手" field="mostUsedPlayers" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
             </tr>
           </thead>
           <tbody>
@@ -733,19 +733,19 @@ onMounted(async () => {
         <table class="team-table">
           <thead>
             <tr>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'team')">战队</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'team')" label="战队" field="teamName" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'matchCount')" label="系列赛" field="matchCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
-              <th v-if="isColumnVisible(teamVisibleColumns, 'gameCount')">对局</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')">胜场</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'gameCount')" label="对局" field="gameCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')" label="胜场" field="matchWinCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'winningRate')" label="胜率" field="winningRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
-              <th v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">场均死亡</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">场均插眼</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">场均排眼</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">场均经济</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')" label="场均死亡" field="deathPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')" label="场均插眼" field="wardPlacedPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')" label="场均排眼" field="wardKilledPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')" label="场均经济" field="goldPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'baronKillPerGame')" label="场均大龙" field="baronKillPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
-              <th v-if="isColumnVisible(teamVisibleColumns, 'drakeKillPerGame')">场均小龙</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'drakeKillPerGame')" label="场均小龙" field="drakeKillPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
             </tr>
           </thead>
           <tbody>
@@ -819,25 +819,25 @@ onMounted(async () => {
         <table class="player-table">
           <thead>
             <tr>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'player')">选手</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'positions')">位置</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'player')" label="选手" field="playerName" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'positions')" label="位置" field="positions" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'matchCount')" label="系列赛" field="matchCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <th v-if="isColumnVisible(playerVisibleColumns, 'gameCount')">对局</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'gameCount')" label="对局" field="gameCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')" label="MVP" field="mvpCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <th v-if="isColumnVisible(playerVisibleColumns, 'mvpVotes')">MVP 票数</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'mvpVotes')" label="MVP 票数" field="mvpVotes" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'kda')" label="KDA" field="kda" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <th v-if="isColumnVisible(playerVisibleColumns, 'totalAssists')">总助攻</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'assistPerGame')">场均助攻</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'totalDeaths')">总死亡</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'deathPerGame')">场均死亡</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'totalAssists')" label="总助攻" field="totalAssists" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'assistPerGame')" label="场均助攻" field="assistPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'totalDeaths')" label="总死亡" field="totalDeaths" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'deathPerGame')" label="场均死亡" field="deathPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldPerGame')" label="场均经济" field="goldPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <th v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')">场均补刀</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')">参团率</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')">场均经济差</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')" label="场均补刀" field="creepScorePerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')" label="参团率" field="killParticipantPercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')" label="场均经济差" field="goldGapPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')" label="伤害占比" field="damagePercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <th v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')">经济占比</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')" label="经济占比" field="goldPercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
             </tr>
           </thead>
           <tbody>

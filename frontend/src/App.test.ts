@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App.vue'
-import { api, type ChampionStatisticsResult, type PlayerStatisticsResult, type Stage } from './api'
+import { api, type ChampionStatisticsResult, type PlayerStatisticsResult, type Stage, type TeamStatisticsResult } from './api'
 
 vi.mock('./api', () => ({
   api: {
@@ -96,6 +96,31 @@ const playerResult: PlayerStatisticsResult = {
   }],
 }
 
+const teamResult: TeamStatisticsResult = {
+  dataVersion: 6,
+  minimumMatchCount: 5,
+  total: 1,
+  items: [{
+    teamId: 1,
+    teamName: 'TES',
+    teamLogo: null,
+    matchCount: 5,
+    gameCount: 12,
+    matchWinCount: 3,
+    winningRate: 0.6,
+    totalKills: 120,
+    killPerGame: 10,
+    totalDeaths: 80,
+    deathPerGame: 6.67,
+    wardPlacedPerGame: 20,
+    wardKilledPerGame: 10,
+    goldPerGame: 60000,
+    baronKillPerGame: 0.5,
+    drakeKillPerGame: 2,
+    sampleQualified: true,
+  }],
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(api.seasons).mockResolvedValue([{
@@ -107,6 +132,7 @@ beforeEach(() => {
   }])
   vi.mocked(api.availability).mockResolvedValue(stages)
   vi.mocked(api.championStatisticsByKeys).mockResolvedValue(championResult)
+  vi.mocked(api.teamStatisticsByKeys).mockResolvedValue(teamResult)
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playerResult)
 })
 
@@ -281,6 +307,7 @@ describe('查询状态', () => {
 
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
+    expect(wrapper.findAll('.champion-table .sort-header')).toHaveLength(17)
 
     await wrapper.get('.column-menu-trigger').trigger('click')
     const championCheckboxes = wrapper.findAll('.column-menu-option input')
@@ -298,12 +325,18 @@ describe('查询状态', () => {
     const teamTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '战队统计')
     await teamTab!.trigger('click')
     await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.team-table .sort-header')).toHaveLength(13)
     await wrapper.get('.column-menu-trigger').trigger('click')
     expect(wrapper.findAll('.column-menu-option input')).toHaveLength(13)
 
     const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
     await playerTab!.trigger('click')
     await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.player-table .sort-header')).toHaveLength(19)
     await wrapper.get('.column-menu-trigger').trigger('click')
     expect(wrapper.findAll('.column-menu-option input')).toHaveLength(19)
     wrapper.unmount()
