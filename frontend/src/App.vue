@@ -11,6 +11,7 @@ import {
 } from './api'
 import PaginationControls from './PaginationControls.vue'
 import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
+import SortableHeader from './SortableHeader.vue'
 
 type ActiveView = 'champion' | 'team' | 'player'
 
@@ -67,32 +68,6 @@ const PLAYER_POSITION_OPTIONS = [
   { value: 'SUP', label: '辅助' },
 ]
 
-const CHAMPION_SORT_OPTIONS = [
-  { value: 'bpRate', label: 'BP 率' },
-  { value: 'winningRate', label: '胜率' },
-  { value: 'pickCount', label: '出场次数' },
-  { value: 'pickRate', label: '出场率' },
-  { value: 'banRate', label: '禁用率' },
-]
-
-const TEAM_SORT_OPTIONS = [
-  { value: 'winningRate', label: '胜率' },
-  { value: 'totalKills', label: '总击杀' },
-  { value: 'killPerGame', label: '场均击杀' },
-  { value: 'matchCount', label: '比赛场数' },
-  { value: 'baronKillPerGame', label: '场均大龙' },
-]
-
-const PLAYER_SORT_OPTIONS = [
-  { value: 'kda', label: 'KDA' },
-  { value: 'totalKills', label: '总击杀' },
-  { value: 'mvpCount', label: 'MVP' },
-  { value: 'killPerGame', label: '场均击杀' },
-  { value: 'goldPerGame', label: '场均经济' },
-  { value: 'damagePercent', label: '伤害占比' },
-  { value: 'matchCount', label: '比赛场数' },
-]
-
 const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   champion: 'HERO',
   team: 'TEAM',
@@ -115,7 +90,9 @@ const minimumMatchCount = ref(5)
 const sortBy = ref('bpRate')
 const teamSortBy = ref('winningRate')
 const playerSortBy = ref('kda')
-const sortDirection = ref('desc')
+const championSortDirection = ref<'asc' | 'desc'>('desc')
+const teamSortDirection = ref<'asc' | 'desc'>('desc')
+const playerSortDirection = ref<'asc' | 'desc'>('desc')
 const positionFilter = ref('')
 const playerPositionFilter = ref('')
 const search = ref('')
@@ -270,7 +247,8 @@ function invalidateQueryResults() {
 }
 
 watch(
-  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy, sortDirection,
+  [minimumPickCount, minimumMatchCount, sortBy, teamSortBy, playerSortBy,
+    championSortDirection, teamSortDirection, playerSortDirection,
     positionFilter, playerPositionFilter],
   invalidateQueryResults,
   { flush: 'sync' },
@@ -378,11 +356,11 @@ async function query() {
         selectedMinimumPickCount,
         selectedChampionPosition,
         sortBy.value,
-        sortDirection.value,
+        championSortDirection.value,
       )
       if (seq === querySeq && activeView.value === view) result.value = data
     } else if (view === 'team') {
-      const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, sortDirection.value)
+      const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, teamSortDirection.value)
       if (seq === querySeq && activeView.value === view) teamResult.value = data
     } else {
       const data = await api.playerStatisticsByKeys(
@@ -390,7 +368,7 @@ async function query() {
         selectedMinimumMatchCount,
         selectedPlayerPosition,
         playerSortBy.value,
-        sortDirection.value,
+        playerSortDirection.value,
       )
       if (seq === querySeq && activeView.value === view) playerResult.value = data
     }
@@ -400,6 +378,30 @@ async function query() {
   } finally {
     if (seq === querySeq) busy.value = false
   }
+}
+
+function changeSort(view: ActiveView, field: string) {
+  if (view !== activeView.value || busy.value) return
+  if (view === 'champion') {
+    if (sortBy.value === field) championSortDirection.value = championSortDirection.value === 'desc' ? 'asc' : 'desc'
+    else {
+      sortBy.value = field
+      championSortDirection.value = 'desc'
+    }
+  } else if (view === 'team') {
+    if (teamSortBy.value === field) teamSortDirection.value = teamSortDirection.value === 'desc' ? 'asc' : 'desc'
+    else {
+      teamSortBy.value = field
+      teamSortDirection.value = 'desc'
+    }
+  } else {
+    if (playerSortBy.value === field) playerSortDirection.value = playerSortDirection.value === 'desc' ? 'asc' : 'desc'
+    else {
+      playerSortBy.value = field
+      playerSortDirection.value = 'desc'
+    }
+  }
+  void query()
 }
 
 function switchView(view: ActiveView) {
@@ -534,31 +536,6 @@ onMounted(async () => {
         <input id="minimumMatch" v-model.number="minimumMatchCount" type="number" min="0" max="10000" step="1" />
         <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
-      <div v-if="activeView === 'champion'" class="field compact">
-        <label for="sort">排序指标</label>
-        <select id="sort" v-model="sortBy">
-          <option v-for="opt in CHAMPION_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-      </div>
-      <div v-else-if="activeView === 'team'" class="field compact">
-        <label for="teamSort">排序指标</label>
-        <select id="teamSort" v-model="teamSortBy">
-          <option v-for="opt in TEAM_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-      </div>
-      <div v-else class="field compact">
-        <label for="playerSort">排序指标</label>
-        <select id="playerSort" v-model="playerSortBy">
-          <option v-for="opt in PLAYER_SORT_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-      </div>
-      <div class="field compact">
-        <label for="direction">排序方向</label>
-        <select id="direction" v-model="sortDirection">
-          <option value="desc">降序</option>
-          <option value="asc">升序</option>
-        </select>
-      </div>
       <div class="actions">
         <button class="primary" :disabled="!canQuery" @click="query">{{ busy ? '处理中…' : '查询统计' }}</button>
       </div>
@@ -677,13 +654,13 @@ onMounted(async () => {
             <tr>
               <th v-if="isColumnVisible(championVisibleColumns, 'champion')">英雄</th>
               <th v-if="isColumnVisible(championVisibleColumns, 'positions')">分路</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'pickCount')">出场</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'pickRate')">出场率</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickCount')" label="出场" field="pickCount" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'pickRate')" label="出场率" field="pickRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <th v-if="isColumnVisible(championVisibleColumns, 'banCount')">禁用</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'banRate')">禁用率</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'bpRate')">BP 率</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'banRate')" label="禁用率" field="banRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'bpRate')" label="BP 率" field="bpRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <th v-if="isColumnVisible(championVisibleColumns, 'winningCount')">胜场</th>
-              <th v-if="isColumnVisible(championVisibleColumns, 'winningRate')">胜率</th>
+              <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'winningRate')" label="胜率" field="winningRate" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
               <th v-if="isColumnVisible(championVisibleColumns, 'totalKills')">总击杀</th>
               <th v-if="isColumnVisible(championVisibleColumns, 'killPerGame')">场均击杀</th>
               <th v-if="isColumnVisible(championVisibleColumns, 'totalAssists')">总助攻</th>
@@ -757,17 +734,17 @@ onMounted(async () => {
           <thead>
             <tr>
               <th v-if="isColumnVisible(teamVisibleColumns, 'team')">战队</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'matchCount')">系列赛</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'matchCount')" label="系列赛" field="matchCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <th v-if="isColumnVisible(teamVisibleColumns, 'gameCount')">对局</th>
               <th v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')">胜场</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'winningRate')">胜率</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'totalKills')">总击杀</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">场均击杀</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'winningRate')" label="胜率" field="winningRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <th v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">场均死亡</th>
               <th v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">场均插眼</th>
               <th v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">场均排眼</th>
               <th v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">场均经济</th>
-              <th v-if="isColumnVisible(teamVisibleColumns, 'baronKillPerGame')">场均大龙</th>
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'baronKillPerGame')" label="场均大龙" field="baronKillPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <th v-if="isColumnVisible(teamVisibleColumns, 'drakeKillPerGame')">场均小龙</th>
             </tr>
           </thead>
@@ -844,22 +821,22 @@ onMounted(async () => {
             <tr>
               <th v-if="isColumnVisible(playerVisibleColumns, 'player')">选手</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'positions')">位置</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'matchCount')">系列赛</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'matchCount')" label="系列赛" field="matchCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <th v-if="isColumnVisible(playerVisibleColumns, 'gameCount')">对局</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')">MVP</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')" label="MVP" field="mvpCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <th v-if="isColumnVisible(playerVisibleColumns, 'mvpVotes')">MVP 票数</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'kda')">KDA</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'totalKills')">总击杀</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'killPerGame')">场均击杀</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'kda')" label="KDA" field="kda" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <th v-if="isColumnVisible(playerVisibleColumns, 'totalAssists')">总助攻</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'assistPerGame')">场均助攻</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'totalDeaths')">总死亡</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'deathPerGame')">场均死亡</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'goldPerGame')">场均经济</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldPerGame')" label="场均经济" field="goldPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <th v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')">场均补刀</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')">参团率</th>
               <th v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')">场均经济差</th>
-              <th v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')">伤害占比</th>
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')" label="伤害占比" field="damagePercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <th v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')">经济占比</th>
             </tr>
           </thead>

@@ -308,4 +308,34 @@ describe('查询状态', () => {
     expect(wrapper.findAll('.column-menu-option input')).toHaveLength(19)
     wrapper.unmount()
   })
+
+  it('点击可排序表头切换升序和降序并重新查询', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.find('#sort').exists()).toBe(false)
+    expect(wrapper.find('#direction').exists()).toBe(false)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const bpRateHeader = wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))
+    expect(bpRateHeader).toBeDefined()
+    expect(bpRateHeader!.text()).toContain('▼')
+
+    await bpRateHeader!.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 10, '', 'bpRate', 'asc',
+    )
+    expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))!.text()).toContain('▲')
+
+    const winningRateHeader = wrapper.findAll('.sort-header').find((button) => button.text().includes('胜率'))
+    await winningRateHeader!.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 10, '', 'winningRate', 'desc',
+    )
+    expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('胜率'))!.text()).toContain('▼')
+    wrapper.unmount()
+  })
 })
