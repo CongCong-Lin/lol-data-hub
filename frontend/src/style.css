@@ -205,11 +205,14 @@ tbody tr:hover { background: #fafcfb; }
 .team-logo, .team-placeholder { width: 30px; height: 30px; border-radius: 4px; object-fit: contain; background: #edf0f2; }
 .team-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 13px; }
 .team-cell strong { white-space: nowrap; }
-.player-cell { display: flex; align-items: center; gap: 9px; min-width: 180px; }
+.player-name-column { padding-right: 7px !important; }
+.player-position-column { padding-left: 7px !important; }
+.player-cell { display: flex; align-items: center; gap: 8px; width: 148px; min-width: 148px; }
+.player-cell > div { min-width: 0; max-width: 108px; }
 .player-avatar, .player-placeholder { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #edf0f2; }
 .player-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 13px; }
-.player-cell strong { display: block; white-space: nowrap; }
-.player-cell small { display: block; margin-top: 1px; color: #8b949e; font-size: 11px; white-space: nowrap; }
+.player-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-cell small { display: block; margin-top: 1px; overflow: hidden; color: #8b949e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
 .pagination {
   display: flex; align-items: center; justify-content: space-between; gap: 18px;

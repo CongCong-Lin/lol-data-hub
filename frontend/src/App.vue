@@ -822,8 +822,8 @@ onMounted(async () => {
         <table class="player-table">
           <thead>
             <tr>
-              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'player')" label="选手" field="playerName" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
-              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'positions')" label="位置" field="positions" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'player')" class="player-name-column" label="选手" field="playerName" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'positions')" class="player-position-column" label="位置" field="positions" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'matchCount')" label="系列赛" field="matchCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'gameCount')" label="对局" field="gameCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')" label="MVP" field="mvpCount" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
@@ -845,7 +845,7 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr v-for="item in paginatedPlayerItems" :key="item.playerKey">
-              <td v-if="isColumnVisible(playerVisibleColumns, 'player')">
+              <td v-if="isColumnVisible(playerVisibleColumns, 'player')" class="player-name-column">
                 <div class="player-cell">
                   <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
                   <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
@@ -855,7 +855,7 @@ onMounted(async () => {
                   </div>
                 </div>
               </td>
-              <td v-if="isColumnVisible(playerVisibleColumns, 'positions')">{{ fmtPositions(item.positions) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'positions')" class="player-position-column">{{ fmtPositions(item.positions) }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'matchCount')">{{ item.matchCount }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'gameCount')">{{ item.gameCount }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')">{{ item.mvpCount }}</td>
