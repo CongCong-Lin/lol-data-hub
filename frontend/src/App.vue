@@ -10,8 +10,44 @@ import {
   type TeamStatisticsResult,
 } from './api'
 import PaginationControls from './PaginationControls.vue'
+import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
 
 type ActiveView = 'champion' | 'team' | 'player'
+
+const CHAMPION_COLUMNS: ColumnOption[] = [
+  { key: 'champion', label: '英雄' }, { key: 'positions', label: '分路' },
+  { key: 'pickCount', label: '出场' }, { key: 'pickRate', label: '出场率' },
+  { key: 'banCount', label: '禁用' }, { key: 'banRate', label: '禁用率' },
+  { key: 'bpRate', label: 'BP 率' }, { key: 'winningCount', label: '胜场' },
+  { key: 'winningRate', label: '胜率' }, { key: 'totalKills', label: '总击杀' },
+  { key: 'killPerGame', label: '场均击杀' }, { key: 'totalAssists', label: '总助攻' },
+  { key: 'assistPerGame', label: '场均助攻' }, { key: 'totalDeaths', label: '总死亡' },
+  { key: 'deathPerGame', label: '场均死亡' }, { key: 'kda', label: 'KDA' },
+  { key: 'mostUsedPlayers', label: '常用选手' }, { key: 'sampleBaseCount', label: '样本基数' },
+]
+
+const TEAM_COLUMNS: ColumnOption[] = [
+  { key: 'team', label: '战队' }, { key: 'matchCount', label: '系列赛' },
+  { key: 'gameCount', label: '对局' }, { key: 'matchWinCount', label: '胜场' },
+  { key: 'winningRate', label: '胜率' }, { key: 'totalKills', label: '总击杀' },
+  { key: 'killPerGame', label: '场均击杀' }, { key: 'deathPerGame', label: '场均死亡' },
+  { key: 'wardPlacedPerGame', label: '场均插眼' }, { key: 'wardKilledPerGame', label: '场均排眼' },
+  { key: 'goldPerGame', label: '场均经济' }, { key: 'baronKillPerGame', label: '场均大龙' },
+  { key: 'drakeKillPerGame', label: '场均小龙' },
+]
+
+const PLAYER_COLUMNS: ColumnOption[] = [
+  { key: 'player', label: '选手' }, { key: 'positions', label: '位置' },
+  { key: 'matchCount', label: '系列赛' }, { key: 'gameCount', label: '对局' },
+  { key: 'mvpCount', label: 'MVP' }, { key: 'mvpVotes', label: 'MVP 票数' },
+  { key: 'kda', label: 'KDA' }, { key: 'totalKills', label: '总击杀' },
+  { key: 'killPerGame', label: '场均击杀' }, { key: 'totalAssists', label: '总助攻' },
+  { key: 'assistPerGame', label: '场均助攻' }, { key: 'totalDeaths', label: '总死亡' },
+  { key: 'deathPerGame', label: '场均死亡' }, { key: 'goldPerGame', label: '场均经济' },
+  { key: 'creepScorePerGame', label: '场均补刀' }, { key: 'killParticipantPercent', label: '参团率' },
+  { key: 'goldGapPerGame', label: '场均经济差' }, { key: 'damagePercent', label: '伤害占比' },
+  { key: 'goldPercent', label: '经济占比' },
+]
 
 const CHAMPION_POSITION_OPTIONS = [
   { value: '', label: '全部' },
@@ -87,6 +123,9 @@ const teamSearch = ref('')
 const playerSearch = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+const championVisibleColumns = ref(CHAMPION_COLUMNS.map((column) => column.key))
+const teamVisibleColumns = ref(TEAM_COLUMNS.map((column) => column.key))
+const playerVisibleColumns = ref(PLAYER_COLUMNS.map((column) => column.key))
 const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
@@ -96,6 +135,10 @@ const notice = ref('')
 const error = ref('')
 let loadAvailabilitySeq = 0
 let querySeq = 0
+
+function isColumnVisible(visibleColumns: string[], key: string): boolean {
+  return visibleColumns.includes(key)
+}
 
 /* ---- computed ---- */
 
@@ -603,17 +646,20 @@ onMounted(async () => {
           <h2>英雄统计</h2>
         </div>
         <div class="toolbar-right">
-          <div class="position-filter">
-            <button
-              v-for="opt in CHAMPION_POSITION_OPTIONS"
-              :key="opt.value"
-              class="pos-chip"
-              :class="{ active: positionFilter === opt.value }"
-              :aria-pressed="positionFilter === opt.value"
-              @click="positionFilter = opt.value"
-            >
-              {{ opt.label }}
-            </button>
+          <div class="toolbar-options-row">
+            <div class="position-filter">
+              <button
+                v-for="opt in CHAMPION_POSITION_OPTIONS"
+                :key="opt.value"
+                class="pos-chip"
+                :class="{ active: positionFilter === opt.value }"
+                :aria-pressed="positionFilter === opt.value"
+                @click="positionFilter = opt.value"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+            <ColumnVisibilityMenu v-model="championVisibleColumns" :columns="CHAMPION_COLUMNS" />
           </div>
           <div class="search-wrap">
             <input v-model="search" type="search" placeholder="搜索英雄、称号" />
@@ -625,56 +671,56 @@ onMounted(async () => {
           出场、胜负与 KDA 按实际分路独立统计；英雄被禁用时没有实际分路，禁用指标按所选赛段整体计算，BP 率为该分路出场率与整体禁用率之和。
         </p>
 
-      <div v-if="filteredChampionItems.length" class="table-scroll">
+      <div v-if="filteredChampionItems.length" class="table-scroll" tabindex="0" aria-label="英雄统计表，可横向和纵向滚动">
         <table class="champion-table">
           <thead>
             <tr>
-              <th>英雄</th>
-              <th>分路</th>
-              <th>出场</th>
-              <th>出场率</th>
-              <th>禁用</th>
-              <th>禁用率</th>
-              <th>BP 率</th>
-              <th>胜场</th>
-              <th>胜率</th>
-              <th>总击杀</th>
-              <th>场均击杀</th>
-              <th>总助攻</th>
-              <th>场均助攻</th>
-              <th>总死亡</th>
-              <th>场均死亡</th>
-              <th>KDA</th>
-              <th>常用选手</th>
-              <th>样本基数</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'champion')">英雄</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'positions')">分路</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'pickCount')">出场</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'pickRate')">出场率</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'banCount')">禁用</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'banRate')">禁用率</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'bpRate')">BP 率</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'winningCount')">胜场</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'winningRate')">胜率</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'totalKills')">总击杀</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'killPerGame')">场均击杀</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'totalAssists')">总助攻</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'assistPerGame')">场均助攻</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'totalDeaths')">总死亡</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')">场均死亡</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'kda')">KDA</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')">常用选手</th>
+              <th v-if="isColumnVisible(championVisibleColumns, 'sampleBaseCount')">样本基数</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in paginatedChampionItems" :key="item.championId">
-              <td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'champion')">
                 <div class="champion-cell">
                   <img v-if="item.championLogo" :src="item.championLogo" :alt="item.championName" />
                   <span class="champion-placeholder" v-else>{{ item.championName.slice(0, 1) }}</span>
                   <div><strong>{{ item.championName }}</strong><small>{{ item.championTitle }}</small></div>
                 </div>
               </td>
-              <td>{{ item.positions.join(' / ') || '—' }}</td>
-              <td>{{ item.pickCount }}</td>
-              <td>{{ percent(item.pickRate) }}</td>
-              <td>{{ item.banCount }}</td>
-              <td>{{ percent(item.banRate) }}</td>
-              <td class="accent">{{ percent(item.bpRate) }}</td>
-              <td>{{ item.winningCount }}</td>
-              <td class="accent">{{ percent(item.winningRate) }}</td>
-              <td>{{ item.totalKills }}</td>
-              <td>{{ fmtDecimal(item.killPerGame) }}</td>
-              <td>{{ item.totalAssists }}</td>
-              <td>{{ fmtDecimal(item.assistPerGame) }}</td>
-              <td>{{ item.totalDeaths }}</td>
-              <td>{{ fmtDecimal(item.deathPerGame) }}</td>
-              <td>{{ fmtDecimal(item.kda) }}</td>
-              <td>{{ item.mostUsedPlayers.join('、') || '—' }}</td>
-              <td>{{ item.sampleBaseCount }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'positions')">{{ item.positions.join(' / ') || '—' }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'pickCount')">{{ item.pickCount }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'pickRate')">{{ percent(item.pickRate) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'banCount')">{{ item.banCount }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'banRate')">{{ percent(item.banRate) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'bpRate')" class="accent">{{ percent(item.bpRate) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'winningCount')">{{ item.winningCount }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'winningRate')" class="accent">{{ percent(item.winningRate) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'totalKills')">{{ item.totalKills }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'totalAssists')">{{ item.totalAssists }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'assistPerGame')">{{ fmtDecimal(item.assistPerGame) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'totalDeaths')">{{ item.totalDeaths }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'kda')">{{ fmtDecimal(item.kda) }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'mostUsedPlayers')">{{ item.mostUsedPlayers.join('、') || '—' }}</td>
+              <td v-if="isColumnVisible(championVisibleColumns, 'sampleBaseCount')">{{ item.sampleBaseCount }}</td>
             </tr>
           </tbody>
         </table>
@@ -700,6 +746,7 @@ onMounted(async () => {
           <h2>战队统计</h2>
         </div>
         <div class="toolbar-right">
+          <ColumnVisibilityMenu v-model="teamVisibleColumns" :columns="TEAM_COLUMNS" />
           <div class="search-wrap">
             <input v-model="teamSearch" type="search" placeholder="搜索战队" />
             <span>{{ filteredTeamItems.length }} 项</span>
@@ -707,46 +754,46 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredTeamItems.length" class="table-scroll">
+      <div v-if="filteredTeamItems.length" class="table-scroll" tabindex="0" aria-label="战队统计表，可横向和纵向滚动">
         <table class="team-table">
           <thead>
             <tr>
-              <th>战队</th>
-              <th>系列赛</th>
-              <th>对局</th>
-              <th>胜场</th>
-              <th>胜率</th>
-              <th>总击杀</th>
-              <th>场均击杀</th>
-              <th>场均死亡</th>
-              <th>场均插眼</th>
-              <th>场均排眼</th>
-              <th>场均经济</th>
-              <th>场均大龙</th>
-              <th>场均小龙</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'team')">战队</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'matchCount')">系列赛</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'gameCount')">对局</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')">胜场</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'winningRate')">胜率</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'totalKills')">总击杀</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">场均击杀</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">场均死亡</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">场均插眼</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">场均排眼</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">场均经济</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'baronKillPerGame')">场均大龙</th>
+              <th v-if="isColumnVisible(teamVisibleColumns, 'drakeKillPerGame')">场均小龙</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in paginatedTeamItems" :key="item.teamId">
-              <td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'team')">
                 <div class="team-cell">
                   <img v-if="item.teamLogo" :src="item.teamLogo" :alt="item.teamName" class="team-logo" />
                   <span class="team-placeholder" v-else>{{ item.teamName.slice(0, 1) }}</span>
                   <strong>{{ item.teamName }}</strong>
                 </div>
               </td>
-              <td>{{ item.matchCount }}</td>
-              <td>{{ item.gameCount }}</td>
-              <td>{{ item.matchWinCount }}</td>
-              <td class="accent">{{ percent(item.winningRate) }}</td>
-              <td>{{ item.totalKills }}</td>
-              <td>{{ fmtDecimal(item.killPerGame) }}</td>
-              <td>{{ fmtDecimal(item.deathPerGame) }}</td>
-              <td>{{ fmtDecimal(item.wardPlacedPerGame) }}</td>
-              <td>{{ fmtDecimal(item.wardKilledPerGame) }}</td>
-              <td>{{ fmtGold(item.goldPerGame) }}</td>
-              <td>{{ fmtDecimal(item.baronKillPerGame) }}</td>
-              <td>{{ fmtDecimal(item.drakeKillPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'matchCount')">{{ item.matchCount }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'gameCount')">{{ item.gameCount }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')">{{ item.matchWinCount }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'winningRate')" class="accent">{{ percent(item.winningRate) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'totalKills')">{{ item.totalKills }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">{{ fmtDecimal(item.wardPlacedPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">{{ fmtDecimal(item.wardKilledPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">{{ fmtGold(item.goldPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'baronKillPerGame')">{{ fmtDecimal(item.baronKillPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'drakeKillPerGame')">{{ fmtDecimal(item.drakeKillPerGame) }}</td>
             </tr>
           </tbody>
         </table>
@@ -772,16 +819,19 @@ onMounted(async () => {
           <h2>选手统计</h2>
         </div>
         <div class="toolbar-right">
-          <div class="position-filter">
-            <button
-              v-for="opt in PLAYER_POSITION_OPTIONS"
-              :key="opt.value"
-              class="pos-chip"
-              :class="{ active: playerPositionFilter === opt.value }"
-              @click="playerPositionFilter = opt.value"
-            >
-              {{ opt.label }}
-            </button>
+          <div class="toolbar-options-row">
+            <div class="position-filter">
+              <button
+                v-for="opt in PLAYER_POSITION_OPTIONS"
+                :key="opt.value"
+                class="pos-chip"
+                :class="{ active: playerPositionFilter === opt.value }"
+                @click="playerPositionFilter = opt.value"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+            <ColumnVisibilityMenu v-model="playerVisibleColumns" :columns="PLAYER_COLUMNS" />
           </div>
           <div class="search-wrap">
             <input v-model="playerSearch" type="search" placeholder="搜索选手、战队" />
@@ -790,34 +840,34 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredPlayerItems.length" class="table-scroll">
+      <div v-if="filteredPlayerItems.length" class="table-scroll" tabindex="0" aria-label="选手统计表，可横向和纵向滚动">
         <table class="player-table">
           <thead>
             <tr>
-              <th>选手</th>
-              <th>位置</th>
-              <th>系列赛</th>
-              <th>对局</th>
-              <th>MVP</th>
-              <th>MVP 票数</th>
-              <th>KDA</th>
-              <th>总击杀</th>
-              <th>场均击杀</th>
-              <th>总助攻</th>
-              <th>场均助攻</th>
-              <th>总死亡</th>
-              <th>场均死亡</th>
-              <th>场均经济</th>
-              <th>场均补刀</th>
-              <th>参团率</th>
-              <th>场均经济差</th>
-              <th>伤害占比</th>
-              <th>经济占比</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'player')">选手</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'positions')">位置</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'matchCount')">系列赛</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'gameCount')">对局</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')">MVP</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'mvpVotes')">MVP 票数</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'kda')">KDA</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'totalKills')">总击杀</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'killPerGame')">场均击杀</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'totalAssists')">总助攻</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'assistPerGame')">场均助攻</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'totalDeaths')">总死亡</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'deathPerGame')">场均死亡</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'goldPerGame')">场均经济</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')">场均补刀</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')">参团率</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')">场均经济差</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')">伤害占比</th>
+              <th v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')">经济占比</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in paginatedPlayerItems" :key="item.playerKey">
-              <td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'player')">
                 <div class="player-cell">
                   <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
                   <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
@@ -827,24 +877,24 @@ onMounted(async () => {
                   </div>
                 </div>
               </td>
-              <td>{{ fmtPositions(item.positions) }}</td>
-              <td>{{ item.matchCount }}</td>
-              <td>{{ item.gameCount }}</td>
-              <td>{{ item.mvpCount }}</td>
-              <td>{{ item.mvpVotes }}</td>
-              <td class="accent">{{ fmtDecimal(item.kda) }}</td>
-              <td>{{ item.totalKills }}</td>
-              <td>{{ fmtDecimal(item.killPerGame) }}</td>
-              <td>{{ item.totalAssists }}</td>
-              <td>{{ fmtDecimal(item.assistPerGame) }}</td>
-              <td>{{ item.totalDeaths }}</td>
-              <td>{{ fmtDecimal(item.deathPerGame) }}</td>
-              <td>{{ fmtGold(item.goldPerGame) }}</td>
-              <td>{{ fmtDecimal(item.creepScorePerGame) }}</td>
-              <td class="accent">{{ percent(item.killParticipantPercent) }}</td>
-              <td>{{ fmtGold(item.goldGapPerGame) }}</td>
-              <td class="accent">{{ percent(item.damagePercent) }}</td>
-              <td>{{ percent(item.goldPercent) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'positions')">{{ fmtPositions(item.positions) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'matchCount')">{{ item.matchCount }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'gameCount')">{{ item.gameCount }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'mvpCount')">{{ item.mvpCount }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'mvpVotes')">{{ item.mvpVotes }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'kda')" class="accent">{{ fmtDecimal(item.kda) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'totalKills')">{{ item.totalKills }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'totalAssists')">{{ item.totalAssists }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'assistPerGame')">{{ fmtDecimal(item.assistPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'totalDeaths')">{{ item.totalDeaths }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'goldPerGame')">{{ fmtGold(item.goldPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')">{{ fmtDecimal(item.creepScorePerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')" class="accent">{{ percent(item.killParticipantPercent) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')">{{ fmtGold(item.goldGapPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')" class="accent">{{ percent(item.damagePercent) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')">{{ percent(item.goldPercent) }}</td>
             </tr>
           </tbody>
         </table>

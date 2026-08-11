@@ -274,4 +274,38 @@ describe('查询状态', () => {
     expect(wrapper.get('.pagination-row-count').text()).toContain('第 1–25 项，共 25 项')
     wrapper.unmount()
   })
+
+  it('默认显示全部列并可按统计类型独立隐藏列', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('.column-menu-trigger').trigger('click')
+    const championCheckboxes = wrapper.findAll('.column-menu-option input')
+    expect(championCheckboxes).toHaveLength(18)
+    expect(championCheckboxes.every((checkbox) => (checkbox.element as HTMLInputElement).checked)).toBe(true)
+
+    const banRateOption = wrapper.findAll('.column-menu-option')
+      .find((option) => option.text() === '禁用率')
+    expect(banRateOption).toBeDefined()
+    await banRateOption!.get('input').setValue(false)
+
+    expect(wrapper.findAll('.champion-table th').map((header) => header.text())).not.toContain('禁用率')
+    expect(wrapper.findAll('.champion-table tbody td')).toHaveLength(17)
+
+    const teamTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '战队统计')
+    await teamTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('.column-menu-trigger').trigger('click')
+    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(13)
+
+    const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
+    await playerTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('.column-menu-trigger').trigger('click')
+    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(19)
+    wrapper.unmount()
+  })
 })
