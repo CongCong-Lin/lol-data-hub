@@ -101,7 +101,8 @@ class TeamCollectionServiceTest {
     void sameHashSkipsWritesAndFinishesNoChange() {
         String json = validJson();
         when(client.fetchTeamStatistics(1L, 100L)).thenReturn(json);
-        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(sha256(json));
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(
+                sha256(TeamCollectionService.CONTENT_SCHEMA_VERSION + "\n" + json));
 
         CollectionResult result = service.collect(1L, List.of(100L));
 

@@ -25,6 +25,8 @@ import java.util.List;
 
 @Service
 public class TeamCollectionService {
+    static final String CONTENT_SCHEMA_VERSION = "team-v1-baseline";
+
     private final TjStatsClient client;
     private final TjStatsResponseParser parser;
     private final ObjectMapper objectMapper;
@@ -74,7 +76,8 @@ public class TeamCollectionService {
 
             for (Long stageId : normalizedStageIds) {
                 String rawJson = client.fetchTeamStatistics(seasonId, stageId);
-                String contentHash = sha256(rawJson);
+                String rawHash = sha256(rawJson);
+                String contentHash = sha256(CONTENT_SCHEMA_VERSION + "\n" + rawJson);
                 OffsetDateTime collectedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
                 collectionMapper.insertRawResponse(
@@ -82,7 +85,7 @@ public class TeamCollectionService {
                         "/compound/public/team",
                         toJson(java.util.Map.of("seasonId", seasonId, "stageIds", stageId)),
                         rawJson,
-                        contentHash,
+                        rawHash,
                         collectedAt
                 );
 

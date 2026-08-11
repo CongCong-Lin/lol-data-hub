@@ -187,10 +187,10 @@ $ErrorActionPreference = 'Continue'
 try {
     if ($redisPassword.Length -gt 0) {
         $redisScanOutput = @(docker exec -e "REDISCLI_AUTH=$redisPassword" lol-datahub-redis `
-            redis-cli --scan --pattern 'loldatahub:stats:s4:*' 2>&1)
+            redis-cli --scan --pattern 'loldatahub:stats:*' 2>&1)
     } else {
         $redisScanOutput = @(docker exec lol-datahub-redis `
-            redis-cli --scan --pattern 'loldatahub:stats:s4:*' 2>&1)
+            redis-cli --scan --pattern 'loldatahub:stats:*' 2>&1)
     }
     $redisScanExitCode = $LASTEXITCODE
 } finally {
@@ -198,7 +198,7 @@ try {
 }
 $redisScanLines = @($redisScanOutput | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ })
 $redisHasError = @($redisScanLines | Where-Object { $_ -match '(?i)(AUTH failed|NOAUTH|^ERR )' }).Count -gt 0
-$redisKeys = @($redisScanLines | Where-Object { $_ -match '^loldatahub:stats:s4:' })
+$redisKeys = @($redisScanLines | Where-Object { $_ -match '^loldatahub:stats:s\d+:' })
 $redisScanOk = $redisScanExitCode -eq 0 -and -not $redisHasError
 Write-Check 'Redis 扫描命令无认证或执行错误' $redisScanOk "(exit=$redisScanExitCode)"
 foreach ($type in @('champion', 'team', 'player')) {
