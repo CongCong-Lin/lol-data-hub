@@ -486,13 +486,13 @@ onMounted(async () => {
       <div>
         <p class="eyebrow">LOL DATA HUB</p>
         <h1>赛事数据，<span class="title-tail">不止看一个赛段</span></h1>
-        <p class="hero-copy">基于本地持久化数据重新计算跨赛事指标，并用明确的样本门槛隔离低样本噪声。支持跨赛事赛段选择，如 LPL + MSI（需已有采集数据）。</p>
       </div>
       <div class="status-card">
         <span>数据版本</span>
         <strong>{{ currentDataVersion ?? '—' }}</strong>
         <small>{{ latestUpdatedAt ? `更新于 ${new Date(latestUpdatedAt).toLocaleString()}` : '尚未查询数据' }}</small>
       </div>
+      <p class="hero-copy">基于本地持久化数据重新计算跨赛事指标，并用明确的样本门槛隔离低样本噪声。支持跨赛事赛段选择，如 LPL + MSI（需已有采集数据）。</p>
     </header>
 
     <nav class="view-tabs">
