@@ -136,7 +136,22 @@ beforeEach(() => {
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playerResult)
 })
 
+async function selectFirstStage(wrapper: ReturnType<typeof mount>) {
+  await wrapper.get('button.stage-chip').trigger('click')
+}
+
 describe('查询状态', () => {
+  it('首次进入时不自动选择任何赛段', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.findAll('button.stage-chip.selected')).toHaveLength(0)
+    expect(wrapper.findAll('.basket-item')).toHaveLength(0)
+    expect(wrapper.get('button.primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('请在上方赛段列表中勾选要查询的赛段')
+    wrapper.unmount()
+  })
+
   it('赛事下拉选项按赛事 ID 从小到大排列并保留默认选择', async () => {
     vi.mocked(api.seasons).mockResolvedValue([
       { sourceSeasonId: 237, name: '2026职业联赛', startTime: null, endTime: null, open: true },
@@ -157,6 +172,7 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await selectFirstStage(wrapper)
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('安妮')
@@ -174,6 +190,7 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await selectFirstStage(wrapper)
     const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
     expect(playerTab).toBeDefined()
     await playerTab!.trigger('click')
@@ -195,6 +212,7 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await selectFirstStage(wrapper)
     const topPosition = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上单')
     expect(topPosition).toBeDefined()
     await topPosition!.trigger('click')
@@ -250,6 +268,9 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    const stageChips = wrapper.findAll('button.stage-chip')
+    await stageChips[0].trigger('click')
+    await stageChips[1].trigger('click')
     expect(wrapper.findAll('.basket-item')).toHaveLength(2)
     expect(wrapper.get('.basket-clear').text()).toBe('清空全部')
 
@@ -277,6 +298,7 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await selectFirstStage(wrapper)
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
@@ -305,6 +327,7 @@ describe('查询状态', () => {
     const wrapper = mount(App)
     await flushPromises()
 
+    await selectFirstStage(wrapper)
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('.champion-table .sort-header')).toHaveLength(17)
@@ -348,6 +371,7 @@ describe('查询状态', () => {
 
     expect(wrapper.find('#sort').exists()).toBe(false)
     expect(wrapper.find('#direction').exists()).toBe(false)
+    await selectFirstStage(wrapper)
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 

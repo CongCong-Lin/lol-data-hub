@@ -396,10 +396,6 @@ async function loadAvailability() {
     )
     const preserved = new Set([...previouslySelected].filter((k) => collectedKeys.has(k)))
 
-    /* 若交集为空，自动选择默认赛事所有已采集赛段 */
-    if (preserved.size === 0) {
-      autoSelectDefaults(data, preserved)
-    }
     selectedStageKeys.value = preserved
 
     /* 确保 browsedSeasonId 指向有数据的赛事 */
@@ -412,24 +408,6 @@ async function loadAvailability() {
     error.value = reason instanceof Error ? reason.message : `加载赛段失败：${String(reason)}`
   } finally {
     if (seq === loadAvailabilitySeq) availabilityLoading.value = false
-  }
-}
-
-function autoSelectDefaults(data: Stage[], target: Set<string>) {
-  const groups = new Map<number, Stage[]>()
-  for (const s of data) {
-    if (!s.collected) continue
-    const arr = groups.get(s.sourceSeasonId) ?? []
-    arr.push(s)
-    groups.set(s.sourceSeasonId, arr)
-  }
-  const first = groups.entries().next().value
-  if (first) {
-    for (const s of first[1]) {
-      if (target.size >= MAX_STAGE_SELECTION) break
-      target.add(makeKey(s.sourceSeasonId, s.sourceStageId))
-    }
-    browsedSeasonId.value = first[0]
   }
 }
 
