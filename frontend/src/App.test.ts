@@ -18,6 +18,7 @@ vi.mock('./api', () => ({
     teamStatisticsByKeys: vi.fn(),
     playerStatisticsByKeys: vi.fn(),
     teamCombinationStatisticsByKeys: vi.fn(),
+    playerDetail: vi.fn(),
   },
 }))
 
@@ -244,6 +245,70 @@ describe('查询状态', () => {
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenCalledWith(
       ['237:100'], 5, 'TOP', 'kda', 'desc',
     )
+    wrapper.unmount()
+  })
+
+  it('提交选手查询后头像包裹新标签页打开的详情链接', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
+    await playerTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const link = wrapper.get('.player-avatar-link')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    const href = link.attributes('href') ?? ''
+    expect(href).toContain('/players/1?')
+    expect(href).toContain('stageKeys=237%3A100')
+    expect(href).toContain('position=TOP')
+    expect(href).toContain('minimumMatchCount=5')
+    wrapper.unmount()
+  })
+
+  it('位置筛选优先写入详情链接的快照参数', async () => {
+    vi.mocked(api.playerStatisticsByKeys).mockResolvedValue({
+      ...playerResult,
+      items: playerResult.items.map((item) => ({ ...item, positions: ['TOP', 'JUG'] })),
+    })
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
+    await playerTab!.trigger('click')
+    await flushPromises()
+    const jungleChip = wrapper.findAll('button.pos-chip').find((button) => button.text() === '打野')
+    expect(jungleChip).toBeDefined()
+    await jungleChip!.trigger('click')
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const href = wrapper.get('.player-avatar-link').attributes('href') ?? ''
+    expect(href).toContain('position=JUG')
+    wrapper.unmount()
+  })
+
+  it('查询条件变化清空结果后详情链接同步移除', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
+    await playerTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.player-avatar-link').exists()).toBe(true)
+
+    const jungleChip = wrapper.findAll('button.pos-chip').find((button) => button.text() === '打野')
+    await jungleChip!.trigger('click')
+
+    expect(wrapper.find('.player-avatar-link').exists()).toBe(false)
     wrapper.unmount()
   })
 

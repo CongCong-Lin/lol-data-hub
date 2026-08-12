@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import {
   api,
   type ChampionStatisticsResult,
+  type PlayerStatistics,
   type PlayerStatisticsResult,
   type Season,
   type Stage,
@@ -122,6 +123,7 @@ const combinationVisibleColumns = ref(COMBINATION_COLUMNS.map((column) => column
 const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
+const submittedPlayerQuery = ref<{ stageKeys: string[]; position: string; minimumMatchCount: number } | null>(null)
 const combinationResult = ref<TeamCombinationStatisticsResult | null>(null)
 const busy = ref(false)
 const sorting = ref(false)
@@ -380,6 +382,7 @@ function clearStatisticsResults() {
   teamResult.value = null
   playerResult.value = null
   combinationResult.value = null
+  submittedPlayerQuery.value = null
 }
 
 function clearActiveResult(view: ActiveView) {
@@ -493,6 +496,11 @@ async function query(preserveCurrentResult = false) {
       const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, teamSortDirection.value)
       if (seq === querySeq && activeView.value === view) teamResult.value = data
     } else if (view === 'player') {
+      submittedPlayerQuery.value = {
+        stageKeys: [...keys],
+        position: selectedPlayerPosition,
+        minimumMatchCount: selectedMinimumMatchCount,
+      }
       const data = await api.playerStatisticsByKeys(
         keys,
         selectedMinimumMatchCount,
@@ -517,6 +525,19 @@ async function query(preserveCurrentResult = false) {
   } finally {
     if (seq === querySeq) busy.value = false
   }
+}
+
+function playerDetailHref(item: PlayerStatistics): string | undefined {
+  const snapshot = submittedPlayerQuery.value
+  if (!snapshot || item.sourcePlayerId == null) return undefined
+  const position = snapshot.position || item.positions[0] || ''
+  if (!position) return undefined
+  const params = new URLSearchParams({
+    stageKeys: snapshot.stageKeys.join(','),
+    position,
+    minimumMatchCount: String(snapshot.minimumMatchCount),
+  })
+  return `/players/${item.sourcePlayerId}?${params.toString()}`
 }
 
 function changeSort(view: ActiveView, field: string) {
@@ -1016,8 +1037,21 @@ onMounted(async () => {
             <tr v-for="item in paginatedPlayerItems" :key="item.playerKey">
               <td v-if="isColumnVisible(playerVisibleColumns, 'player')" class="player-name-column">
                 <div class="player-cell">
-                  <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
-                  <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
+                  <a
+                    v-if="playerDetailHref(item)"
+                    :href="playerDetailHref(item)"
+                    class="player-avatar-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :title="`在新标签页查看 ${item.playerName} 的选手详情`"
+                  >
+                    <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
+                    <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
+                  </a>
+                  <template v-else>
+                    <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
+                    <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
+                  </template>
                   <div>
                     <strong>{{ item.playerName }}</strong>
                     <small>{{ fmtTeamNames(item.teamNames) }}</small>

@@ -125,6 +125,71 @@ export interface PlayerStatisticsResult {
   items: PlayerStatistics[]
 }
 
+export interface PlayerDetailProfile {
+  sourcePlayerId: number | null
+  playerName: string
+  playerAvatar: string | null
+  teamNames: string[]
+  positions: string[]
+  matchCount: number
+  gameCount: number
+}
+
+export interface RankedPlayerMetric {
+  key: string
+  label: string
+  value: number
+  formattedValue: string
+  rank: number
+  cohortSize: number
+  higherIsBetter: boolean
+}
+
+export interface PlayerRadarMetric {
+  key: string
+  label: string
+  value: number
+  averageValue: number
+  playerScore: number
+  averageScore: number
+  rank: number
+  cohortSize: number
+}
+
+export interface PlayerHeroUsage {
+  sourceChampionId: number
+  championName: string
+  championChineseName: string
+  championTitle: string | null
+  championLogo: string | null
+  pickCount: number
+  pickRate: number
+  winningCount: number
+  winningRate: number
+  totalKills: number
+  totalDeaths: number
+  totalAssists: number
+  kda: number
+  killPerGame: number
+  deathPerGame: number
+  assistPerGame: number
+}
+
+export interface PlayerDetailStatisticsResult {
+  dataVersion: number
+  minimumMatchCount: number
+  position: string
+  cohortSize: number
+  player: PlayerDetailProfile
+  coreMetrics: RankedPlayerMetric[]
+  radarMetrics: PlayerRadarMetric[]
+  heroUsageAvailable: boolean
+  missingHeroStageKeys: string[]
+  heroUsageTotalGames: number
+  heroes: PlayerHeroUsage[]
+  latestCollectedAt: string | null
+}
+
 export interface TeamCombinationStatistics {
   teamId: number
   teamName: string
@@ -319,5 +384,20 @@ export const api = {
       sortDirection,
     })
     return request<TeamCombinationStatisticsResult>(`/api/v1/statistics/team-combinations?${params}`)
+  },
+  playerDetail: (
+    sourcePlayerId: number,
+    stageKeys: string[],
+    position: string,
+    minimumMatchCount: number,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      position,
+      minimumMatchCount: String(minimumMatchCount),
+    })
+    return request<PlayerDetailStatisticsResult>(
+      `/api/v1/statistics/players/${sourcePlayerId}/detail?${params}`,
+    )
   },
 }

@@ -1,5 +1,6 @@
 package com.loldatahub.api;
 
+import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
 import com.loldatahub.source.TjStatsSourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseEntity<ApiResponse<Void>> notFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("接口不存在"));
+    }
+
+    @ExceptionHandler(PlayerDetailNotFoundException.class)
+    ResponseEntity<ApiResponse<Void>> playerDetailNotFound(PlayerDetailNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure(exception.getMessage()));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

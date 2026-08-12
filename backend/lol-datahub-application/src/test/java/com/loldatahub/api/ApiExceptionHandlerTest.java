@@ -1,5 +1,6 @@
 package com.loldatahub.api;
 
+import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,5 +45,14 @@ class ApiExceptionHandlerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(406);
         assertThat(response.getBody()).isEqualTo(ApiResponse.failure("无法生成客户端要求的响应类型"));
+    }
+
+    @Test
+    void mapsPlayerDetailNotFoundToNotFoundWithMessage() {
+        var response = handler.playerDetailNotFound(
+                new PlayerDetailNotFoundException("选手 99 不存在"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+        assertThat(response.getBody()).isEqualTo(ApiResponse.failure("选手 99 不存在"));
     }
 }

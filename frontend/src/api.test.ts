@@ -80,4 +80,32 @@ describe('API 客户端', () => {
     expect(url).toContain('combinationType=BOT_SUPPORT')
     expect(url).toContain('minimumPickCount=3')
   })
+
+  it('按选手、赛段、位置与门槛请求选手详情', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: null,
+      message: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.playerDetail(2687, ['237:102', '239:28'], 'TOP', 5)
+
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('/api/v1/statistics/players/2687/detail?')
+    expect(url).toContain('stageKeys=237%3A102%2C239%3A28')
+    expect(url).toContain('position=TOP')
+    expect(url).toContain('minimumMatchCount=5')
+  })
+
+  it('透传选手详情 404 的后端消息', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: false,
+      data: null,
+      message: '选手 99 不存在',
+    }), { status: 404, headers: { 'Content-Type': 'application/json' } })))
+
+    await expect(api.playerDetail(99, ['237:102'], 'TOP', 5))
+      .rejects.toThrow('选手 99 不存在')
+  })
 })

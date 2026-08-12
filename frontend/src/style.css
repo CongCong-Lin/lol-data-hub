@@ -239,6 +239,8 @@ tbody tr:hover { background: #fafcfb; }
 .player-cell { display: flex; align-items: center; gap: 8px; width: 148px; min-width: 148px; }
 .player-cell > div { min-width: 0; max-width: 108px; }
 .player-avatar, .player-placeholder { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #edf0f2; }
+.player-avatar-link { display: inline-flex; flex: 0 0 auto; }
+.player-avatar-link:hover .player-avatar, .player-avatar-link:hover .player-placeholder { box-shadow: 0 0 0 2px var(--accent); }
 .player-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 13px; }
 .player-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-cell small { display: block; margin-top: 1px; overflow: hidden; color: #8b949e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

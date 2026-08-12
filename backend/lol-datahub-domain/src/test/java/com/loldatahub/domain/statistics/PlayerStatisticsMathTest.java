@@ -68,4 +68,28 @@ class PlayerStatisticsMathTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("未知的选手位置");
     }
+
+    @Test
+    void toHeroPositionMapsPlayerPositionsToPerGamePositions() {
+        assertThat(PlayerStatisticsMath.toHeroPosition("TOP")).isEqualTo("TOP");
+        assertThat(PlayerStatisticsMath.toHeroPosition("JUG")).isEqualTo("JUN");
+        assertThat(PlayerStatisticsMath.toHeroPosition("MID")).isEqualTo("MID");
+        assertThat(PlayerStatisticsMath.toHeroPosition("AD")).isEqualTo("BOT");
+        assertThat(PlayerStatisticsMath.toHeroPosition("SUP")).isEqualTo("SUP");
+    }
+
+    @Test
+    void toHeroPositionNormalizesCaseAndWhitespace() {
+        assertThat(PlayerStatisticsMath.toHeroPosition(" jug ")).isEqualTo("JUN");
+        assertThat(PlayerStatisticsMath.toHeroPosition("ad")).isEqualTo("BOT");
+    }
+
+    @Test
+    void toHeroPositionReturnsNullForBlankAndThrowsForUnknown() {
+        assertThat(PlayerStatisticsMath.toHeroPosition(null)).isNull();
+        assertThat(PlayerStatisticsMath.toHeroPosition("  ")).isNull();
+        assertThatThrownBy(() -> PlayerStatisticsMath.toHeroPosition("JUN"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未知的选手位置");
+    }
 }

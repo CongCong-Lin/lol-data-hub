@@ -57,4 +57,20 @@ public final class PlayerStatisticsMath {
         }
         throw new IllegalArgumentException("未知的选手位置：" + position);
     }
+
+    /**
+     * 将选手统计位置（TOP/JUG/MID/AD/SUP）映射为逐局英雄明细位置（TOP/JUN/MID/BOT/SUP）。
+     * 两套官网位置代码不能混用：JUG 必须转为 JUN，AD 必须转为 BOT。
+     */
+    public static String toHeroPosition(String position) {
+        String validated = validatePosition(position);
+        if (validated == null) {
+            return null;
+        }
+        return switch (validated) {
+            case "JUG" -> "JUN";
+            case "AD" -> "BOT";
+            default -> validated;
+        };
+    }
 }

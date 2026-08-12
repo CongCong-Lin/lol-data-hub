@@ -1,0 +1,305 @@
+package com.loldatahub.statistics;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
+import com.loldatahub.domain.statistics.PlayerDetailProfile;
+import com.loldatahub.domain.statistics.PlayerDetailQuery;
+import com.loldatahub.domain.statistics.PlayerHeroUsage;
+import com.loldatahub.domain.statistics.PlayerRadarMetric;
+import com.loldatahub.domain.statistics.PlayerStatistics;
+import com.loldatahub.domain.statistics.PlayerStatisticsQuery;
+import com.loldatahub.domain.statistics.RankedPlayerMetric;
+import com.loldatahub.domain.statistics.SortDirection;
+import com.loldatahub.domain.statistics.StageKey;
+import com.loldatahub.domain.statistics.StatisticsMath;
+import com.loldatahub.infrastructure.mapper.ChampionStatisticsMapper;
+import com.loldatahub.infrastructure.mapper.PlayerHeroUsageMapper;
+import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.model.PlayerHeroUsageAggregateRow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.function.Function;
+
+/**
+ * 选手详情页统计服务。
+ * 排名、同位置平均、雷达归一化与英雄聚合全部由后端统一完成，前端不做二次计算。
+ */
+@Service
+public class PlayerDetailStatisticsService {
+    private static final Logger log = LoggerFactory.getLogger(PlayerDetailStatisticsService.class);
+    private static final TypeReference<PlayerDetailStatisticsResult> CACHE_TYPE = new TypeReference<>() { };
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+
+    private record MetricDefinition(String key, String label, boolean higherIsBetter,
+                                    Function<PlayerStatistics, BigDecimal> value, boolean integerDisplay) {
+    }
+
+    /** 核心指标口径与选手统计列表完全一致（复用 PlayerStatisticsService 的聚合结果）。 */
+    private static final List<MetricDefinition> CORE_METRICS = List.of(
+            new MetricDefinition("matchCount", "系列赛数", true, p -> BigDecimal.valueOf(p.matchCount()), true),
+            new MetricDefinition("gameCount", "小局数", true, p -> BigDecimal.valueOf(p.gameCount()), true),
+            new MetricDefinition("mvpCount", "MVP 次数", true, p -> BigDecimal.valueOf(p.mvpCount()), true),
+            new MetricDefinition("kda", "KDA", true, PlayerStatistics::kda, false),
+            new MetricDefinition("killPerGame", "场均击杀", true, PlayerStatistics::killPerGame, false),
+            new MetricDefinition("deathPerGame", "场均死亡", false, PlayerStatistics::deathPerGame, false),
+            new MetricDefinition("assistPerGame", "场均助攻", true, PlayerStatistics::assistPerGame, false),
+            new MetricDefinition("goldPerGame", "场均经济", true, PlayerStatistics::goldPerGame, false),
+            new MetricDefinition("creepScorePerGame", "场均补刀", true, PlayerStatistics::creepScorePerGame, false),
+            new MetricDefinition("wardPlacedPerGame", "场均插眼", true, PlayerStatistics::wardPlacedPerGame, false),
+            new MetricDefinition("wardKilledPerGame", "场均排眼", true, PlayerStatistics::wardKilledPerGame, false),
+            new MetricDefinition("killParticipantPercent", "参团率", true, PlayerStatistics::killParticipantPercent, false),
+            new MetricDefinition("goldGapPerGame", "场均经济差", true, PlayerStatistics::goldGapPerGame, false),
+            new MetricDefinition("damagePercent", "伤害占比", true, PlayerStatistics::damagePercent, false),
+            new MetricDefinition("goldPercent", "经济占比", true, PlayerStatistics::goldPercent, false)
+    );
+
+    /** 雷达指标随位置变化：不同位置职责差异大，所选指标均为越高越好。 */
+    private static final List<MetricDefinition> RADAR_CARRY = List.of(
+            metric("kda", "KDA", PlayerStatistics::kda),
+            metric("killPerGame", "场均击杀", PlayerStatistics::killPerGame),
+            metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
+            metric("damagePercent", "伤害占比", PlayerStatistics::damagePercent),
+            metric("creepScorePerGame", "场均补刀", PlayerStatistics::creepScorePerGame),
+            metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame)
+    );
+    private static final List<MetricDefinition> RADAR_JUNGLE = List.of(
+            metric("kda", "KDA", PlayerStatistics::kda),
+            metric("killPerGame", "场均击杀", PlayerStatistics::killPerGame),
+            metric("assistPerGame", "场均助攻", PlayerStatistics::assistPerGame),
+            metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
+            metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame),
+            metric("wardKilledPerGame", "场均排眼", PlayerStatistics::wardKilledPerGame)
+    );
+    private static final List<MetricDefinition> RADAR_SUPPORT = List.of(
+            metric("kda", "KDA", PlayerStatistics::kda),
+            metric("assistPerGame", "场均助攻", PlayerStatistics::assistPerGame),
+            metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
+            metric("wardPlacedPerGame", "场均插眼", PlayerStatistics::wardPlacedPerGame),
+            metric("wardKilledPerGame", "场均排眼", PlayerStatistics::wardKilledPerGame),
+            metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame)
+    );
+
+    private static MetricDefinition metric(String key, String label, Function<PlayerStatistics, BigDecimal> value) {
+        return new MetricDefinition(key, label, true, value, false);
+    }
+
+    private final PlayerStatisticsService playerStatisticsService;
+    private final PlayerHeroUsageMapper heroUsageMapper;
+    private final ChampionStatisticsMapper championStatisticsMapper;
+    private final SystemStateMapper systemStateMapper;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final Duration cacheTtl;
+
+    public PlayerDetailStatisticsService(PlayerStatisticsService playerStatisticsService,
+                                         PlayerHeroUsageMapper heroUsageMapper,
+                                         ChampionStatisticsMapper championStatisticsMapper,
+                                         SystemStateMapper systemStateMapper,
+                                         StringRedisTemplate redisTemplate,
+                                         ObjectMapper objectMapper,
+                                         @Value("${lol-datahub.cache.statistics-ttl:PT12H}") Duration cacheTtl) {
+        this.playerStatisticsService = playerStatisticsService;
+        this.heroUsageMapper = heroUsageMapper;
+        this.championStatisticsMapper = championStatisticsMapper;
+        this.systemStateMapper = systemStateMapper;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.cacheTtl = cacheTtl;
+    }
+
+    public PlayerDetailStatisticsResult query(PlayerDetailQuery query) {
+        long dataVersion = systemStateMapper.currentDataVersion();
+        String cacheKey = "loldatahub:stats:s6:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
+        PlayerDetailStatisticsResult cached = readCache(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        // 复用现有选手统计聚合：与选手列表相同的公式、门槛与加权口径
+        PlayerStatisticsResult cohortResult = playerStatisticsService.query(new PlayerStatisticsQuery(
+                query.stages(), query.minimumMatchCount(), query.position(), "playerName", SortDirection.ASC));
+        List<PlayerStatistics> cohort = cohortResult.items();
+
+        PlayerStatistics target = cohort.stream()
+                .filter(player -> Long.valueOf(query.sourcePlayerId()).equals(player.sourcePlayerId()))
+                .findFirst()
+                .orElseThrow(() -> notFound(query));
+
+        PlayerDetailStatisticsResult result = new PlayerDetailStatisticsResult(
+                dataVersion,
+                query.minimumMatchCount(),
+                query.position(),
+                cohort.size(),
+                new PlayerDetailProfile(target.sourcePlayerId(), target.playerName(), target.playerAvatar(),
+                        target.teamNames(), target.positions(), target.matchCount(), target.gameCount()),
+                coreMetrics(target, cohort),
+                radarMetrics(query.position(), target, cohort),
+                true,
+                List.of(),
+                0L,
+                List.of(),
+                heroUsageMapper.findLatestCollectedAt(query.stages())
+        );
+        result = withHeroUsage(result, query);
+        writeCache(cacheKey, result);
+        return result;
+    }
+
+    private PlayerDetailStatisticsResult withHeroUsage(PlayerDetailStatisticsResult base, PlayerDetailQuery query) {
+        List<StageKey> stages = query.stages();
+        HashSet<StageKey> collected = new HashSet<>(championStatisticsMapper.findCollectedStageKeys(stages));
+        List<String> missing = stages.stream()
+                .filter(stage -> !collected.contains(stage))
+                .map(StageKey::canonical)
+                .toList();
+        if (!missing.isEmpty()) {
+            return new PlayerDetailStatisticsResult(
+                    base.dataVersion(), base.minimumMatchCount(), base.position(), base.cohortSize(),
+                    base.player(), base.coreMetrics(), base.radarMetrics(),
+                    false, missing, 0L, List.of(), base.latestCollectedAt());
+        }
+
+        List<PlayerHeroUsageAggregateRow> aggregateRows = heroUsageMapper.aggregateHeroUsage(
+                stages, query.sourcePlayerId(), query.heroPosition());
+        long totalGames = aggregateRows.stream().mapToLong(PlayerHeroUsageAggregateRow::pickCount).sum();
+        List<PlayerHeroUsage> heroes = aggregateRows.stream()
+                .map(row -> new PlayerHeroUsage(
+                        row.sourceChampionId(), row.championName(), row.championChineseName(),
+                        row.championTitle(), row.championLogo(),
+                        row.pickCount(), StatisticsMath.ratio(row.pickCount(), totalGames),
+                        row.winningCount(), StatisticsMath.ratio(row.winningCount(), row.pickCount()),
+                        row.totalKills(), row.totalDeaths(), row.totalAssists(),
+                        StatisticsMath.kda(row.totalKills(), row.totalAssists(), row.totalDeaths()),
+                        StatisticsMath.perGame(row.totalKills(), row.pickCount()),
+                        StatisticsMath.perGame(row.totalDeaths(), row.pickCount()),
+                        StatisticsMath.perGame(row.totalAssists(), row.pickCount())))
+                .sorted(Comparator.comparingLong(PlayerHeroUsage::pickCount).reversed()
+                        .thenComparing(Comparator.comparing(PlayerHeroUsage::winningRate).reversed())
+                        .thenComparing(PlayerHeroUsage::championChineseName)
+                        .thenComparingLong(PlayerHeroUsage::sourceChampionId))
+                .toList();
+        return new PlayerDetailStatisticsResult(
+                base.dataVersion(), base.minimumMatchCount(), base.position(), base.cohortSize(),
+                base.player(), base.coreMetrics(), base.radarMetrics(),
+                true, List.of(), totalGames, heroes, base.latestCollectedAt());
+    }
+
+    private PlayerDetailNotFoundException notFound(PlayerDetailQuery query) {
+        if (heroUsageMapper.countPlayersBySourceId(query.sourcePlayerId()) == 0) {
+            return new PlayerDetailNotFoundException("选手 " + query.sourcePlayerId() + " 不存在");
+        }
+        if (heroUsageMapper.countPlayerPositionRows(query.stages(), query.sourcePlayerId(), query.position()) == 0) {
+            return new PlayerDetailNotFoundException(
+                    "选手 " + query.sourcePlayerId() + " 在所选赛段中没有 " + query.position() + " 位置数据");
+        }
+        return new PlayerDetailNotFoundException(
+                "该选手在当前筛选范围内未达到最低 " + query.minimumMatchCount() + " 场的样本要求");
+    }
+
+    private List<RankedPlayerMetric> coreMetrics(PlayerStatistics target, List<PlayerStatistics> cohort) {
+        return CORE_METRICS.stream()
+                .map(definition -> {
+                    BigDecimal value = definition.value().apply(target);
+                    int rank = rank(value, definition.higherIsBetter(), definition.value(), cohort);
+                    String formatted = definition.integerDisplay()
+                            ? String.valueOf(value.longValue())
+                            : value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+                    return new RankedPlayerMetric(definition.key(), definition.label(), value,
+                            formatted, rank, cohort.size(), definition.higherIsBetter());
+                })
+                .toList();
+    }
+
+    private List<PlayerRadarMetric> radarMetrics(String position, PlayerStatistics target,
+                                                 List<PlayerStatistics> cohort) {
+        List<MetricDefinition> definitions = switch (position) {
+            case "JUG" -> RADAR_JUNGLE;
+            case "SUP" -> RADAR_SUPPORT;
+            default -> RADAR_CARRY;
+        };
+        return definitions.stream()
+                .map(definition -> {
+                    BigDecimal value = definition.value().apply(target);
+                    BigDecimal averageValue = average(cohort.stream().map(definition.value()).toList());
+                    BigDecimal playerScore = percentileScore(value, definition.higherIsBetter(),
+                            definition.value(), cohort);
+                    BigDecimal averageScore = average(cohort.stream()
+                            .map(player -> percentileScore(definition.value().apply(player),
+                                    definition.higherIsBetter(), definition.value(), cohort))
+                            .toList());
+                    int rank = rank(value, definition.higherIsBetter(), definition.value(), cohort);
+                    return new PlayerRadarMetric(definition.key(), definition.label(), value, averageValue,
+                            playerScore, averageScore, rank, cohort.size());
+                })
+                .toList();
+    }
+
+    /** 竞赛排名：1 + 严格优于当前选手的人数，并列同名次。 */
+    private int rank(BigDecimal value, boolean higherIsBetter, Function<PlayerStatistics, BigDecimal> metric,
+                     List<PlayerStatistics> cohort) {
+        long strictlyBetter = cohort.stream()
+                .map(metric)
+                .filter(other -> higherIsBetter
+                        ? other.compareTo(value) > 0
+                        : other.compareTo(value) < 0)
+                .count();
+        return (int) (1 + strictlyBetter);
+    }
+
+    /** 同位置百分位得分（0～100），同值同分；单人样本直接给 100。 */
+    private BigDecimal percentileScore(BigDecimal value, boolean higherIsBetter,
+                                       Function<PlayerStatistics, BigDecimal> metric,
+                                       List<PlayerStatistics> cohort) {
+        if (cohort.size() <= 1) {
+            return HUNDRED;
+        }
+        long weaker = cohort.stream()
+                .map(metric)
+                .filter(other -> higherIsBetter
+                        ? other.compareTo(value) < 0
+                        : other.compareTo(value) > 0)
+                .count();
+        return BigDecimal.valueOf(weaker)
+                .multiply(HUNDRED)
+                .divide(BigDecimal.valueOf(cohort.size() - 1L), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal average(List<BigDecimal> values) {
+        if (values.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(values.size()), 6, RoundingMode.HALF_UP);
+    }
+
+    private PlayerDetailStatisticsResult readCache(String key) {
+        try {
+            String json = redisTemplate.opsForValue().get(key);
+            return json == null ? null : objectMapper.readValue(json, CACHE_TYPE);
+        } catch (DataAccessException | JsonProcessingException exception) {
+            log.warn("读取选手详情 Redis 缓存失败，key={}", key, exception);
+            return null;
+        }
+    }
+
+    private void writeCache(String key, PlayerDetailStatisticsResult result) {
+        try {
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(result), cacheTtl);
+        } catch (DataAccessException | JsonProcessingException exception) {
+            log.warn("写入选手详情 Redis 缓存失败，key={}", key, exception);
+        }
+    }
+}
