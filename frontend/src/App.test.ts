@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App.vue'
-import { api, type ChampionStatisticsResult, type PlayerStatisticsResult, type Stage, type TeamStatisticsResult } from './api'
+import { api, type ChampionStatisticsResult, type PlayerStatisticsResult, type Stage, type TeamCombinationStatisticsResult, type TeamStatisticsResult } from './api'
 
 vi.mock('./api', () => ({
   api: {
@@ -17,6 +17,7 @@ vi.mock('./api', () => ({
     championStatisticsByKeys: vi.fn(),
     teamStatisticsByKeys: vi.fn(),
     playerStatisticsByKeys: vi.fn(),
+    teamCombinationStatisticsByKeys: vi.fn(),
   },
 }))
 
@@ -121,6 +122,35 @@ const teamResult: TeamStatisticsResult = {
   }],
 }
 
+const combinationResult: TeamCombinationStatisticsResult = {
+  dataVersion: 7,
+  combinationType: 'MID_JUNGLE',
+  minimumPickCount: 3,
+  total: 1,
+  items: [{
+    teamId: 1,
+    teamName: 'TES',
+    teamLogo: null,
+    combinationType: 'MID_JUNGLE',
+    firstPosition: 'JUN',
+    firstChampionId: 62,
+    firstChampionName: '孙悟空',
+    firstChampionTitle: '齐天大圣',
+    firstChampionLogo: null,
+    secondPosition: 'MID',
+    secondChampionId: 84,
+    secondChampionName: '阿卡丽',
+    secondChampionTitle: '离群之刺',
+    secondChampionLogo: null,
+    pickCount: 4,
+    validGameCount: 10,
+    pickRate: 0.4,
+    winningCount: 3,
+    winningRate: 0.75,
+    sampleQualified: true,
+  }],
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(api.seasons).mockResolvedValue([{
@@ -134,6 +164,7 @@ beforeEach(() => {
   vi.mocked(api.championStatisticsByKeys).mockResolvedValue(championResult)
   vi.mocked(api.teamStatisticsByKeys).mockResolvedValue(teamResult)
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playerResult)
+  vi.mocked(api.teamCombinationStatisticsByKeys).mockResolvedValue(combinationResult)
 })
 
 async function selectFirstStage(wrapper: ReturnType<typeof mount>) {
@@ -231,6 +262,28 @@ describe('查询状态', () => {
       ['237:100'], 10, 'TOP', 'bpRate', 'desc',
     )
     expect(wrapper.text()).toContain('出场、胜负与 KDA 按实际分路独立统计')
+    wrapper.unmount()
+  })
+
+  it('按同队同局口径查询并展示组合选取率和胜率', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const comboTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '英雄组合')
+    await comboTab!.trigger('click')
+    await flushPromises()
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenCalledWith(
+      ['237:100'], 'MID_JUNGLE', 3, 'pickCount', 'desc',
+    )
+    expect(wrapper.text()).toContain('孙悟空')
+    expect(wrapper.text()).toContain('阿卡丽')
+    expect(wrapper.text()).toContain('40.00%')
+    expect(wrapper.text()).toContain('75.00%')
+    expect(wrapper.text()).toContain('同一战队、同一系列赛且同一小局')
     wrapper.unmount()
   })
 

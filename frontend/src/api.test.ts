@@ -61,4 +61,23 @@ describe('API 客户端', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('position=MID')
     expect(String(fetchMock.mock.calls[0][0])).toContain('stageKeys=239%3A18%2C239%3A28')
   })
+
+  it('发送跨赛事英雄组合查询参数', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      data: { dataVersion: 1, combinationType: 'BOT_SUPPORT', minimumPickCount: 3, total: 0, items: [] },
+      message: null,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.teamCombinationStatisticsByKeys(
+      ['237:102', '239:28'], 'BOT_SUPPORT', 3, 'winningRate', 'desc',
+    )
+
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('/api/v1/statistics/team-combinations?')
+    expect(url).toContain('stageKeys=237%3A102%2C239%3A28')
+    expect(url).toContain('combinationType=BOT_SUPPORT')
+    expect(url).toContain('minimumPickCount=3')
+  })
 })

@@ -99,6 +99,19 @@ class CatalogControllerTest {
     }
 
     @Test
+    void resolvesCombinationAvailability() {
+        CatalogMapper mapper = mock(CatalogMapper.class);
+        CatalogController controller = new CatalogController(mapper, PUBLIC_CATALOG);
+        when(mapper.findCombinationStageAvailability(237L)).thenReturn(List.of(
+                new StageAvailabilityRow(237, 112, "第一赛段", null, null, true, 80L, null)
+        ));
+
+        ApiResponse<List<StageView>> response = controller.stages(237L, "COMBO");
+
+        assertThat(response.data()).singleElement().extracting(StageView::collected).isEqualTo(true);
+    }
+
+    @Test
     void rejectsUnsupportedStatisticType() {
         CatalogController controller = new CatalogController(mock(CatalogMapper.class), PUBLIC_CATALOG);
 

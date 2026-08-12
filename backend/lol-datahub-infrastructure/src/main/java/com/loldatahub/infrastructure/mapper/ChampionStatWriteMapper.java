@@ -3,6 +3,7 @@ package com.loldatahub.infrastructure.mapper;
 import com.loldatahub.infrastructure.model.ChampionStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionPositionPlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
+import com.loldatahub.infrastructure.model.TeamGameLineupWrite;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -23,6 +24,12 @@ public interface ChampionStatWriteMapper {
             WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
             """)
     int deletePositionCurrentForStage(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
+
+    @Delete("""
+            DELETE FROM team_game_lineup_current
+            WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
+            """)
+    int deleteLineupCurrentForStage(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
 
     @Insert("""
             INSERT INTO champion
@@ -115,4 +122,36 @@ public interface ChampionStatWriteMapper {
                     #{totalKills}, #{totalDeaths}, #{totalAssists}, #{collectedAt})
             """)
     void insertPositionSnapshot(ChampionPositionPlayerStageStatWrite stat);
+
+    @Insert("""
+            INSERT INTO team_game_lineup_current
+                (source_season_id, source_stage_id, source_match_id, game_number,
+                 source_team_id, won, top_champion_id, jungle_champion_id,
+                 mid_champion_id, bot_champion_id, support_champion_id,
+                 collection_run_id, collected_at)
+            VALUES (#{seasonId}, #{stageId}, #{matchId}, #{gameNumber},
+                    #{teamId}, #{won}, #{topChampionId}, #{jungleChampionId},
+                    #{midChampionId}, #{botChampionId}, #{supportChampionId},
+                    #{runId}, #{collectedAt})
+            ON DUPLICATE KEY UPDATE won = VALUES(won),
+                top_champion_id = VALUES(top_champion_id),
+                jungle_champion_id = VALUES(jungle_champion_id),
+                mid_champion_id = VALUES(mid_champion_id),
+                bot_champion_id = VALUES(bot_champion_id),
+                support_champion_id = VALUES(support_champion_id),
+                collection_run_id = VALUES(collection_run_id),
+                collected_at = VALUES(collected_at)
+            """)
+    void upsertTeamGameLineup(TeamGameLineupWrite lineup);
+
+    @Insert("""
+            INSERT INTO team_game_lineup_snapshot
+                (collection_run_id, source_season_id, source_stage_id, source_match_id,
+                 game_number, source_team_id, won, top_champion_id, jungle_champion_id,
+                 mid_champion_id, bot_champion_id, support_champion_id, collected_at)
+            VALUES (#{runId}, #{seasonId}, #{stageId}, #{matchId},
+                    #{gameNumber}, #{teamId}, #{won}, #{topChampionId}, #{jungleChampionId},
+                    #{midChampionId}, #{botChampionId}, #{supportChampionId}, #{collectedAt})
+            """)
+    void insertTeamGameLineupSnapshot(TeamGameLineupWrite lineup);
 }

@@ -142,7 +142,35 @@ final class HeroPositionStatAssembler {
             }
         }
         positionsByChampion.replaceAll((ignored, positions) -> List.copyOf(positions));
-        return new Result(rows, Map.copyOf(positionsByChampion));
+        List<TeamGameLineup> lineups = buildTeamGameLineups(games);
+        return new Result(rows, Map.copyOf(positionsByChampion), lineups);
+    }
+
+    private static List<TeamGameLineup> buildTeamGameLineups(Map<GameKey, List<PositionedRecord>> games) {
+        List<TeamGameLineup> result = new ArrayList<>();
+        for (Map.Entry<GameKey, List<PositionedRecord>> entry : games.entrySet()) {
+            Map<Long, List<PositionedRecord>> byTeam = new HashMap<>();
+            for (PositionedRecord record : entry.getValue()) {
+                byTeam.computeIfAbsent(record.record().teamId(), ignored -> new ArrayList<>()).add(record);
+            }
+            for (Map.Entry<Long, List<PositionedRecord>> team : byTeam.entrySet()) {
+                Map<String, Long> champions = new HashMap<>();
+                for (PositionedRecord record : team.getValue()) {
+                    champions.put(record.position(), record.record().heroId());
+                }
+                HeroRecordSourceRecord first = team.getValue().getFirst().record();
+                result.add(new TeamGameLineup(
+                        entry.getKey().matchId(), Math.toIntExact(entry.getKey().bo()), team.getKey(),
+                        team.getKey() == first.winTeamId(), champions.get("TOP"), champions.get("JUN"),
+                        champions.get("MID"), champions.get("BOT"), champions.get("SUP")
+                ));
+            }
+        }
+        return result.stream()
+                .sorted(Comparator.comparingLong(TeamGameLineup::matchId)
+                        .thenComparingInt(TeamGameLineup::gameNumber)
+                        .thenComparingLong(TeamGameLineup::teamId))
+                .toList();
     }
 
     private static PlayerDirectory playerDirectory(List<PlayerStatSourceRecord> players) {
@@ -188,8 +216,14 @@ final class HeroPositionStatAssembler {
                 continue;
             }
             if (existing.heroId() > 0 && existing.heroId() != detail.heroId()) {
+                if (sameHeroName(existing.heroName(), detail.heroName())
+                        && existing.teamId() == detail.teamId()
+                        && existing.winTeamId() == detail.winTeamId()) {
+                    recordsByGamePlayer.put(key, fromMatchDetail(detail));
+                    continue;
+                }
                 throw new TjStatsSourceException(
-                        "HERO_POSITION: 逐局记录与比赛详情的英雄 ID 不一致，matchId=" + key.matchId()
+                        "HERO_POSITION: 逐局记录与比赛详情的英雄身份不一致，matchId=" + key.matchId()
                                 + "，bo=" + key.bo() + "，playerId=" + key.playerId());
             }
             if (existing.heroId() == 0) {
@@ -205,6 +239,11 @@ final class HeroPositionStatAssembler {
                 recordsByGamePlayer.put(key, fromMatchDetail(detail));
             }
         }
+    }
+
+    private static boolean sameHeroName(String left, String right) {
+        return left != null && right != null
+                && !left.isBlank() && left.trim().equalsIgnoreCase(right.trim());
     }
 
     private static HeroRecordSourceRecord fromMatchDetail(MatchPlayerGameSourceRecord detail) {
@@ -371,7 +410,21 @@ final class HeroPositionStatAssembler {
 
     record Result(
             List<PositionPlayerAggregate> rows,
-            Map<Long, List<String>> positionsByChampion
+            Map<Long, List<String>> positionsByChampion,
+            List<TeamGameLineup> teamGameLineups
+    ) {
+    }
+
+    record TeamGameLineup(
+            long matchId,
+            int gameNumber,
+            long teamId,
+            boolean won,
+            long topChampionId,
+            long jungleChampionId,
+            long midChampionId,
+            long botChampionId,
+            long supportChampionId
     ) {
     }
 

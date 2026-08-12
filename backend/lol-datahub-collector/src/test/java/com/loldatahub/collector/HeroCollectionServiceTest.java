@@ -7,6 +7,7 @@ import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.ChampionPositionPlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
+import com.loldatahub.infrastructure.model.TeamGameLineupWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -101,13 +102,20 @@ class HeroCollectionServiceTest {
         CollectionResult result = service.collect(1L, List.of(100L));
 
         assertThat(result.status()).isEqualTo("SUCCESS");
-        assertThat(result.changedRecords()).isEqualTo(21);
+        assertThat(result.changedRecords()).isEqualTo(23);
         verify(writeMapper).deletePositionCurrentForStage(1L, 100L);
         verify(writeMapper).deleteCurrentForStage(1L, 100L);
         verify(writeMapper, times(10)).upsertPositionCurrent(any());
         verify(writeMapper, times(10)).insertPositionSnapshot(any());
+        ArgumentCaptor<TeamGameLineupWrite> lineups = ArgumentCaptor.forClass(TeamGameLineupWrite.class);
+        verify(writeMapper, times(2)).upsertTeamGameLineup(lineups.capture());
+        verify(writeMapper, times(2)).insertTeamGameLineupSnapshot(any());
+        assertThat(lineups.getAllValues()).extracting(TeamGameLineupWrite::teamId)
+                .containsExactly(1L, 2L);
+        assertThat(lineups.getAllValues().getFirst().jungleChampionId()).isEqualTo(2L);
+        assertThat(lineups.getAllValues().getFirst().midChampionId()).isEqualTo(3L);
         verify(systemStateMapper).incrementDataVersion();
-        verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(21), isNull());
+        verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(23), isNull());
     }
 
     @Test
@@ -182,7 +190,7 @@ class HeroCollectionServiceTest {
         CollectionResult result = service.collect(1L, List.of(200L, 100L));
 
         assertThat(result.status()).isEqualTo("SUCCESS");
-        assertThat(result.changedRecords()).isEqualTo(42);
+        assertThat(result.changedRecords()).isEqualTo(46);
         verify(transactionTemplate, times(1)).execute(any());
         verify(writeMapper).deleteCurrentForStage(1L, 100L);
         verify(writeMapper).deleteCurrentForStage(1L, 200L);

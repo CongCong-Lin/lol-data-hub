@@ -7,13 +7,15 @@ import {
   type Season,
   type Stage,
   type StatisticType,
+  type TeamCombinationStatisticsResult,
+  type TeamCombinationType,
   type TeamStatisticsResult,
 } from './api'
 import PaginationControls from './PaginationControls.vue'
 import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
 import SortableHeader from './SortableHeader.vue'
 
-type ActiveView = 'champion' | 'team' | 'player'
+type ActiveView = 'champion' | 'team' | 'player' | 'combo'
 
 const CHAMPION_COLUMNS: ColumnOption[] = [
   { key: 'champion', label: '英雄' }, { key: 'positions', label: '分路' },
@@ -50,6 +52,13 @@ const PLAYER_COLUMNS: ColumnOption[] = [
   { key: 'goldPercent', label: '经济占比' },
 ]
 
+const COMBINATION_COLUMNS: ColumnOption[] = [
+  { key: 'team', label: '战队' }, { key: 'firstChampion', label: '英雄一' },
+  { key: 'secondChampion', label: '英雄二' }, { key: 'pickCount', label: '选取次数' },
+  { key: 'validGameCount', label: '有效小局' }, { key: 'pickRate', label: '选取率' },
+  { key: 'winningCount', label: '获胜次数' }, { key: 'winningRate', label: '组合胜率' },
+]
+
 const CHAMPION_POSITION_OPTIONS = [
   { value: '', label: '全部' },
   { value: 'TOP', label: '上单' },
@@ -72,6 +81,7 @@ const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   champion: 'HERO',
   team: 'TEAM',
   player: 'PLAYER',
+  combo: 'COMBO',
 }
 
 const MAX_STAGE_SELECTION = 50
@@ -90,22 +100,29 @@ const minimumMatchCount = ref(5)
 const sortBy = ref('bpRate')
 const teamSortBy = ref('winningRate')
 const playerSortBy = ref('kda')
+const combinationSortBy = ref('pickCount')
 const championSortDirection = ref<'asc' | 'desc'>('desc')
 const teamSortDirection = ref<'asc' | 'desc'>('desc')
 const playerSortDirection = ref<'asc' | 'desc'>('desc')
+const combinationSortDirection = ref<'asc' | 'desc'>('desc')
+const combinationType = ref<TeamCombinationType>('MID_JUNGLE')
+const minimumCombinationPickCount = ref(3)
 const positionFilter = ref('')
 const playerPositionFilter = ref('')
 const search = ref('')
 const teamSearch = ref('')
 const playerSearch = ref('')
+const combinationSearch = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const championVisibleColumns = ref(CHAMPION_COLUMNS.map((column) => column.key))
 const teamVisibleColumns = ref(TEAM_COLUMNS.map((column) => column.key))
 const playerVisibleColumns = ref(PLAYER_COLUMNS.map((column) => column.key))
+const combinationVisibleColumns = ref(COMBINATION_COLUMNS.map((column) => column.key))
 const result = ref<ChampionStatisticsResult | null>(null)
 const teamResult = ref<TeamStatisticsResult | null>(null)
 const playerResult = ref<PlayerStatisticsResult | null>(null)
+const combinationResult = ref<TeamCombinationStatisticsResult | null>(null)
 const busy = ref(false)
 const sorting = ref(false)
 const exporting = ref(false)
@@ -125,6 +142,8 @@ const TABLE_COLUMN_WIDTHS: Record<string, number> = {
   team: 150,
   positions: 124,
   mostUsedPlayers: 154,
+  firstChampion: 180,
+  secondChampion: 180,
 }
 
 function tableWidth(visibleColumns: string[]): string {
@@ -195,6 +214,17 @@ const filteredPlayerItems = computed(() => {
   return items
 })
 
+const filteredCombinationItems = computed(() => {
+  let items = combinationResult.value?.items ?? []
+  const keyword = combinationSearch.value.trim().toLowerCase()
+  if (keyword) {
+    items = items.filter((item) =>
+      `${item.teamName}${item.firstChampionName}${item.secondChampionName}`.toLowerCase().includes(keyword),
+    )
+  }
+  return items
+})
+
 function paginate<T>(items: T[]): T[] {
   const start = (currentPage.value - 1) * pageSize.value
   return items.slice(start, start + pageSize.value)
@@ -203,9 +233,11 @@ function paginate<T>(items: T[]): T[] {
 const paginatedChampionItems = computed(() => paginate(filteredChampionItems.value))
 const paginatedTeamItems = computed(() => paginate(filteredTeamItems.value))
 const paginatedPlayerItems = computed(() => paginate(filteredPlayerItems.value))
+const paginatedCombinationItems = computed(() => paginate(filteredCombinationItems.value))
 const championTableWidth = computed(() => tableWidth(championVisibleColumns.value))
 const teamTableWidth = computed(() => tableWidth(teamVisibleColumns.value))
 const playerTableWidth = computed(() => tableWidth(playerVisibleColumns.value))
+const combinationTableWidth = computed(() => tableWidth(combinationVisibleColumns.value))
 
 const latestCollectedAt = computed(() => {
   const timestamps = selectedStageDetails.value
@@ -215,7 +247,7 @@ const latestCollectedAt = computed(() => {
 })
 
 const latestUpdatedAt = computed(() => {
-  if (activeView.value === 'team' || activeView.value === 'player') return latestCollectedAt.value
+  if (activeView.value === 'team' || activeView.value === 'player' || activeView.value === 'combo') return latestCollectedAt.value
   const timestamps = (result.value?.items ?? [])
     .map((item) => item.sourceUpdatedAt)
     .filter(Boolean) as string[]
@@ -225,7 +257,8 @@ const latestUpdatedAt = computed(() => {
 const currentDataVersion = computed(() => {
   if (activeView.value === 'champion') return result.value?.dataVersion
   if (activeView.value === 'team') return teamResult.value?.dataVersion
-  return playerResult.value?.dataVersion
+  if (activeView.value === 'player') return playerResult.value?.dataVersion
+  return combinationResult.value?.dataVersion
 })
 
 function isValidMinimum(value: number): boolean {
@@ -234,8 +267,10 @@ function isValidMinimum(value: number): boolean {
 
 const minimumPickCountValid = computed(() => isValidMinimum(minimumPickCount.value))
 const minimumMatchCountValid = computed(() => isValidMinimum(minimumMatchCount.value))
+const minimumCombinationPickCountValid = computed(() => isValidMinimum(minimumCombinationPickCount.value))
 const activeMinimumValid = computed(() =>
-  activeView.value === 'champion' ? minimumPickCountValid.value : minimumMatchCountValid.value,
+  activeView.value === 'champion' ? minimumPickCountValid.value
+    : activeView.value === 'combo' ? minimumCombinationPickCountValid.value : minimumMatchCountValid.value,
 )
 
 const canQuery = computed(() => {
@@ -246,6 +281,7 @@ const canQuery = computed(() => {
 type ExportItem = ChampionStatisticsResult['items'][number]
   | TeamStatisticsResult['items'][number]
   | PlayerStatisticsResult['items'][number]
+  | TeamCombinationStatisticsResult['items'][number]
 
 const PERCENTAGE_EXPORT_FIELDS = new Set([
   'pickRate', 'banRate', 'bpRate', 'winningRate',
@@ -265,20 +301,30 @@ function exportValue(view: ActiveView, key: string, item: ExportItem): string | 
     if (key === 'team') return team.teamName
     return team[key as keyof typeof team] as string | number
   }
-  const player = item as PlayerStatisticsResult['items'][number]
-  if (key === 'player') return player.playerName
-  if (key === 'positions') return player.positions.join(' / ')
-  return player[key as keyof typeof player] as string | number
+  if (view === 'player') {
+    const player = item as PlayerStatisticsResult['items'][number]
+    if (key === 'player') return player.playerName
+    if (key === 'positions') return player.positions.join(' / ')
+    return player[key as keyof typeof player] as string | number
+  }
+  const combination = item as TeamCombinationStatisticsResult['items'][number]
+  if (key === 'team') return combination.teamName
+  if (key === 'firstChampion') return combination.firstChampionName
+  if (key === 'secondChampion') return combination.secondChampionName
+  return combination[key as keyof typeof combination] as string | number
 }
 
 async function exportExcel() {
   if (exporting.value) return
   const view = activeView.value
   const source = view === 'champion' ? filteredChampionItems.value
-    : view === 'team' ? filteredTeamItems.value : filteredPlayerItems.value
-  const definitions = view === 'champion' ? CHAMPION_COLUMNS : view === 'team' ? TEAM_COLUMNS : PLAYER_COLUMNS
+    : view === 'team' ? filteredTeamItems.value
+      : view === 'player' ? filteredPlayerItems.value : filteredCombinationItems.value
+  const definitions = view === 'champion' ? CHAMPION_COLUMNS
+    : view === 'team' ? TEAM_COLUMNS : view === 'player' ? PLAYER_COLUMNS : COMBINATION_COLUMNS
   const visible = view === 'champion' ? championVisibleColumns.value
-    : view === 'team' ? teamVisibleColumns.value : playerVisibleColumns.value
+    : view === 'team' ? teamVisibleColumns.value
+      : view === 'player' ? playerVisibleColumns.value : combinationVisibleColumns.value
   const columns = definitions.filter((column) => visible.includes(column.key))
   if (!source.length || !columns.length) return
 
@@ -287,7 +333,8 @@ async function exportExcel() {
   try {
     const { Workbook } = await import('exceljs')
     const workbook = new Workbook()
-    const sheetName = view === 'champion' ? '英雄统计' : view === 'team' ? '战队统计' : '选手统计'
+    const sheetName = view === 'champion' ? '英雄统计'
+      : view === 'team' ? '战队统计' : view === 'player' ? '选手统计' : '英雄组合统计'
     const worksheet = workbook.addWorksheet(sheetName)
     worksheet.columns = columns.map((column) => ({
       header: column.label,
@@ -332,12 +379,14 @@ function clearStatisticsResults() {
   result.value = null
   teamResult.value = null
   playerResult.value = null
+  combinationResult.value = null
 }
 
 function clearActiveResult(view: ActiveView) {
   if (view === 'champion') result.value = null
   else if (view === 'team') teamResult.value = null
-  else playerResult.value = null
+  else if (view === 'player') playerResult.value = null
+  else combinationResult.value = null
 }
 
 function invalidateQueryResults() {
@@ -351,12 +400,13 @@ function invalidateQueryResults() {
 }
 
 watch(
-  [minimumPickCount, minimumMatchCount, positionFilter, playerPositionFilter],
+  [minimumPickCount, minimumMatchCount, minimumCombinationPickCount,
+    positionFilter, playerPositionFilter, combinationType],
   invalidateQueryResults,
   { flush: 'sync' },
 )
 
-watch([search, teamSearch, playerSearch], () => {
+watch([search, teamSearch, playerSearch, combinationSearch], () => {
   currentPage.value = 1
 }, { flush: 'sync' })
 
@@ -442,7 +492,7 @@ async function query(preserveCurrentResult = false) {
     } else if (view === 'team') {
       const data = await api.teamStatisticsByKeys(keys, selectedMinimumMatchCount, teamSortBy.value, teamSortDirection.value)
       if (seq === querySeq && activeView.value === view) teamResult.value = data
-    } else {
+    } else if (view === 'player') {
       const data = await api.playerStatisticsByKeys(
         keys,
         selectedMinimumMatchCount,
@@ -451,6 +501,15 @@ async function query(preserveCurrentResult = false) {
         playerSortDirection.value,
       )
       if (seq === querySeq && activeView.value === view) playerResult.value = data
+    } else {
+      const data = await api.teamCombinationStatisticsByKeys(
+        keys,
+        combinationType.value,
+        minimumCombinationPickCount.value,
+        combinationSortBy.value,
+        combinationSortDirection.value,
+      )
+      if (seq === querySeq && activeView.value === view) combinationResult.value = data
     }
     if (seq === querySeq) notice.value = '查询完成'
   } catch (reason) {
@@ -474,11 +533,18 @@ function changeSort(view: ActiveView, field: string) {
       teamSortBy.value = field
       teamSortDirection.value = 'desc'
     }
-  } else {
+  } else if (view === 'player') {
     if (playerSortBy.value === field) playerSortDirection.value = playerSortDirection.value === 'desc' ? 'asc' : 'desc'
     else {
       playerSortBy.value = field
       playerSortDirection.value = 'desc'
+    }
+  } else {
+    if (combinationSortBy.value === field) {
+      combinationSortDirection.value = combinationSortDirection.value === 'desc' ? 'asc' : 'desc'
+    } else {
+      combinationSortBy.value = field
+      combinationSortDirection.value = 'desc'
     }
   }
   sorting.value = true
@@ -597,6 +663,13 @@ onMounted(async () => {
       >
         选手统计
       </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeView === 'combo' }"
+        @click="switchView('combo')"
+      >
+        英雄组合
+      </button>
     </nav>
 
     <section class="panel controls">
@@ -613,6 +686,11 @@ onMounted(async () => {
         <label for="minimum">最低出场次数</label>
         <input id="minimum" v-model.number="minimumPickCount" type="number" min="0" max="10000" step="1" />
         <small v-if="!minimumPickCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
+      </div>
+      <div v-else-if="activeView === 'combo'" class="field compact">
+        <label for="minimumCombination">最低组合选取次数</label>
+        <input id="minimumCombination" v-model.number="minimumCombinationPickCount" type="number" min="0" max="10000" step="1" />
+        <small v-if="!minimumCombinationPickCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
       <div v-else class="field compact">
         <label for="minimumMatch">最低比赛场数</label>
@@ -645,7 +723,7 @@ onMounted(async () => {
           </button>
         </div>
         <p v-else class="empty-inline">
-          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : '该赛季暂无赛段数据。' }}
+          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : activeView === 'combo' ? '该赛季暂无已采集单局阵容数据。' : '该赛季暂无赛段数据。' }}
         </p>
 
         <!-- 跨赛事选择篮 -->
@@ -978,6 +1056,102 @@ onMounted(async () => {
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
         :total-items="filteredPlayerItems.length"
+      />
+    </section>
+
+    <!-- 战队英雄组合面板 -->
+    <section v-if="activeView === 'combo'" class="panel table-panel">
+      <div class="table-toolbar">
+        <div>
+          <p class="eyebrow">TEAM COMBINATIONS</p>
+          <h2>战队英雄组合</h2>
+        </div>
+        <div class="toolbar-right">
+          <div class="toolbar-options-row">
+            <div class="position-filter" aria-label="组合类型">
+              <button
+                class="pos-chip"
+                :class="{ active: combinationType === 'MID_JUNGLE' }"
+                :aria-pressed="combinationType === 'MID_JUNGLE'"
+                @click="combinationType = 'MID_JUNGLE'"
+              >中野组合</button>
+              <button
+                class="pos-chip"
+                :class="{ active: combinationType === 'BOT_SUPPORT' }"
+                :aria-pressed="combinationType === 'BOT_SUPPORT'"
+                @click="combinationType = 'BOT_SUPPORT'"
+              >AD 辅助组合</button>
+            </div>
+            <ColumnVisibilityMenu v-model="combinationVisibleColumns" :columns="COMBINATION_COLUMNS" />
+            <button class="export-button" type="button" :disabled="exporting || !filteredCombinationItems.length" @click="exportExcel">
+              {{ exporting ? '导出中…' : '导出 Excel' }}
+            </button>
+          </div>
+          <div class="search-wrap">
+            <input v-model="combinationSearch" type="search" placeholder="搜索战队或英雄" />
+            <span>{{ filteredCombinationItems.length }} 项</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="position-note">
+        每条记录只统计同一战队、同一系列赛且同一小局内的实际英雄组合；选取率以该战队在所选范围内阵容完整的有效小局数为分母。
+      </p>
+
+      <div v-if="filteredCombinationItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="战队英雄组合统计表，可横向和纵向滚动">
+        <table class="combo-table" :style="{ width: combinationTableWidth }">
+          <thead>
+            <tr>
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'team')" label="战队" field="teamName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'firstChampion')" :label="combinationType === 'MID_JUNGLE' ? '打野英雄' : 'AD 英雄'" field="firstChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'secondChampion')" :label="combinationType === 'MID_JUNGLE' ? '中单英雄' : '辅助英雄'" field="secondChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'pickCount')" label="选取次数" field="pickCount" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'validGameCount')" label="有效小局" field="validGameCount" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'pickRate')" label="选取率" field="pickRate" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'winningCount')" label="获胜次数" field="winningCount" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'winningRate')" label="组合胜率" field="winningRate" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in paginatedCombinationItems" :key="`${item.teamId}:${item.combinationType}:${item.firstChampionId}:${item.secondChampionId}`">
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'team')">
+                <div class="team-cell">
+                  <img v-if="item.teamLogo" :src="item.teamLogo" :alt="item.teamName" class="team-logo" />
+                  <span v-else class="team-placeholder">{{ item.teamName.slice(0, 1) }}</span>
+                  <strong>{{ item.teamName }}</strong>
+                </div>
+              </td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'firstChampion')">
+                <div class="combination-champion-cell">
+                  <img v-if="item.firstChampionLogo" :src="item.firstChampionLogo" :alt="item.firstChampionName" />
+                  <span><strong>{{ item.firstChampionName }}</strong><small>{{ item.firstChampionTitle }}</small></span>
+                </div>
+              </td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'secondChampion')">
+                <div class="combination-champion-cell">
+                  <img v-if="item.secondChampionLogo" :src="item.secondChampionLogo" :alt="item.secondChampionName" />
+                  <span><strong>{{ item.secondChampionName }}</strong><small>{{ item.secondChampionTitle }}</small></span>
+                </div>
+              </td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'pickCount')">{{ item.pickCount }}</td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'validGameCount')">{{ item.validGameCount }}</td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'pickRate')" class="accent">{{ percent(item.pickRate) }}</td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'winningCount')">{{ item.winningCount }}</td>
+              <td v-if="isColumnVisible(combinationVisibleColumns, 'winningRate')" class="accent">{{ percent(item.winningRate) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="empty-state">
+        <strong v-if="selectedStageKeys.size === 0">选择赛段后点击查询</strong>
+        <strong v-else-if="!combinationResult">所选赛段尚未生成单局阵容，请先重新采集英雄数据</strong>
+        <strong v-else>没有达到最低选取次数的组合</strong>
+      </div>
+      <PaginationControls
+        v-if="filteredCombinationItems.length"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total-items="filteredCombinationItems.length"
       />
     </section>
   </main>

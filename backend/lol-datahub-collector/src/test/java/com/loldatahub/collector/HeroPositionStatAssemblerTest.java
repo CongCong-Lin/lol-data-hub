@@ -60,6 +60,14 @@ class HeroPositionStatAssemblerTest {
 
         HeroPositionStatAssembler.Result result = HeroPositionStatAssembler.assemble(stage, players, payloads);
 
+        assertThat(result.teamGameLineups()).hasSize(4);
+        assertThat(result.teamGameLineups()).allSatisfy(lineup -> {
+            assertThat(lineup.jungleChampionId()).isPositive();
+            assertThat(lineup.midChampionId()).isPositive();
+            assertThat(lineup.botChampionId()).isPositive();
+            assertThat(lineup.supportChampionId()).isPositive();
+        });
+
         assertThat(result.positionsByChampion().get(50L)).containsExactly("TOP", "MID");
         assertThat(result.rows()).filteredOn(row -> row.championId() == 50L)
                 .extracting(HeroPositionStatAssembler.PositionPlayerAggregate::position)
@@ -134,6 +142,46 @@ class HeroPositionStatAssemblerTest {
         assertThat(result.rows()).filteredOn(row -> row.championId() == 202L)
                 .singleElement()
                 .satisfies(row -> assertThat(row.playerId()).isEqualTo(2L));
+    }
+
+    @Test
+    void matchDetailReplacesWrongHistoricalIdWhenHeroNameAndTeamsAgree() {
+        List<PlayerStatSourceRecord> players = new ArrayList<>();
+        List<PlayerHeroRecordPayload> payloads = new ArrayList<>();
+        List<MatchPlayerGameSourceRecord> details = new ArrayList<>();
+        List<HeroRecordSourceRecord> expected = new ArrayList<>();
+        for (long playerId = 1; playerId <= 10; playerId++) {
+            String position = POSITIONS.get((int) ((playerId - 1) % 5));
+            long teamId = playerId <= 5 ? 1 : 2;
+            PlayerStatSourceRecord player = mock(PlayerStatSourceRecord.class);
+            when(player.playerId()).thenReturn(playerId);
+            when(player.playerName()).thenReturn("Player" + playerId);
+            players.add(player);
+
+            HeroRecordSourceRecord canonical = new HeroRecordSourceRecord(
+                    playerId, "Hero" + playerId, null, 9000, 1, position, true,
+                    1, 0, 2, teamId, 1);
+            expected.add(canonical);
+            HeroRecordSourceRecord historical = playerId == 1
+                    ? new HeroRecordSourceRecord(
+                            999, "Hero1", null, 9000, 1, "", true,
+                            99, 9, 99, teamId, 1)
+                    : canonical;
+            payloads.add(new PlayerHeroRecordPayload(playerId, List.of(historical)));
+            details.add(new MatchPlayerGameSourceRecord(
+                    9000, 1, playerId, position, playerId, "Hero" + playerId, null,
+                    teamId, 1, 1, 0, 2));
+        }
+
+        HeroStagePayload stage = new HeroStagePayload(
+                1, null, new ObjectMapper().createArrayNode(), buildOfficialTotals(expected));
+
+        HeroPositionStatAssembler.Result result = HeroPositionStatAssembler.assemble(
+                stage, players, payloads, details);
+
+        assertThat(result.teamGameLineups()).hasSize(2);
+        assertThat(result.teamGameLineups().getFirst().topChampionId()).isEqualTo(1L);
+        assertThat(result.rows()).noneMatch(row -> row.championId() == 999L);
     }
 
     private List<HeroStatSourceRecord> buildOfficialTotals(List<HeroRecordSourceRecord> records) {

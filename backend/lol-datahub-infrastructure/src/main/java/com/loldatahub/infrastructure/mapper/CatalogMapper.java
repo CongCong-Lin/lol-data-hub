@@ -93,6 +93,28 @@ public interface CatalogMapper {
             """)
     List<StageAvailabilityRow> findPlayerStageAvailability(@Param("seasonId") long seasonId);
 
+    @Select("""
+            SELECT s.source_season_id AS sourceSeasonId,
+                   s.source_stage_id AS sourceStageId,
+                   s.name,
+                   s.start_time AS startTime,
+                   s.end_time AS endTime,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM team_game_lineup_current l
+                        WHERE l.source_season_id = s.source_season_id
+                          AND l.source_stage_id = s.source_stage_id
+                   ) THEN TRUE ELSE FALSE END AS collected,
+                   ss.sample_base_count AS sampleBaseCount,
+                   ss.collected_at AS collectedAt
+              FROM stage s
+              LEFT JOIN stage_stat_current ss
+                ON ss.source_season_id = s.source_season_id
+               AND ss.source_stage_id = s.source_stage_id
+             WHERE s.source_season_id = #{seasonId}
+             ORDER BY s.start_time, s.source_stage_id
+            """)
+    List<StageAvailabilityRow> findCombinationStageAvailability(@Param("seasonId") long seasonId);
+
     // ── 跨赛事目录可用性（全部赛季） ─────────────────────────────
 
     @Select("""
@@ -177,5 +199,38 @@ public interface CatalogMapper {
             </script>
             """)
     List<CrossSeasonStageAvailabilityRow> findAllPlayerStageAvailability(
+            @Param("collectedOnly") boolean collectedOnly);
+
+    @Select("""
+            <script>
+            SELECT s.source_season_id AS sourceSeasonId,
+                   s.source_stage_id AS sourceStageId,
+                   se.name AS seasonName,
+                   s.name,
+                   s.start_time AS startTime,
+                   s.end_time AS endTime,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM team_game_lineup_current l
+                        WHERE l.source_season_id = s.source_season_id
+                          AND l.source_stage_id = s.source_stage_id
+                   ) THEN TRUE ELSE FALSE END AS collected,
+                   ss.sample_base_count AS sampleBaseCount,
+                   ss.collected_at AS collectedAt
+              FROM stage s
+              JOIN season se ON se.source_season_id = s.source_season_id
+              LEFT JOIN stage_stat_current ss
+                ON ss.source_season_id = s.source_season_id
+               AND ss.source_stage_id = s.source_stage_id
+            <if test="collectedOnly">
+             WHERE EXISTS (
+                 SELECT 1 FROM team_game_lineup_current l
+                  WHERE l.source_season_id = s.source_season_id
+                    AND l.source_stage_id = s.source_stage_id
+             )
+            </if>
+             ORDER BY se.start_time DESC, se.source_season_id DESC, s.start_time, s.source_stage_id
+            </script>
+            """)
+    List<CrossSeasonStageAvailabilityRow> findAllCombinationStageAvailability(
             @Param("collectedOnly") boolean collectedOnly);
 }

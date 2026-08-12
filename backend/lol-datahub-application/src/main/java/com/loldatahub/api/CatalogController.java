@@ -40,6 +40,7 @@ public class CatalogController {
             case "HERO" -> catalogMapper.findHeroStageAvailability(seasonId);
             case "TEAM" -> catalogMapper.findTeamStageAvailability(seasonId);
             case "PLAYER" -> catalogMapper.findPlayerStageAvailability(seasonId);
+            case "COMBO" -> catalogMapper.findCombinationStageAvailability(seasonId);
             default -> throw new IllegalArgumentException("不支持的统计类型：" + statisticType);
         };
         return ApiResponse.success(rows.stream()
@@ -61,6 +62,7 @@ public class CatalogController {
             case "HERO" -> catalogMapper.findAllHeroStageAvailability(collectedOnly);
             case "TEAM" -> catalogMapper.findAllTeamStageAvailability(collectedOnly);
             case "PLAYER" -> catalogMapper.findAllPlayerStageAvailability(collectedOnly);
+            case "COMBO" -> catalogMapper.findAllCombinationStageAvailability(collectedOnly);
             default -> throw new IllegalArgumentException("不支持的统计类型：" + statisticType);
         };
         return ApiResponse.success(orderAndFilter(

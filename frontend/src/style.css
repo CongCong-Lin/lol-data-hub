@@ -174,7 +174,7 @@ h2 { margin: 0; color: #111827; font-size: 21px; font-weight: 700; }
 .table-scroll.is-updating table { pointer-events: none; }
 .table-scroll:focus-visible { box-shadow: inset 0 0 0 2px #91c7a8; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
-.champion-table, .team-table, .player-table {
+.champion-table, .team-table, .player-table, .combo-table {
   min-width: 100%; table-layout: fixed;
 }
 th {
@@ -227,8 +227,8 @@ tbody tr:hover { background: #fafcfb; }
 .empty-state { display: grid; place-items: center; min-height: 240px; padding: 40px; text-align: center; color: var(--muted); }
 .empty-state strong { color: #374151; font-size: 18px; }
 .empty-state p { max-width: 520px; line-height: 1.7; }
-.champion-table th, .champion-table td, .team-table th, .team-table td, .player-table th, .player-table td { white-space: nowrap; }
-.champion-table th, .team-table th, .player-table th { font-size: 11px; }
+.champion-table th, .champion-table td, .team-table th, .team-table td, .player-table th, .player-table td, .combo-table th, .combo-table td { white-space: nowrap; }
+.champion-table th, .team-table th, .player-table th, .combo-table th { font-size: 11px; }
 
 .team-cell { display: flex; align-items: center; gap: 9px; min-width: 140px; }
 .team-logo, .team-placeholder { width: 30px; height: 30px; border-radius: 4px; object-fit: contain; background: #edf0f2; }
@@ -242,6 +242,11 @@ tbody tr:hover { background: #fafcfb; }
 .player-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 13px; }
 .player-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-cell small { display: block; margin-top: 1px; overflow: hidden; color: #8b949e; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.combination-champion-cell { display: flex; align-items: center; gap: 8px; min-width: 160px; }
+.combination-champion-cell img { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%; object-fit: cover; background: #edf0f2; }
+.combination-champion-cell span { min-width: 0; }
+.combination-champion-cell strong, .combination-champion-cell small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combination-champion-cell small { margin-top: 1px; color: #8b949e; font-size: 11px; }
 
 .pagination {
   display: flex; align-items: center; justify-content: space-between; gap: 18px;

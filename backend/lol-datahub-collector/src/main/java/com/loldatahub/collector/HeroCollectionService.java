@@ -8,6 +8,7 @@ import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.ChampionPositionPlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionStageStatWrite;
 import com.loldatahub.infrastructure.model.ChampionWrite;
+import com.loldatahub.infrastructure.model.TeamGameLineupWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -32,7 +33,7 @@ import java.util.TreeSet;
 
 @Service
 public class HeroCollectionService {
-    private static final String CONTENT_SCHEMA_VERSION = "hero-position-v3-exact-match-recovery";
+    private static final String CONTENT_SCHEMA_VERSION = "hero-position-v4-team-game-lineups";
 
     private final TjStatsClient client;
     private final TjStatsResponseParser parser;
@@ -155,7 +156,8 @@ public class HeroCollectionService {
 
             int changedRecords = changedStages.stream()
                     .mapToInt(candidate -> 1 + candidate.payload().heroes().size()
-                            + candidate.positionData().rows().size())
+                            + candidate.positionData().rows().size()
+                            + candidate.positionData().teamGameLineups().size())
                     .sum();
             Integer committedRecords = transactionTemplate.execute(status -> {
                 for (HeroStageCandidate candidate : changedStages) {
@@ -167,6 +169,7 @@ public class HeroCollectionService {
                             candidate.collectedAt(), runId
                     );
                     writeMapper.deletePositionCurrentForStage(seasonId, stageId);
+                    writeMapper.deleteLineupCurrentForStage(seasonId, stageId);
                     writeMapper.deleteCurrentForStage(seasonId, stageId);
                     for (var hero : payload.heroes()) {
                         String chineseName = hero.heroCnName() == null || hero.heroCnName().isBlank()
@@ -200,6 +203,16 @@ public class HeroCollectionService {
                                 );
                         writeMapper.upsertPositionCurrent(stat);
                         writeMapper.insertPositionSnapshot(stat);
+                    }
+                    for (HeroPositionStatAssembler.TeamGameLineup row
+                            : candidate.positionData().teamGameLineups()) {
+                        TeamGameLineupWrite lineup = new TeamGameLineupWrite(
+                                runId, seasonId, stageId, row.matchId(), row.gameNumber(), row.teamId(), row.won(),
+                                row.topChampionId(), row.jungleChampionId(), row.midChampionId(),
+                                row.botChampionId(), row.supportChampionId(), candidate.collectedAt()
+                        );
+                        writeMapper.upsertTeamGameLineup(lineup);
+                        writeMapper.insertTeamGameLineupSnapshot(lineup);
                     }
                 }
                 systemStateMapper.incrementDataVersion();

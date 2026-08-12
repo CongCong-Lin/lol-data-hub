@@ -9,6 +9,7 @@
 - **HERO（英雄统计）**：Pick/Ban 次数、胜率、KDA，支持跨赛段累计重算和按实际登场分路独立统计。
 - **TEAM（战队统计）**：战队胜场、比赛场次、胜率等指标，支持跨赛段汇总。
 - **PLAYER（选手统计）**：选手 KDA、场均数据等指标，支持按位置筛选。
+- **COMBO（英雄组合）**：按同一战队、同一小局统计中野与 AD/辅助英雄组合，支持跨赛事汇总、最低选取次数过滤、选取率和组合胜率。
 
 ### 核心特性
 
@@ -179,6 +180,7 @@ npm run build
 | GET | `/api/v1/statistics/champions?stageKeys=237:102,239:28&minimumPickCount=10&position=TOP&sortBy=bpRate&sortDirection=desc` | 英雄统计查询（跨赛事；可按实际登场分路筛选） |
 | GET | `/api/v1/statistics/teams?stageKeys=237:102,239:28&minimumMatchCount=5` | 战队统计查询（跨赛事） |
 | GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=5` | 选手统计查询（跨赛事） |
+| GET | `/api/v1/statistics/team-combinations?stageKeys=237:102,239:28&combinationType=MID_JUNGLE&minimumPickCount=3` | 战队英雄组合查询（`MID_JUNGLE` 或 `BOT_SUPPORT`） |
 
 > **跨赛事查询说明**：`stageKeys` 参数使用 `seasonId:stageId` 复合键格式，多个用逗号分隔。旧参数 `seasonId` + `stageIds` 仍向后兼容，但推荐使用 `stageKeys` 以支持跨赛事选择。
 
@@ -198,6 +200,7 @@ npm run build
 - `minimumPickCount` / `minimumMatchCount`：最低出场次数过滤阈值。
 - 英雄查询的 `position` 可选值为 `TOP/JUN/MID/BOT/SUP`。出场、胜负与 KDA 会按实际分路独立聚合；禁用发生时没有实际分路，因此禁用数、禁用率使用所选赛段的英雄整体数据，分路 BP 率按“该分路出场率 + 整体禁用率”计算。
 - 英雄采集会在聚合接口之外逐名选手读取 `/compound/heroRecord`；当历史记录缺少分路、英雄或选手行时，还会读取 `/compound/matchDetail` 进行严格补全，并校验每局两队五路与聚合总数，因此耗时会明显长于战队/选手聚合采集。
+- 英雄组合的事实数据随英雄采集一起发布。升级到 V12 后需对既有赛段重新执行英雄采集，才能生成单局阵容；组合选取率的分母是该战队在所选范围内阵容完整的有效小局数，组合胜率为该组合获胜小局数除以组合选取次数。
 - `sortBy`：排序字段（如 `bpRate`、`winningRate`、`kda`）。
 - `sortDirection`：排序方向，`asc` 或 `desc`。
 

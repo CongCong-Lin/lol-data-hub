@@ -12,7 +12,9 @@ export interface Season {
   open: boolean
 }
 
-export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER'
+export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER' | 'COMBO'
+
+export type TeamCombinationType = 'MID_JUNGLE' | 'BOT_SUPPORT'
 
 export interface Stage {
   sourceSeasonId: number
@@ -121,6 +123,37 @@ export interface PlayerStatisticsResult {
   minimumMatchCount: number
   total: number
   items: PlayerStatistics[]
+}
+
+export interface TeamCombinationStatistics {
+  teamId: number
+  teamName: string
+  teamLogo: string | null
+  combinationType: TeamCombinationType
+  firstPosition: string
+  firstChampionId: number
+  firstChampionName: string
+  firstChampionTitle: string | null
+  firstChampionLogo: string | null
+  secondPosition: string
+  secondChampionId: number
+  secondChampionName: string
+  secondChampionTitle: string | null
+  secondChampionLogo: string | null
+  pickCount: number
+  validGameCount: number
+  pickRate: number
+  winningCount: number
+  winningRate: number
+  sampleQualified: boolean
+}
+
+export interface TeamCombinationStatisticsResult {
+  dataVersion: number
+  combinationType: TeamCombinationType
+  minimumPickCount: number
+  total: number
+  items: TeamCombinationStatistics[]
 }
 
 const REQUEST_TIMEOUT_MS = 12_000
@@ -270,5 +303,21 @@ export const api = {
     }
     if (position) params.position = position
     return request<PlayerStatisticsResult>(`/api/v1/statistics/players?${new URLSearchParams(params)}`)
+  },
+  teamCombinationStatisticsByKeys: (
+    stageKeys: string[],
+    combinationType: TeamCombinationType,
+    minimumPickCount: number,
+    sortBy: string,
+    sortDirection: string,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      combinationType,
+      minimumPickCount: String(minimumPickCount),
+      sortBy,
+      sortDirection,
+    })
+    return request<TeamCombinationStatisticsResult>(`/api/v1/statistics/team-combinations?${params}`)
   },
 }
