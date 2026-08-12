@@ -141,6 +141,14 @@ async function selectFirstStage(wrapper: ReturnType<typeof mount>) {
 }
 
 describe('查询状态', () => {
+  it('显示精简后的页面主标题', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.get('h1').text()).toBe('赛事数据')
+    wrapper.unmount()
+  })
+
   it('首次进入时不自动选择任何赛段', async () => {
     const wrapper = mount(App)
     await flushPromises()

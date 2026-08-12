@@ -565,7 +565,7 @@ onMounted(async () => {
     <header class="hero">
       <div>
         <p class="eyebrow">LOL DATA HUB</p>
-        <h1>赛事数据，<span class="title-tail">不止看一个赛段</span></h1>
+        <h1>赛事数据</h1>
       </div>
       <div class="status-card">
         <span>数据版本</span>
