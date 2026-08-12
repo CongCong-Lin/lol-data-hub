@@ -175,7 +175,7 @@ h2 { margin: 0; color: #111827; font-size: 21px; font-weight: 700; }
 .table-scroll:focus-visible { box-shadow: inset 0 0 0 2px #91c7a8; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
 .champion-table, .team-table, .player-table {
-  width: max-content; min-width: 100%; table-layout: fixed;
+  min-width: 100%; table-layout: fixed;
 }
 th {
   padding: 11px 14px; color: #374151; background: #f8f9fa;

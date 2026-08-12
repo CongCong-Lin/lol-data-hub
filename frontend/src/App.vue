@@ -119,6 +119,19 @@ function isColumnVisible(visibleColumns: string[], key: string): boolean {
   return visibleColumns.includes(key)
 }
 
+const TABLE_COLUMN_WIDTHS: Record<string, number> = {
+  champion: 169,
+  player: 169,
+  team: 150,
+  positions: 124,
+  mostUsedPlayers: 154,
+}
+
+function tableWidth(visibleColumns: string[]): string {
+  const pixels = visibleColumns.reduce((sum, key) => sum + (TABLE_COLUMN_WIDTHS[key] ?? 88), 0)
+  return `${pixels}px`
+}
+
 /* ---- computed ---- */
 
 const sortedSeasons = computed(() =>
@@ -190,6 +203,9 @@ function paginate<T>(items: T[]): T[] {
 const paginatedChampionItems = computed(() => paginate(filteredChampionItems.value))
 const paginatedTeamItems = computed(() => paginate(filteredTeamItems.value))
 const paginatedPlayerItems = computed(() => paginate(filteredPlayerItems.value))
+const championTableWidth = computed(() => tableWidth(championVisibleColumns.value))
+const teamTableWidth = computed(() => tableWidth(teamVisibleColumns.value))
+const playerTableWidth = computed(() => tableWidth(playerVisibleColumns.value))
 
 const latestCollectedAt = computed(() => {
   const timestamps = selectedStageDetails.value
@@ -741,7 +757,7 @@ onMounted(async () => {
         </p>
 
       <div v-if="filteredChampionItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="英雄统计表，可横向和纵向滚动">
-        <table class="champion-table">
+        <table class="champion-table" :style="{ width: championTableWidth }">
           <thead>
             <tr>
               <SortableHeader v-if="isColumnVisible(championVisibleColumns, 'champion')" class="champion-name-column" label="英雄" field="championName" :sort-by="sortBy" :sort-direction="championSortDirection" @sort="changeSort('champion', $event)" />
@@ -827,7 +843,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="filteredTeamItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="战队统计表，可横向和纵向滚动">
-        <table class="team-table">
+        <table class="team-table" :style="{ width: teamTableWidth }">
           <thead>
             <tr>
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'team')" label="战队" field="teamName" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
@@ -916,7 +932,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="filteredPlayerItems.length" class="table-scroll" :class="{ 'is-updating': sorting }" :aria-busy="sorting" tabindex="0" aria-label="选手统计表，可横向和纵向滚动">
-        <table class="player-table">
+        <table class="player-table" :style="{ width: playerTableWidth }">
           <thead>
             <tr>
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'player')" class="player-name-column" label="选手" field="playerName" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
