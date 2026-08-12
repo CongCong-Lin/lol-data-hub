@@ -171,10 +171,12 @@ h2 { margin: 0; color: #111827; font-size: 21px; font-weight: 700; }
 .export-button:hover:not(:disabled) { background: #28744f; }
 
 .table-scroll { max-height: min(62vh, 620px); overflow: auto; scrollbar-gutter: stable; outline: none; }
-.table-scroll table { transition: opacity .16s ease; }
-.table-scroll.is-updating table { opacity: .58; pointer-events: none; }
+.table-scroll.is-updating table { pointer-events: none; }
 .table-scroll:focus-visible { box-shadow: inset 0 0 0 2px #91c7a8; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
+.champion-table, .team-table, .player-table {
+  width: max-content; min-width: 100%; table-layout: fixed;
+}
 th {
   padding: 11px 14px; color: #374151; background: #f8f9fa;
   font-size: 12px; font-weight: 700; text-align: left; letter-spacing: 0;
@@ -187,8 +189,21 @@ thead th { position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--
 }
 .sort-header:hover { color: var(--accent); background: #eef3f0; }
 .sort-header:focus-visible { outline: 2px solid #72b38e; outline-offset: 1px; }
-.sort-indicator { color: var(--accent); font-size: 9px; line-height: 1; }
-td { padding: 11px 14px; border-top: 1px solid var(--line); color: #374151; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sort-indicator {
+  display: inline-block; flex: 0 0 9px; width: 9px;
+  color: var(--accent); font-size: 9px; line-height: 1; opacity: 0;
+}
+.sort-indicator.is-active { opacity: 1; }
+.sortable-column { width: 88px; min-width: 88px; max-width: 88px; }
+.sortable-column[data-sort-field="championName"],
+.sortable-column[data-sort-field="playerName"] { width: 169px; min-width: 169px; max-width: 169px; }
+.sortable-column[data-sort-field="teamName"] { width: 150px; min-width: 150px; max-width: 150px; }
+.sortable-column[data-sort-field="positions"] { width: 124px; min-width: 124px; max-width: 124px; }
+.sortable-column[data-sort-field="mostUsedPlayers"] { width: 154px; min-width: 154px; max-width: 154px; }
+td {
+  padding: 11px 14px; overflow: hidden; border-top: 1px solid var(--line);
+  color: #374151; font-size: 13px; font-variant-numeric: tabular-nums; text-overflow: ellipsis;
+}
 tbody tr:hover { background: #fafcfb; }
 .champion-name-column { padding-right: 7px !important; }
 .champion-position-column { padding-left: 7px !important; }

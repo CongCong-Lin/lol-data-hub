@@ -17,11 +17,11 @@ function ariaSort(): 'ascending' | 'descending' | 'none' {
 </script>
 
 <template>
-  <th class="sortable-column" :aria-sort="ariaSort()">
+  <th class="sortable-column" :data-sort-field="field" :aria-sort="ariaSort()">
     <button type="button" class="sort-header" @click="$emit('sort', field)">
       <span>{{ label }}</span>
-      <span v-if="sortBy === field" class="sort-indicator" aria-hidden="true">
-        {{ sortDirection === 'desc' ? '▼' : '▲' }}
+      <span class="sort-indicator" :class="{ 'is-active': sortBy === field }" aria-hidden="true">
+        {{ sortBy === field && sortDirection === 'asc' ? '▲' : '▼' }}
       </span>
     </button>
   </th>

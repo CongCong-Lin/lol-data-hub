@@ -354,6 +354,9 @@ describe('查询状态', () => {
     const bpRateHeader = wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))
     expect(bpRateHeader).toBeDefined()
     expect(bpRateHeader!.text()).toContain('▼')
+    expect(wrapper.findAll('.champion-table .sort-indicator')).toHaveLength(17)
+    expect(wrapper.findAll('.champion-table .sort-indicator.is-active')).toHaveLength(1)
+    expect(wrapper.get('.champion-table [data-sort-field="bpRate"]').attributes('aria-sort')).toBe('descending')
 
     let resolveSortedResult!: (value: ChampionStatisticsResult) => void
     vi.mocked(api.championStatisticsByKeys).mockImplementationOnce(() => new Promise((resolve) => {
@@ -371,6 +374,7 @@ describe('查询状态', () => {
     )
     expect(wrapper.get('.table-scroll').attributes('aria-busy')).toBe('false')
     expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))!.text()).toContain('▲')
+    expect(wrapper.findAll('.champion-table .sort-indicator.is-active')).toHaveLength(1)
 
     const winningRateHeader = wrapper.findAll('.sort-header').find((button) => button.text().includes('胜率'))
     await winningRateHeader!.trigger('click')
