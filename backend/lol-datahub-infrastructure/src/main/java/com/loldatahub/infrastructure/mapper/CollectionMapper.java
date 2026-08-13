@@ -8,9 +8,42 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Mapper
 public interface CollectionMapper {
+    @Select("""
+            SELECT r.response_body
+            FROM source_raw_response r
+            JOIN (
+                SELECT JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.matchId')) AS match_id,
+                       MAX(id) AS latest_id
+                FROM source_raw_response
+                WHERE endpoint = '/compound/matchDetail'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.seasonId')) = CAST(#{seasonId} AS CHAR)
+                  AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.stageIds')) = CAST(#{stageId} AS CHAR)
+                GROUP BY JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.matchId'))
+            ) latest ON latest.latest_id = r.id
+            ORDER BY r.id
+            """)
+    List<String> findMatchDetailResponses(@Param("seasonId") long seasonId,
+                                          @Param("stageId") long stageId);
+
+    /** 返回指定赛段和选手最近一次保存的逐局英雄记录。 */
+    @Select("""
+            SELECT response_body
+            FROM source_raw_response
+            WHERE endpoint = '/compound/heroRecord'
+              AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.seasonId')) = CAST(#{seasonId} AS CHAR)
+              AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.stageIds')) = CAST(#{stageId} AS CHAR)
+              AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.playerId')) = CAST(#{playerId} AS CHAR)
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    String findPlayerHeroRecordResponse(@Param("seasonId") long seasonId,
+                                        @Param("stageId") long stageId,
+                                        @Param("playerId") long playerId);
+
     @Insert("""
             INSERT INTO collection_run (collection_type, source_season_id, requested_stage_ids, status, started_at)
             VALUES (#{type}, #{seasonId}, CAST(#{stageIdsJson} AS JSON), 'RUNNING', #{startedAt})

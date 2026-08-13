@@ -998,6 +998,35 @@ class TjStatsResponseParserTest {
         }
 
         @Test
+        void recomputesExactPlayerPercentagesFromTeamDenominators() {
+            String json = """
+                    {"success":true,"data":{"matchId":9984,"matchInfos":[{"bo":1,"teamInfos":[
+                      {"teamId":1,"kills":5,"golds":1000,"playerInfos":[
+                        {"playerId":1,"battleDetail":{"kills":2,"death":1,"assist":1},"damageDetail":{"heroDamage":25},"otherDetail":{"golds":250}},
+                        {"playerId":2,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.75},"otherDetail":{"golds":187.5}},
+                        {"playerId":3,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.75},"otherDetail":{"golds":187.5}},
+                        {"playerId":4,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.75},"otherDetail":{"golds":187.5}},
+                        {"playerId":5,"battleDetail":{"kills":0,"death":1,"assist":0},"damageDetail":{"heroDamage":18.75},"otherDetail":{"golds":187.5}}]},
+                      {"teamId":2,"kills":3,"golds":900,"playerInfos":[
+                        {"playerId":6,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                        {"playerId":7,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                        {"playerId":8,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                        {"playerId":9,"battleDetail":{"kills":0,"death":1,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                        {"playerId":10,"battleDetail":{"kills":0,"death":1,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}}]}
+                    ]}]}}
+                    """;
+
+            assertThat(parser.parseMatchPlayerMetrics(json, 9984))
+                    .filteredOn(row -> row.playerId() == 1L)
+                    .singleElement()
+                    .satisfies(row -> {
+                        assertThat(row.killParticipantPercent()).isEqualByComparingTo("0.6");
+                        assertThat(row.damagePercent()).isEqualByComparingTo("0.25");
+                        assertThat(row.goldPercent()).isEqualByComparingTo("0.25");
+                    });
+        }
+
+        @Test
         void skipsOfficialEmptyGamePlaceholderButKeepsCompleteGames() {
             String json = """
                     {"success":true,"data":{"matchId":12001,"matchInfos":[

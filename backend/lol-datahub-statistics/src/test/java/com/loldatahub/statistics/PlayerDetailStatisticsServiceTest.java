@@ -273,16 +273,16 @@ class PlayerDetailStatisticsServiceTest {
     }
 
     @Test
-    void truncatesRatioCoreMetricsToTwoPercentageDecimals() {
+    void formatsRatioCoreMetricsToTwoPercentageDecimals() {
         mockCohort(List.of(player(11L, "Bin", bd("4"), bd("3"), bd("1"),
                 bd("0.619999"), bd("0.256789"), bd("0.218999"))));
 
         PlayerDetailStatisticsResult result = service.query(
                 new PlayerDetailQuery(11L, STAGES, "TOP", 5));
 
-        assertThat(metric(result, "killParticipantPercent").formattedValue()).isEqualTo("61.99%");
-        assertThat(metric(result, "damagePercent").formattedValue()).isEqualTo("25.67%");
-        assertThat(metric(result, "goldPercent").formattedValue()).isEqualTo("21.89%");
+        assertThat(metric(result, "killParticipantPercent").formattedValue()).isEqualTo("62.00%");
+        assertThat(metric(result, "damagePercent").formattedValue()).isEqualTo("25.68%");
+        assertThat(metric(result, "goldPercent").formattedValue()).isEqualTo("21.90%");
     }
 
     @Test

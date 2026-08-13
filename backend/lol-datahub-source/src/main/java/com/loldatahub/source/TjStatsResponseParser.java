@@ -7,6 +7,7 @@ import com.loldatahub.source.model.HeroStagePayload;
 import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.HeroStatSourceRecord;
 import com.loldatahub.source.model.MatchPlayerGameSourceRecord;
+import com.loldatahub.source.model.MatchPlayerMetricSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import com.loldatahub.source.model.MatchPlayerPositionSourceRecord;
@@ -16,6 +17,7 @@ import com.loldatahub.source.model.StageSourceRecord;
 import com.loldatahub.source.model.TeamStatSourceRecord;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -361,6 +363,129 @@ public class TjStatsResponseParser {
         return List.copyOf(records);
     }
 
+    /**
+     * 从比赛详情逐局重算选手比例。
+     *
+     * 官网 /compound/public/player 返回的比例只有聚合后的低精度值；比赛详情同时包含
+     * 选手和战队的原始击杀、伤害、经济，因此这里按单局分子/分母计算，再由采集层按局数求平均。
+     */
+    public List<MatchPlayerMetricSourceRecord> parseMatchPlayerMetrics(String rawJson, long expectedMatchId) {
+        if (expectedMatchId <= 0) {
+            throw new IllegalArgumentException("期望比赛 ID 必须大于 0");
+        }
+        JsonNode data = validatedData(rawJson);
+        if (!data.isObject()) {
+            throw new TjStatsSourceException("MATCH_DETAIL: data 必须是对象");
+        }
+        JsonNode matchIdNode = data.get("matchId");
+        if (matchIdNode == null || !matchIdNode.isIntegralNumber()
+                || matchIdNode.longValue() != expectedMatchId) {
+            throw new TjStatsSourceException(
+                    "MATCH_DETAIL: 返回比赛 ID 与请求不一致，期望 " + expectedMatchId);
+        }
+        JsonNode matchInfos = data.get("matchInfos");
+        if (matchInfos == null || !matchInfos.isArray() || matchInfos.isEmpty()) {
+            throw new TjStatsSourceException("MATCH_DETAIL: matchInfos 必须是非空数组，matchId=" + expectedMatchId);
+        }
+
+        List<MatchPlayerMetricSourceRecord> records = new java.util.ArrayList<>();
+        Set<String> seenPlayers = new HashSet<>();
+        Set<Long> seenBos = new HashSet<>();
+        for (int gameIndex = 0; gameIndex < matchInfos.size(); gameIndex++) {
+            JsonNode game = matchInfos.get(gameIndex);
+            JsonNode boNode = game.get("bo");
+            if (boNode == null || !boNode.isIntegralNumber() || boNode.longValue() <= 0) {
+                throw new TjStatsSourceException("MATCH_DETAIL[" + gameIndex + "]: bo 必须大于 0");
+            }
+            long bo = boNode.longValue();
+            if (!seenBos.add(bo)) {
+                throw new TjStatsSourceException("MATCH_DETAIL: bo 重复，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            JsonNode teamInfos = game.get("teamInfos");
+            if (teamInfos == null || !teamInfos.isArray() || teamInfos.size() != 2) {
+                throw new TjStatsSourceException(
+                        "MATCH_DETAIL: 每局必须包含两支战队，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            if (isOfficialEmptyGamePlaceholder(teamInfos)) {
+                continue;
+            }
+
+            for (JsonNode team : teamInfos) {
+                JsonNode teamIdNode = team.get("teamId");
+                if (teamIdNode == null || !teamIdNode.isIntegralNumber() || teamIdNode.longValue() <= 0) {
+                    throw new TjStatsSourceException("MATCH_DETAIL: teamId 必须大于 0");
+                }
+                long teamId = teamIdNode.longValue();
+                long teamKills = requireNonNegativeIntegral(team, "kills", expectedMatchId, bo, teamId);
+                BigDecimal teamGold = requireNonNegativeDecimal(
+                        team, "golds", "MATCH_DETAIL[" + gameIndex + "]");
+                JsonNode playerInfos = team.get("playerInfos");
+                if (playerInfos == null || !playerInfos.isArray() || playerInfos.size() != 5) {
+                    throw new TjStatsSourceException(
+                            "MATCH_DETAIL: 每支战队每局必须包含 5 名选手，matchId=" + expectedMatchId + "，bo=" + bo);
+                }
+
+                BigDecimal teamDamage = BigDecimal.ZERO;
+                List<JsonNode> validPlayers = new java.util.ArrayList<>();
+                for (JsonNode player : playerInfos) {
+                    JsonNode playerIdNode = player.get("playerId");
+                    if (playerIdNode == null || !playerIdNode.isIntegralNumber() || playerIdNode.longValue() <= 0) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: playerId 必须大于 0");
+                    }
+                    JsonNode damageDetail = player.get("damageDetail");
+                    if (damageDetail == null || !damageDetail.isObject()) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: damageDetail 必须是对象");
+                    }
+                    BigDecimal heroDamage = requireNonNegativeDecimal(
+                            damageDetail, "heroDamage", "MATCH_DETAIL[" + gameIndex + "]");
+                    teamDamage = teamDamage.add(heroDamage);
+                    validPlayers.add(player);
+                }
+
+                for (JsonNode player : validPlayers) {
+                    long playerId = player.get("playerId").longValue();
+                    if (!seenPlayers.add(bo + ":" + playerId)) {
+                        throw new TjStatsSourceException(
+                                "MATCH_DETAIL: 同一比赛选手重复，matchId=" + expectedMatchId + "，playerId=" + playerId);
+                    }
+                    JsonNode battleDetail = player.get("battleDetail");
+                    JsonNode damageDetail = player.get("damageDetail");
+                    JsonNode otherDetail = player.get("otherDetail");
+                    if (battleDetail == null || !battleDetail.isObject()
+                            || otherDetail == null || !otherDetail.isObject()) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: 选手指标对象不完整");
+                    }
+                    long kills = requireNonNegativeIntegral(
+                            battleDetail, "kills", expectedMatchId, bo, playerId);
+                    long deaths = requireNonNegativeIntegral(
+                            battleDetail, "death", expectedMatchId, bo, playerId);
+                    long assists = requireNonNegativeIntegral(
+                            battleDetail, "assist", expectedMatchId, bo, playerId);
+                    BigDecimal heroDamage = requireNonNegativeDecimal(
+                            damageDetail, "heroDamage", "MATCH_DETAIL[" + gameIndex + "]");
+                    BigDecimal gold = requireNonNegativeDecimal(
+                            otherDetail, "golds", "MATCH_DETAIL[" + gameIndex + "]");
+                    BigDecimal killParticipant = teamKills > 0
+                            ? BigDecimal.valueOf(kills + assists)
+                            .divide(BigDecimal.valueOf(teamKills), MathContext.DECIMAL128)
+                            : null;
+                    BigDecimal damagePercent = teamDamage.signum() > 0
+                            ? heroDamage.divide(teamDamage, MathContext.DECIMAL128)
+                            : null;
+                    BigDecimal goldPercent = teamGold.signum() > 0
+                            ? gold.divide(teamGold, MathContext.DECIMAL128)
+                            : null;
+                    records.add(new MatchPlayerMetricSourceRecord(
+                            expectedMatchId, bo, playerId, teamId, kills, assists, deaths,
+                            teamKills, heroDamage, teamDamage, gold, teamGold,
+                            killParticipant, damagePercent, goldPercent
+                    ));
+                }
+            }
+        }
+        return List.copyOf(records);
+    }
+
     private static boolean isOfficialEmptyGamePlaceholder(JsonNode teamInfos) {
         for (JsonNode team : teamInfos) {
             JsonNode teamId = team.get("teamId");
@@ -385,6 +510,14 @@ public class TjStatsResponseParser {
                             + "，bo=" + bo + "，playerId=" + playerId);
         }
         return value.longValue();
+    }
+
+    private static BigDecimal requireNonNegativeDecimal(JsonNode parent, String field, String prefix) {
+        JsonNode value = parent.get(field);
+        if (value == null || value.isNull() || !value.isNumber() || value.decimalValue().signum() < 0) {
+            throw new TjStatsSourceException(prefix + ": " + field + " 必须是非负数字");
+        }
+        return value.decimalValue();
     }
 
     private static String normalizeMatchPosition(String value) {

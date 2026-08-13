@@ -5,6 +5,7 @@ import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatisticsMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.model.PlayerStageStatWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -78,6 +79,38 @@ class PlayerCollectionServiceTest {
     }
 
     @Test
+    void usesExactPercentagesFromMatchDetailsWhenCoverageIsComplete() {
+        String json = """
+                {"success":true,"data":[{"playerId":12345,"teamId":100,"playerName":"JackeyLove",
+                "teamName":"TES","matchCount":1,"boCount":1,"mvpCount":0,"mvpVotes":0,
+                "totalKills":2,"totalAssists":1,"totalDeath":1,"killParticipantPercent":0.60,
+                "damagePercent":0.25,"goldPercent":0.25}]}
+                """;
+        when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
+        when(collectionMapper.findPlayerHeroRecordResponse(1L, 100L, 12345L))
+                .thenReturn(exactHeroRecordJson());
+        when(collectionMapper.findMatchDetailResponses(1L, 100L))
+                .thenReturn(List.of(exactMatchDetailJson()
+                        .replace("\"playerId\":12345", "\"playerId\":11")));
+        when(client.fetchMatchDetail(9984L)).thenReturn(exactMatchDetailJson());
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+        executeTransactionsImmediately();
+
+        service.collect(1L, List.of(100L));
+
+        ArgumentCaptor<PlayerStageStatWrite> captor = ArgumentCaptor.forClass(PlayerStageStatWrite.class);
+        verify(writeMapper).upsertCurrent(captor.capture());
+        PlayerStageStatWrite stat = captor.getValue();
+        assertThat(stat.sourceKillParticipantPercent()).isEqualByComparingTo("0.4285714285714285714285714285714286");
+        assertThat(stat.sourceDamagePercent()).isEqualByComparingTo("0.26");
+        assertThat(stat.sourceGoldPercent()).isEqualByComparingTo("0.251");
+        verify(client).fetchMatchDetail(9984L);
+        verify(collectionMapper).insertRawResponse(
+                eq(42L), eq("/compound/matchDetail"), anyString(),
+                eq(exactMatchDetailJson()), anyString(), any());
+    }
+
+    @Test
     void parserOrBusinessValidationFailureDoesNotDeleteCurrentAndMarksRunFailed() {
         String invalidJson = """
                 {"success":true,"data":[{"playerId":12345,"playerName":"","matchCount":20,
@@ -102,7 +135,8 @@ class PlayerCollectionServiceTest {
         String json = validJson();
         when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
         when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(
-                sha256(PlayerCollectionService.CONTENT_SCHEMA_VERSION + "\n" + json));
+                sha256(PlayerCollectionService.CONTENT_SCHEMA_VERSION + "\n"
+                        + hashMaterial("/compound/public/player", json)));
 
         CollectionResult result = service.collect(1L, List.of(100L));
 
@@ -174,6 +208,35 @@ class PlayerCollectionServiceTest {
                 """;
     }
 
+    private static String exactMatchDetailJson() {
+        return """
+                {"success":true,"data":{"matchId":9984,"matchInfos":[{"bo":1,"teamInfos":[
+                  {"teamId":100,"kills":7,"golds":1000,"playerInfos":[
+                    {"playerId":12345,"battleDetail":{"kills":2,"death":1,"assist":1},"damageDetail":{"heroDamage":26},"otherDetail":{"golds":251}},
+                    {"playerId":2,"battleDetail":{"kills":2,"death":1,"assist":0},"damageDetail":{"heroDamage":18.5},"otherDetail":{"golds":187.25}},
+                    {"playerId":3,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.5},"otherDetail":{"golds":187.25}},
+                    {"playerId":4,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.5},"otherDetail":{"golds":187.25}},
+                    {"playerId":5,"battleDetail":{"kills":1,"death":1,"assist":0},"damageDetail":{"heroDamage":18.5},"otherDetail":{"golds":187.25}}]},
+                  {"teamId":200,"kills":3,"golds":900,"playerInfos":[
+                    {"playerId":6,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                    {"playerId":7,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                    {"playerId":8,"battleDetail":{"kills":1,"death":0,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                    {"playerId":9,"battleDetail":{"kills":0,"death":1,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}},
+                    {"playerId":10,"battleDetail":{"kills":0,"death":1,"assist":0},"damageDetail":{"heroDamage":20},"otherDetail":{"golds":180}}]}
+                ]}]}}
+                """;
+    }
+
+    private static String exactHeroRecordJson() {
+        return """
+                {"success":true,"data":{"playerID":12345,"heroRecordList":[{
+                  "heroID":1,"heroName":"Annie","heroTitle":"黑暗之女",
+                  "matchID":9984,"bo":1,"role":"MID","isRole":true,
+                  "kill":2,"death":1,"assist":1,"teamID":100,"winTeamID":100
+                }]}}
+                """;
+    }
+
     private static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -181,5 +244,9 @@ class PlayerCollectionServiceTest {
         } catch (Exception exception) {
             throw new AssertionError(exception);
         }
+    }
+
+    private static String hashMaterial(String label, String value) {
+        return label.length() + ":" + label + ":" + value.length() + ":" + value;
     }
 }
