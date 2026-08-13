@@ -278,7 +278,8 @@ const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 .position-tabs { display: flex; gap: 6px; }
 .position-tab { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; color: #57606a; }
 .position-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
-.detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.detail-columns > .detail-card { height: 100%; box-sizing: border-box; }
 @media (max-width: 900px) { .detail-columns { grid-template-columns: 1fr; } }
 .core-metrics-card { width: 100%; box-sizing: border-box; }
 .core-metrics-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

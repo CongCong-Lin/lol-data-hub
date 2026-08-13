@@ -28,7 +28,7 @@ function scaleOf(metric: PlayerAverageContrastMetric): { baseline: number; range
   const gap = Math.max(best - average, 0)
   // 采用截断式基线，并将最佳值与平均值之间的视觉间距放大，数值仍以柱体标签为准。
   const baseline = Math.max(0, average - gap * GAP_EMPHASIS)
-  return { baseline, range: Math.max(best - baseline, 1) }
+  return { baseline, range: Math.max(best - baseline, Number.EPSILON) }
 }
 
 function height(value: number, metric: PlayerAverageContrastMetric): string {

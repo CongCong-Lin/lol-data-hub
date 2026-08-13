@@ -24,6 +24,12 @@ describe('ScoreggAverageContrast', () => {
     expect(wrapper.find('.average-contrast-item').text()).toContain('25%')
     expect(wrapper.find('.average-contrast-item').text()).not.toContain('25.00%')
 
+    const damage = wrapper.findAll('.average-contrast-item')[0]
+    const damagePlayerHeight = Number.parseFloat(damage.find('.player-bar').element.getAttribute('style')?.match(/height:\s*([\d.]+)%/)?.[1] ?? '0')
+    const damageAverageHeight = Number.parseFloat(damage.find('.average-bar').element.getAttribute('style')?.match(/height:\s*([\d.]+)%/)?.[1] ?? '0')
+    expect(damagePlayerHeight).toBeGreaterThan(damageAverageHeight)
+    expect(damagePlayerHeight).toBeGreaterThan(50)
+
     const death = wrapper.findAll('.average-contrast-item')[1]
     const playerBarHeight = Number.parseFloat(death.find('.player-bar').element.getAttribute('style')?.match(/height:\s*([\d.]+)%/)?.[1] ?? '0')
     const averageBarHeight = Number.parseFloat(death.find('.average-bar').element.getAttribute('style')?.match(/height:\s*([\d.]+)%/)?.[1] ?? '0')

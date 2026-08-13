@@ -114,7 +114,7 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
 </template>
 
 <style scoped>
-.player-radar-chart { display: block; width: 100%; max-width: 440px; margin: 0 auto; background: #fff; }
+.player-radar-chart { display: block; width: 100%; max-width: 400px; margin: 0 auto; background: #fff; }
 .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
 .radar-axis { stroke: var(--line); stroke-width: 1; }
 .radar-average { fill: rgba(87, 96, 106, 0.12); stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }
