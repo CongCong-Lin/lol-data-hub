@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PlayerAverageContrastMetric } from './api'
+import { formatPercent } from './formatters'
 
 const props = defineProps<{
   playerName: string
@@ -47,7 +48,7 @@ function bestHeight(metric: PlayerAverageContrastMetric): string {
 
 function formatValue(value: number, metric: PlayerAverageContrastMetric): string {
   const number = Number(value)
-  if (metric.percentage) return `${Math.round(number * 100)}%`
+  if (metric.percentage) return formatPercent(number)
   if (Math.abs(number) >= 1000) return `${(number / 1000).toFixed(1)}K`
   return number.toFixed(1)
 }

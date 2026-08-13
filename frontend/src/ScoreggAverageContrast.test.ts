@@ -8,7 +8,7 @@ import type { PlayerAverageContrastMetric } from './api'
 
 const metrics: PlayerAverageContrastMetric[] = [
   {
-    key: 'damagePercent', label: '伤害占比', value: 0.25, averageValue: 0.2,
+    key: 'damagePercent', label: '伤害占比', value: 0.256789, averageValue: 0.218999,
     minValue: 0.1, maxValue: 0.4, rank: 2, cohortSize: 10, higherIsBetter: true, percentage: true,
   },
   {
@@ -18,11 +18,11 @@ const metrics: PlayerAverageContrastMetric[] = [
 ]
 
 describe('ScoreggAverageContrast', () => {
-  it('百分比只显示整数，并将死亡低值绘制得更高', () => {
+  it('百分比保留两位小数，并将死亡低值绘制得更高', () => {
     const wrapper = mount(ScoreggAverageContrast, { props: { playerName: 'Tarzan', metrics } })
 
-    expect(wrapper.find('.average-contrast-item').text()).toContain('25%')
-    expect(wrapper.find('.average-contrast-item').text()).not.toContain('25.00%')
+    expect(wrapper.find('.average-contrast-item').text()).toContain('25.68%')
+    expect(wrapper.find('.average-contrast-item').text()).toContain('21.90%')
 
     const damage = wrapper.findAll('.average-contrast-item')[0]
     const damagePlayerHeight = Number.parseFloat(damage.find('.player-bar').element.getAttribute('style')?.match(/height:\s*([\d.]+)%/)?.[1] ?? '0')
