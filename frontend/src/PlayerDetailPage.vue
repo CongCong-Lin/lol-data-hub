@@ -295,7 +295,7 @@ const returnPath = computed(() => {
 .core-metric-item { min-width: 0; padding: 12px 12px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .core-metric-item:nth-child(5n) { border-right: 0; }
 .core-metric-item:nth-last-child(-n + 5) { border-bottom: 0; }
-.core-metric-item:first-child { padding-left: 0; }
+.core-metric-item:nth-child(5n + 1) { padding-left: 0; }
 .core-metric-item:nth-child(5n) { padding-right: 0; }
 .core-metric-label { color: #57606a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .core-metric-value { margin-top: 6px; color: var(--accent); font-size: 18px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
@@ -311,7 +311,7 @@ const returnPath = computed(() => {
   .core-metric-item:nth-child(3n) { border-right: 0; padding-right: 8px; }
   .core-metric-item:nth-last-child(-n + 5) { border-bottom: 1px solid var(--line); }
   .core-metric-item:nth-last-child(-n + 3) { border-bottom: 0; }
-  .core-metric-item:first-child { padding-left: 8px; }
+  .core-metric-item:nth-child(5n + 1) { padding-left: 8px; }
 }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table th, .detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
