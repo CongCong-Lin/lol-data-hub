@@ -167,7 +167,7 @@ class PlayerDetailStatisticsServiceTest {
     }
 
     @Test
-    void percentileScoresSpanZeroToHundredWithSameValuesTied() {
+    void robustScoresUseTheMiddleNinetyPercentRange() {
         mockCohort(List.of(
                 player(11L, "Bin", bd("10"), bd("3"), bd("1")),
                 player(12L, "Zeus", bd("8"), bd("3"), bd("1")),
@@ -178,14 +178,14 @@ class PlayerDetailStatisticsServiceTest {
 
         PlayerRadarMetric kda = radar(result, "kda");
         assertThat(kda.playerScore()).isEqualByComparingTo("100");
-        assertThat(kda.averageScore()).isEqualByComparingTo("50");
+        assertThat(kda.averageScore()).isEqualByComparingTo("56.50");
         assertThat(kda.averageValue()).isEqualByComparingTo(bd("7.666667").toString());
         assertThat(kda.value()).isEqualByComparingTo("10");
         assertThat(kda.rank()).isEqualTo(1);
     }
 
     @Test
-    void lowestValueGetsZeroPercentile() {
+    void lowestValueKeepsMinimumVisibleRadarScore() {
         mockCohort(List.of(
                 player(11L, "Bin", bd("10"), bd("3"), bd("1")),
                 player(12L, "Zeus", bd("8"), bd("3"), bd("1")),
@@ -194,45 +194,43 @@ class PlayerDetailStatisticsServiceTest {
         PlayerDetailStatisticsResult result = service.query(
                 new PlayerDetailQuery(13L, STAGES, "TOP", 5));
 
-        assertThat(radar(result, "kda").playerScore()).isEqualByComparingTo("0");
+        assertThat(radar(result, "kda").playerScore()).isEqualByComparingTo("10");
     }
 
     @Test
-    void singlePlayerCohortDoesNotDivideByZeroAndScoresHundred() {
+    void singlePlayerCohortDoesNotDivideByZeroAndUsesNeutralScore() {
         mockCohort(List.of(player(11L, "Bin", bd("4"), bd("3"), bd("1"))));
 
         PlayerDetailStatisticsResult result = service.query(
                 new PlayerDetailQuery(11L, STAGES, "TOP", 5));
 
         assertThat(result.cohortSize()).isEqualTo(1);
-        assertThat(radar(result, "kda").playerScore()).isEqualByComparingTo("100");
-        assertThat(radar(result, "kda").averageScore()).isEqualByComparingTo("100");
+        assertThat(radar(result, "kda").playerScore()).isEqualByComparingTo("55");
+        assertThat(radar(result, "kda").averageScore()).isEqualByComparingTo("55");
         assertThat(metric(result, "kda").rank()).isEqualTo(1);
     }
 
     @Test
-    void radarMetricSetDependsOnPosition() {
+    void radarUsesTheSameEightMetricsForEveryPosition() {
         mockCohort(List.of(player(11L, "Xun", bd("4"), bd("3"), bd("1"))));
 
         PlayerDetailStatisticsResult top = service.query(
                 new PlayerDetailQuery(11L, STAGES, "TOP", 5));
-        assertThat(top.radarMetrics()).extracting(PlayerRadarMetric::label)
-                .containsExactly("KDA", "场均击杀", "参团率", "伤害占比", "场均补刀", "场均经济差");
-
         PlayerDetailStatisticsResult jug = service.query(
                 new PlayerDetailQuery(11L, STAGES, "JUG", 5));
-        assertThat(jug.radarMetrics()).extracting(PlayerRadarMetric::label)
-                .containsExactly("KDA", "场均击杀", "场均助攻", "参团率", "场均经济差", "场均排眼");
-
         PlayerDetailStatisticsResult sup = service.query(
                 new PlayerDetailQuery(11L, STAGES, "SUP", 5));
-        assertThat(sup.radarMetrics()).extracting(PlayerRadarMetric::label)
-                .containsExactly("KDA", "场均助攻", "参团率", "场均插眼", "场均排眼", "场均经济差");
-
         PlayerDetailStatisticsResult ad = service.query(
                 new PlayerDetailQuery(11L, STAGES, "AD", 5));
-        assertThat(ad.radarMetrics()).extracting(PlayerRadarMetric::label)
-                .containsExactly("KDA", "场均击杀", "参团率", "伤害占比", "场均补刀", "场均经济差");
+
+        List<String> expectedKeys = List.of("kda", "killParticipantPercent", "creepScorePerGame",
+                "goldGapPerGame", "killPerGame", "damagePercent", "damagePerGame", "deathPerGame");
+        assertThat(top.radarMetrics()).extracting(PlayerRadarMetric::key).containsExactlyElementsOf(expectedKeys);
+        assertThat(jug.radarMetrics()).extracting(PlayerRadarMetric::key).containsExactlyElementsOf(expectedKeys);
+        assertThat(sup.radarMetrics()).extracting(PlayerRadarMetric::key).containsExactlyElementsOf(expectedKeys);
+        assertThat(ad.radarMetrics()).extracting(PlayerRadarMetric::key).containsExactlyElementsOf(expectedKeys);
+        assertThat(radar(top, "deathPerGame").rank()).isEqualTo(1);
+        assertThat(radar(top, "damagePerGame").available()).isTrue();
     }
 
     @Test
@@ -429,7 +427,7 @@ class PlayerDetailStatisticsServiceTest {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(valueOperations).set(keyCaptor.capture(), anyString(), eq(Duration.ofHours(12)));
         assertThat(keyCaptor.getValue())
-                .isEqualTo("loldatahub:stats:s9:v9:player-detail:11:237:102,237:103:TOP:5");
+                .isEqualTo("loldatahub:stats:s10:v9:player-detail:11:237:102,237:103:TOP:5");
     }
 
     @Test

@@ -192,8 +192,8 @@ const returnPath = computed(() => {
         </section>
 
         <section class="detail-card radar-card">
-          <h2 class="detail-heading">六维能力雷达图</h2>
-          <p class="detail-subheading">按同位置百分位归一化（0～100），虚线为同位置选手平均</p>
+          <h2 class="detail-heading">八维能力雷达图</h2>
+          <p class="detail-subheading">按同位置 10%—90% 分位区间归一化；虚线区域为同位置选手平均，场均死亡按越低越好计算</p>
           <PlayerRadarChart :metrics="result.radarMetrics" />
         </section>
       </div>

@@ -5,10 +5,10 @@ import { formatPercent } from './formatters'
 
 const props = defineProps<{ metrics: PlayerRadarMetric[] }>()
 
-const CENTER_X = 220
-const CENTER_Y = 160
-const RADIUS = 105
-const GRID_LEVELS = [25, 50, 75, 100]
+const CENTER_X = 260
+const CENTER_Y = 210
+const RADIUS = 128
+const GRID_LEVELS = [20, 40, 60, 80, 100]
 
 function angleAt(index: number): number {
   return (Math.PI * 2 * index) / Math.max(props.metrics.length, 1) - Math.PI / 2
@@ -22,20 +22,16 @@ function pointAt(index: number, score: number): { x: number; y: number } {
 }
 
 function polygonOf(scores: number[]): string {
-  return scores
-    .map((score, index) => {
-      const point = pointAt(index, score)
-      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
-    })
-    .join(' ')
+  return scores.map((score, index) => {
+    const point = pointAt(index, score)
+    return `${point.x.toFixed(1)},${point.y.toFixed(1)}`
+  }).join(' ')
 }
 
 const gridPolygons = computed(() => GRID_LEVELS.map((level) => polygonOf(props.metrics.map(() => level))))
 const playerPolygon = computed(() => polygonOf(props.metrics.map((metric) => Number(metric.playerScore))))
 const averagePolygon = computed(() => polygonOf(props.metrics.map((metric) => Number(metric.averageScore))))
-const playerPoints = computed(() =>
-  props.metrics.map((metric, index) => pointAt(index, Number(metric.playerScore))),
-)
+const playerPoints = computed(() => props.metrics.map((metric, index) => pointAt(index, Number(metric.playerScore))))
 
 interface AxisLabel {
   label: string
@@ -43,38 +39,33 @@ interface AxisLabel {
   y: number
   anchor: 'start' | 'middle' | 'end'
   valueText: string
-  averageText: string
+  rankText: string
 }
 
-const axisLabels = computed<AxisLabel[]>(() =>
-  props.metrics.map((metric, index) => {
-    const angle = angleAt(index)
-    const labelRadius = RADIUS + 25
-    const x = CENTER_X + labelRadius * Math.cos(angle)
-    const y = CENTER_Y + labelRadius * Math.sin(angle)
-    const cos = Math.cos(angle)
-    const anchor: 'start' | 'middle' | 'end' = cos > 0.3 ? 'start' : cos < -0.3 ? 'end' : 'middle'
-    return {
-      label: metric.label,
-      x,
-      y,
-      anchor,
-      valueText: formatMetricValue(metric, metric.value),
-      averageText: `均值 ${formatMetricValue(metric, metric.averageValue)}`,
-    }
-  }),
-)
-
-function formatValue(value: number): string {
-  return Number(value).toFixed(2)
-}
+const axisLabels = computed<AxisLabel[]>(() => props.metrics.map((metric, index) => {
+  const angle = angleAt(index)
+  const labelRadius = RADIUS + 35
+  const x = CENTER_X + labelRadius * Math.cos(angle)
+  const y = CENTER_Y + labelRadius * Math.sin(angle)
+  const cos = Math.cos(angle)
+  return {
+    label: metric.label,
+    x,
+    y,
+    anchor: cos > 0.3 ? 'start' : cos < -0.3 ? 'end' : 'middle',
+    valueText: metric.available ? formatMetricValue(metric, metric.value) : '暂无数据',
+    rankText: metric.available ? `排名: ${metric.rank}` : '',
+  }
+}))
 
 const PERCENT_METRICS = new Set(['killParticipantPercent', 'damagePercent', 'goldPercent'])
 
-function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
-  return PERCENT_METRICS.has(metric.key)
-    ? formatPercent(Number(value))
-    : formatValue(value)
+function formatMetricValue(metric: PlayerRadarMetric, value: number | null): string {
+  if (value == null) return '暂无数据'
+  const number = Number(value)
+  if (PERCENT_METRICS.has(metric.key)) return formatPercent(number)
+  if (Math.abs(number) >= 10000) return `${(number / 1000).toFixed(1)}K`
+  return number.toFixed(2)
 }
 </script>
 
@@ -82,9 +73,9 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
   <svg
     v-if="metrics.length"
     class="player-radar-chart"
-    viewBox="0 0 440 344"
+    viewBox="0 0 520 430"
     role="img"
-    aria-label="选手六维能力雷达图"
+    aria-label="选手八维能力雷达图"
   >
     <polygon v-for="(grid, index) in gridPolygons" :key="`grid-${index}`" :points="grid" class="radar-grid" />
     <line
@@ -103,24 +94,25 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
       :key="`point-${index}`"
       :cx="point.x"
       :cy="point.y"
-      r="3"
+      r="3.2"
       class="radar-point"
     />
     <template v-for="(axis, index) in axisLabels" :key="`label-${index}`">
       <text :x="axis.x" :y="axis.y" :text-anchor="axis.anchor" class="radar-label">{{ axis.label }}</text>
-      <text :x="axis.x" :y="axis.y + 13" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
-      <text :x="axis.x" :y="axis.y + 25" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.averageText }}</text>
+      <text :x="axis.x" :y="axis.y + 15" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
+      <text v-if="axis.rankText" :x="axis.x" :y="axis.y + 29" :text-anchor="axis.anchor" class="radar-label-rank">{{ axis.rankText }}</text>
     </template>
   </svg>
 </template>
 
 <style scoped>
-.player-radar-chart { display: block; width: 100%; max-width: 400px; margin: 0 auto; background: #fff; }
-.radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
-.radar-axis { stroke: var(--line); stroke-width: 1; }
-.radar-average { fill: rgba(87, 96, 106, 0.12); stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }
-.radar-player { fill: rgba(47, 133, 90, 0.16); stroke: var(--accent); stroke-width: 2; }
+.player-radar-chart { display: block; width: 100%; max-width: 500px; margin: 0 auto; background: #fff; }
+.radar-grid { fill: none; stroke: #d8dee4; stroke-width: 1; }
+.radar-axis { stroke: #e1e7ec; stroke-width: 1; }
+.radar-average { fill: rgba(87, 96, 106, .20); stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.radar-player { fill: rgba(47, 133, 90, .20); stroke: var(--accent); stroke-width: 2.4; }
 .radar-point { fill: var(--accent); }
-.radar-label { font-size: 12px; font-weight: 650; fill: #24292f; }
-.radar-label-value { font-size: 10.5px; fill: #8b949e; }
+.radar-label { font-size: 13px; font-weight: 700; fill: #24292f; }
+.radar-label-value { font-size: 12px; font-weight: 600; fill: #57606a; }
+.radar-label-rank { font-size: 11px; font-weight: 700; fill: var(--accent); }
 </style>

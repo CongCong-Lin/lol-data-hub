@@ -11,77 +11,80 @@ function metric(key: string, label: string, playerScore: number, averageScore: n
   return {
     key,
     label,
-    value: percentageMetric ? playerScore / 100 : playerScore / 10,
-    averageValue: percentageMetric ? averageScore / 100 : averageScore / 10,
+    value: percentageMetric ? playerScore / 100 : key === 'damagePerGame' ? playerScore * 300 : playerScore / 10,
+    averageValue: percentageMetric ? averageScore / 100 : key === 'damagePerGame' ? averageScore * 300 : averageScore / 10,
     playerScore,
     averageScore,
     rank: 1,
     cohortSize: 18,
+    available: true,
   }
 }
 
 const metrics: PlayerRadarMetric[] = [
-  metric('kda', 'KDA', 80, 50),
-  metric('killPerGame', '场均击杀', 70, 50),
-  metric('killParticipantPercent', '参团率', 60, 50),
-  metric('damagePercent', '伤害占比', 55, 50),
-  metric('creepScorePerGame', '场均补刀', 65, 50),
-  metric('goldGapPerGame', '场均经济差', 75, 50),
+  metric('kda', 'KDA', 80, 55),
+  metric('killParticipantPercent', '参团率', 70, 55),
+  metric('creepScorePerGame', '场均补刀', 65, 55),
+  metric('goldGapPerGame', '场均经济差', 75, 55),
+  metric('killPerGame', '场均击杀', 60, 55),
+  metric('damagePercent', '伤害占比', 55, 55),
+  metric('damagePerGame', '伤害', 85, 55),
+  metric('deathPerGame', '场均死亡', 45, 55),
 ]
 
 describe('PlayerRadarChart', () => {
-  it('绘制四层网格、选手多边形与平均多边形', () => {
+  it('绘制五层网格、八维选手多边形与平均多边形', () => {
     const wrapper = mount(PlayerRadarChart, { props: { metrics } })
 
     expect(wrapper.find('svg').exists()).toBe(true)
-    expect(wrapper.findAll('polygon.radar-grid')).toHaveLength(4)
+    expect(wrapper.attributes('aria-label')).toBe('选手八维能力雷达图')
+    expect(wrapper.findAll('polygon.radar-grid')).toHaveLength(5)
     expect(wrapper.find('polygon.radar-player').exists()).toBe(true)
     expect(wrapper.find('polygon.radar-average').exists()).toBe(true)
-    expect(wrapper.findAll('circle.radar-point')).toHaveLength(6)
+    expect(wrapper.findAll('circle.radar-point')).toHaveLength(8)
   })
 
-  it('选手得分 100 落在轴顶点、0 收缩到中心', () => {
+  it('选手得分 100 落在轴顶点，0 收缩到中心', () => {
     const full = mount(PlayerRadarChart, {
       props: { metrics: metrics.map((item, index) => index === 0 ? { ...item, playerScore: 100 } : item) },
     })
     const topPoint = full.findAll('circle.radar-point')[0]
-    expect(Number(topPoint.attributes('cy'))).toBeCloseTo(55, 0)
+    expect(Number(topPoint.attributes('cy'))).toBeCloseTo(82, 0)
 
     const zero = mount(PlayerRadarChart, {
       props: { metrics: metrics.map((item, index) => index === 0 ? { ...item, playerScore: 0 } : item) },
     })
     const centerPoint = zero.findAll('circle.radar-point')[0]
-    expect(Number(centerPoint.attributes('cx'))).toBeCloseTo(220, 0)
-    expect(Number(centerPoint.attributes('cy'))).toBeCloseTo(160, 0)
+    expect(Number(centerPoint.attributes('cx'))).toBeCloseTo(260, 0)
+    expect(Number(centerPoint.attributes('cy'))).toBeCloseTo(210, 0)
   })
 
-  it('展示六个维度标签与原始值、均值', () => {
+  it('按指定顺序展示八项指标、原始值和排名', () => {
     const wrapper = mount(PlayerRadarChart, { props: { metrics } })
 
     const labels = wrapper.findAll('text.radar-label').map((node) => node.text())
-    expect(labels).toEqual(['KDA', '场均击杀', '参团率', '伤害占比', '场均补刀', '场均经济差'])
-    expect(wrapper.text()).toContain('8.00')
-    expect(wrapper.text()).toContain('均值 5.00')
-    expect(wrapper.text()).toContain('60.00%')
-    expect(wrapper.text()).toContain('均值 50.00%')
+    expect(labels).toEqual(['KDA', '参团率', '场均补刀', '场均经济差', '场均击杀', '伤害占比', '伤害', '场均死亡'])
+    expect(wrapper.text()).toContain('排名: 1')
+    expect(wrapper.text()).toContain('25.5K')
+    expect(wrapper.text()).toContain('70.00%')
   })
 
-  it('百分比标签保留小数点后两位', () => {
+  it('百分比保留小数点后两位', () => {
     const wrapper = mount(PlayerRadarChart, {
-      props: {
-        metrics: [
-          {
-            ...metrics[2],
-            value: 0.256789,
-            averageValue: 0.218999,
-          },
-        ],
-      },
+      props: { metrics: [{ ...metrics[1], value: 0.256789, averageValue: 0.218999 }] },
     })
 
     expect(wrapper.text()).toContain('25.68%')
-    expect(wrapper.text()).toContain('均值 21.90%')
     expect(wrapper.text()).not.toContain('25.67%')
+  })
+
+  it('伤害数据不可用时明确显示暂无数据', () => {
+    const wrapper = mount(PlayerRadarChart, {
+      props: { metrics: [{ ...metrics[6], value: null, available: false, rank: 0 }] },
+    })
+
+    expect(wrapper.text()).toContain('暂无数据')
+    expect(wrapper.text()).not.toContain('排名: 0')
   })
 
   it('指标为空时不渲染图表', () => {

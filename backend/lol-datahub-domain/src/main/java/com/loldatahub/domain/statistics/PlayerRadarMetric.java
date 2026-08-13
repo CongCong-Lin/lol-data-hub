@@ -13,6 +13,7 @@ public record PlayerRadarMetric(
         BigDecimal playerScore,
         BigDecimal averageScore,
         int rank,
-        int cohortSize
+        int cohortSize,
+        boolean available
 ) {
 }

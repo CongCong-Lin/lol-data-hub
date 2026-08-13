@@ -44,6 +44,8 @@ public class PlayerDetailStatisticsService {
     private static final Logger log = LoggerFactory.getLogger(PlayerDetailStatisticsService.class);
     private static final TypeReference<PlayerDetailStatisticsResult> CACHE_TYPE = new TypeReference<>() { };
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    private static final BigDecimal RADAR_SCORE_FLOOR = BigDecimal.TEN;
+    private static final BigDecimal RADAR_NEUTRAL_SCORE = BigDecimal.valueOf(55);
     private static final Set<String> PERCENT_METRICS = Set.of(
             "killParticipantPercent", "damagePercent", "goldPercent");
 
@@ -70,30 +72,16 @@ public class PlayerDetailStatisticsService {
             new MetricDefinition("goldPercent", "经济占比", true, PlayerStatistics::goldPercent, false)
     );
 
-    /** 雷达指标随位置变化：不同位置职责差异大，所选指标均为越高越好。 */
-    private static final List<MetricDefinition> RADAR_CARRY = List.of(
+    /** 八维雷达使用统一指标；评分与排名始终只在当前所选位置的选手中计算。 */
+    private static final List<MetricDefinition> RADAR_METRICS = List.of(
             metric("kda", "KDA", PlayerStatistics::kda),
-            metric("killPerGame", "场均击杀", PlayerStatistics::killPerGame),
             metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
-            metric("damagePercent", "伤害占比", PlayerStatistics::damagePercent),
             metric("creepScorePerGame", "场均补刀", PlayerStatistics::creepScorePerGame),
-            metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame)
-    );
-    private static final List<MetricDefinition> RADAR_JUNGLE = List.of(
-            metric("kda", "KDA", PlayerStatistics::kda),
-            metric("killPerGame", "场均击杀", PlayerStatistics::killPerGame),
-            metric("assistPerGame", "场均助攻", PlayerStatistics::assistPerGame),
-            metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
             metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame),
-            metric("wardKilledPerGame", "场均排眼", PlayerStatistics::wardKilledPerGame)
-    );
-    private static final List<MetricDefinition> RADAR_SUPPORT = List.of(
-            metric("kda", "KDA", PlayerStatistics::kda),
-            metric("assistPerGame", "场均助攻", PlayerStatistics::assistPerGame),
-            metric("killParticipantPercent", "参团率", PlayerStatistics::killParticipantPercent),
-            metric("wardPlacedPerGame", "场均插眼", PlayerStatistics::wardPlacedPerGame),
-            metric("wardKilledPerGame", "场均排眼", PlayerStatistics::wardKilledPerGame),
-            metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame)
+            metric("killPerGame", "场均击杀", PlayerStatistics::killPerGame),
+            metric("damagePercent", "伤害占比", PlayerStatistics::damagePercent),
+            metric("damagePerGame", "伤害", PlayerStatistics::damagePerGame),
+            new MetricDefinition("deathPerGame", "场均死亡", false, PlayerStatistics::deathPerGame, false)
     );
 
     /**
@@ -141,7 +129,7 @@ public class PlayerDetailStatisticsService {
 
     public PlayerDetailStatisticsResult query(PlayerDetailQuery query) {
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s9:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s10:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
         PlayerDetailStatisticsResult cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -259,24 +247,28 @@ public class PlayerDetailStatisticsService {
 
     private List<PlayerRadarMetric> radarMetrics(String position, PlayerStatistics target,
                                                  List<PlayerStatistics> cohort) {
-        List<MetricDefinition> definitions = switch (position) {
-            case "JUG" -> RADAR_JUNGLE;
-            case "SUP" -> RADAR_SUPPORT;
-            default -> RADAR_CARRY;
-        };
-        return definitions.stream()
+        return RADAR_METRICS.stream()
                 .map(definition -> {
+                    List<PlayerStatistics> comparablePlayers = cohort.stream()
+                            .filter(player -> definition.value().apply(player) != null)
+                            .toList();
+                    List<BigDecimal> values = comparablePlayers.stream()
+                            .map(definition.value())
+                            .toList();
                     BigDecimal value = definition.value().apply(target);
-                    BigDecimal averageValue = average(cohort.stream().map(definition.value()).toList());
-                    BigDecimal playerScore = percentileScore(value, definition.higherIsBetter(),
-                            definition.value(), cohort);
-                    BigDecimal averageScore = average(cohort.stream()
-                            .map(player -> percentileScore(definition.value().apply(player),
-                                    definition.higherIsBetter(), definition.value(), cohort))
-                            .toList());
-                    int rank = rank(value, definition.higherIsBetter(), definition.value(), cohort);
+                    BigDecimal averageValue = average(values);
+                    boolean available = value != null && !values.isEmpty();
+                    BigDecimal playerScore = available
+                            ? robustRadarScore(value, definition.higherIsBetter(), values)
+                            : BigDecimal.ZERO;
+                    BigDecimal averageScore = values.isEmpty()
+                            ? BigDecimal.ZERO
+                            : robustRadarScore(averageValue, definition.higherIsBetter(), values);
+                    int rank = available
+                            ? rank(value, definition.higherIsBetter(), definition.value(), comparablePlayers)
+                            : 0;
                     return new PlayerRadarMetric(definition.key(), definition.label(), value, averageValue,
-                            playerScore, averageScore, rank, cohort.size());
+                            playerScore, averageScore, rank, comparablePlayers.size(), available);
                 })
                 .toList();
     }
@@ -301,6 +293,38 @@ public class PlayerDetailStatisticsService {
                             cohort.size(), definition.higherIsBetter(), PERCENT_METRICS.contains(definition.key()));
                 })
                 .toList();
+    }
+
+    /**
+     * 以同位置样本的 10%—90% 分位区间归一化，极端值不会压扁其他选手的能力差异。
+     * 两端以外的值贴边；保留 10 分的可视下限，避免合格选手的图形坍缩到中心。
+     */
+    private BigDecimal robustRadarScore(BigDecimal value, boolean higherIsBetter, List<BigDecimal> values) {
+        if (values.size() <= 1) {
+            return RADAR_NEUTRAL_SCORE;
+        }
+        BigDecimal lower = quantile(values, new BigDecimal("0.10"));
+        BigDecimal upper = quantile(values, new BigDecimal("0.90"));
+        BigDecimal range = upper.subtract(lower);
+        if (range.signum() <= 0) {
+            return RADAR_NEUTRAL_SCORE;
+        }
+        BigDecimal normalized = higherIsBetter
+                ? value.subtract(lower).divide(range, 8, RoundingMode.HALF_UP)
+                : upper.subtract(value).divide(range, 8, RoundingMode.HALF_UP);
+        normalized = normalized.max(BigDecimal.ZERO).min(BigDecimal.ONE);
+        return RADAR_SCORE_FLOOR.add(HUNDRED.subtract(RADAR_SCORE_FLOOR).multiply(normalized))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal quantile(List<BigDecimal> values, BigDecimal percentile) {
+        List<BigDecimal> sorted = values.stream().sorted().toList();
+        BigDecimal index = BigDecimal.valueOf(sorted.size() - 1L).multiply(percentile);
+        int lowerIndex = index.intValue();
+        int upperIndex = Math.min(lowerIndex + 1, sorted.size() - 1);
+        BigDecimal fraction = index.subtract(BigDecimal.valueOf(lowerIndex));
+        return sorted.get(lowerIndex).add(sorted.get(upperIndex).subtract(sorted.get(lowerIndex))
+                .multiply(fraction));
     }
 
     private BigDecimal safeValue(MetricDefinition definition, PlayerStatistics player) {

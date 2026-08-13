@@ -149,12 +149,13 @@ export interface RankedPlayerMetric {
 export interface PlayerRadarMetric {
   key: string
   label: string
-  value: number
+  value: number | null
   averageValue: number
   playerScore: number
   averageScore: number
   rank: number
   cohortSize: number
+  available: boolean
 }
 
 export interface PlayerAverageContrastMetric {
