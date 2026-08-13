@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PlayerRadarMetric } from './api'
+import { formatPercent } from './formatters'
 
 const props = defineProps<{ metrics: PlayerRadarMetric[] }>()
 
@@ -72,7 +73,7 @@ const PERCENT_METRICS = new Set(['killParticipantPercent', 'damagePercent', 'gol
 
 function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
   return PERCENT_METRICS.has(metric.key)
-    ? `${(Number(value) * 100).toFixed(2)}%`
+    ? formatPercent(Number(value))
     : formatValue(value)
 }
 </script>

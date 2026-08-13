@@ -15,6 +15,7 @@ import {
 import PaginationControls from './PaginationControls.vue'
 import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
 import SortableHeader from './SortableHeader.vue'
+import { formatPercent } from './formatters'
 
 type ActiveView = 'champion' | 'team' | 'player' | 'combo'
 
@@ -684,7 +685,7 @@ function clearSelectedStages() {
 }
 
 function percent(value: number) {
-  return `${(value * 100).toFixed(2)}%`
+  return formatPercent(value)
 }
 
 function fmtDecimal(value: number, digits = 2) {

@@ -252,7 +252,7 @@ public class PlayerDetailStatisticsService {
             return String.valueOf(value.longValue());
         }
         if (PERCENT_METRICS.contains(definition.key())) {
-            return value.multiply(HUNDRED).setScale(2, RoundingMode.HALF_UP).toPlainString() + "%";
+            return value.multiply(HUNDRED).setScale(2, RoundingMode.DOWN).toPlainString() + "%";
         }
         return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }

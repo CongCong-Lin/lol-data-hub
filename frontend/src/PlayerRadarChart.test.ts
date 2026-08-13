@@ -66,6 +66,24 @@ describe('PlayerRadarChart', () => {
     expect(wrapper.text()).toContain('均值 50.00%')
   })
 
+  it('百分比标签截断到小数点后两位', () => {
+    const wrapper = mount(PlayerRadarChart, {
+      props: {
+        metrics: [
+          {
+            ...metrics[2],
+            value: 0.256789,
+            averageValue: 0.218999,
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.text()).toContain('25.67%')
+    expect(wrapper.text()).toContain('均值 21.89%')
+    expect(wrapper.text()).not.toContain('25.68%')
+  })
+
   it('指标为空时不渲染图表', () => {
     const wrapper = mount(PlayerRadarChart, { props: { metrics: [] } })
 

@@ -76,10 +76,19 @@ class PlayerDetailStatisticsServiceTest {
 
     private static PlayerStatistics player(long sourcePlayerId, String name, BigDecimal kda,
                                            BigDecimal killPerGame, BigDecimal deathPerGame) {
+        return player(sourcePlayerId, name, kda, killPerGame, deathPerGame,
+                bd("0.6"), bd("0.25"), bd("0.22"));
+    }
+
+    private static PlayerStatistics player(long sourcePlayerId, String name, BigDecimal kda,
+                                           BigDecimal killPerGame, BigDecimal deathPerGame,
+                                           BigDecimal killParticipantPercent, BigDecimal damagePercent,
+                                           BigDecimal goldPercent) {
         return new PlayerStatistics("key-" + sourcePlayerId, sourcePlayerId, name, null,
                 List.of("TES"), List.of("TOP"), 10L, 20L, 1L, BigDecimal.ONE,
                 40L, 30L, 20L, kda, killPerGame, bd("3"), deathPerGame,
-                bd("12000"), bd("200"), bd("5"), bd("2"), bd("0.6"), bd("100"), bd("0.25"), bd("0.22"),
+                bd("12000"), bd("200"), bd("5"), bd("2"), killParticipantPercent, bd("100"),
+                damagePercent, goldPercent,
                 true);
     }
 
@@ -261,6 +270,19 @@ class PlayerDetailStatisticsServiceTest {
         assertThat(metric(result, "killParticipantPercent").formattedValue()).isEqualTo("60.00%");
         assertThat(metric(result, "damagePercent").formattedValue()).isEqualTo("25.00%");
         assertThat(metric(result, "goldPercent").formattedValue()).isEqualTo("22.00%");
+    }
+
+    @Test
+    void truncatesRatioCoreMetricsToTwoPercentageDecimals() {
+        mockCohort(List.of(player(11L, "Bin", bd("4"), bd("3"), bd("1"),
+                bd("0.619999"), bd("0.256789"), bd("0.218999"))));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        assertThat(metric(result, "killParticipantPercent").formattedValue()).isEqualTo("61.99%");
+        assertThat(metric(result, "damagePercent").formattedValue()).isEqualTo("25.67%");
+        assertThat(metric(result, "goldPercent").formattedValue()).isEqualTo("21.89%");
     }
 
     @Test
