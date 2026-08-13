@@ -110,12 +110,19 @@ function heroSortIndicator(key: HeroSortKey): string {
 }
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
+
+const returnPath = computed(() => {
+  const candidate = String(route.query.returnTo ?? '')
+  // 只允许返回站内绝对路径，避免把查询参数变成外部跳转地址。
+  if (!candidate.startsWith('/') || candidate.startsWith('//')) return '/'
+  return candidate
+})
 </script>
 
 <template>
   <div class="player-detail-page">
     <header class="detail-topbar">
-      <RouterLink class="back-link" to="/">← 返回统计查询</RouterLink>
+      <RouterLink class="back-link" :to="returnPath">← 返回统计查询</RouterLink>
       <span class="topbar-title">选手详情</span>
     </header>
 

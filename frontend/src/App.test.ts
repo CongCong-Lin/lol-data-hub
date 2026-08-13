@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App.vue'
 import { api, type ChampionStatisticsResult, type PlayerStatisticsResult, type Stage, type TeamCombinationStatisticsResult, type TeamStatisticsResult } from './api'
@@ -168,6 +168,10 @@ beforeEach(() => {
   vi.mocked(api.teamCombinationStatisticsByKeys).mockResolvedValue(combinationResult)
 })
 
+afterEach(() => {
+  window.history.replaceState({}, '', '/')
+})
+
 async function selectFirstStage(wrapper: ReturnType<typeof mount>) {
   await wrapper.get('button.stage-chip').trigger('click')
 }
@@ -267,6 +271,32 @@ describe('查询状态', () => {
     expect(href).toContain('stageKeys=237%3A100')
     expect(href).toContain('position=TOP')
     expect(href).toContain('minimumMatchCount=5')
+    expect(href).toContain('returnTo=%2F%3Fview%3Dplayer')
+    expect(decodeURIComponent(href)).toContain('playerSortBy=kda')
+    wrapper.unmount()
+  })
+
+  it('从选手详情返回时恢复原查询条件并自动重新加载结果', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?view=player&season=237&stageKeys=237%3A100&minimumMatchCount=7&playerPosition=TOP&playerSearch=Top&playerSortBy=goldPercent&playerSortDirection=asc&page=1&pageSize=20&playerColumns=player%2Ckda',
+    )
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('button.tab-btn.active').text()).toBe('选手统计')
+    expect(wrapper.findAll('button.stage-chip.selected')).toHaveLength(1)
+    expect(wrapper.findAll('button.pos-chip.active').map((button) => button.text())).toEqual(['上单'])
+    expect(wrapper.find('.search-wrap input').element).toHaveProperty('value', 'Top')
+    expect(wrapper.find('.page-size-select').element).toHaveProperty('value', '20')
+    expect(wrapper.findAll('.player-table thead th')).toHaveLength(2)
+    expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 7, 'TOP', 'goldPercent', 'asc',
+    )
+    expect(wrapper.text()).toContain('TopPlayer')
     wrapper.unmount()
   })
 

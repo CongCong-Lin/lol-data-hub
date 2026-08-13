@@ -134,6 +134,62 @@ const error = ref('')
 let loadAvailabilitySeq = 0
 let querySeq = 0
 
+const PLAYER_SORT_FIELDS = new Set([
+  'playerName',
+  'positions',
+  ...PLAYER_COLUMNS.map((column) => column.key).filter((key) => key !== 'player' && key !== 'positions'),
+])
+const PLAYER_POSITION_VALUES = new Set(PLAYER_POSITION_OPTIONS.map((option) => option.value))
+const PAGE_SIZE_VALUES = new Set([10, 20, 50, 100])
+
+function parsePositiveInteger(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value)) return null
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function restorePlayerQueryFromLocation(): boolean {
+  if (typeof window === 'undefined') return false
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('view') !== 'player') return false
+
+  activeView.value = 'player'
+
+  const seasonId = parsePositiveInteger(params.get('season'))
+  if (seasonId != null) browsedSeasonId.value = seasonId
+
+  const restoredStageKeys = (params.get('stageKeys') ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => /^\d+:\d+$/.test(key))
+    .slice(0, MAX_STAGE_SELECTION)
+  selectedStageKeys.value = new Set(restoredStageKeys)
+
+  const minimum = Number(params.get('minimumMatchCount'))
+  if (Number.isInteger(minimum) && minimum >= 0 && minimum <= 10_000) minimumMatchCount.value = minimum
+
+  const position = params.get('playerPosition') ?? ''
+  if (PLAYER_POSITION_VALUES.has(position)) playerPositionFilter.value = position
+  playerSearch.value = params.get('playerSearch') ?? ''
+
+  const restoredSortBy = params.get('playerSortBy') ?? ''
+  if (PLAYER_SORT_FIELDS.has(restoredSortBy)) playerSortBy.value = restoredSortBy
+  const restoredDirection = params.get('playerSortDirection')
+  if (restoredDirection === 'asc' || restoredDirection === 'desc') playerSortDirection.value = restoredDirection
+
+  const page = parsePositiveInteger(params.get('page'))
+  if (page != null) currentPage.value = page
+  const restoredPageSize = Number(params.get('pageSize'))
+  if (PAGE_SIZE_VALUES.has(restoredPageSize)) pageSize.value = restoredPageSize
+
+  const restoredColumns = (params.get('playerColumns') ?? '')
+    .split(',')
+    .filter((key) => PLAYER_COLUMNS.some((column) => column.key === key))
+  if (restoredColumns.length > 0) playerVisibleColumns.value = [...new Set(restoredColumns)]
+
+  return restoredStageKeys.length > 0
+}
+
 function isColumnVisible(visibleColumns: string[], key: string): boolean {
   return visibleColumns.includes(key)
 }
@@ -532,10 +588,24 @@ function playerDetailHref(item: PlayerStatistics): string | undefined {
   if (!snapshot || item.sourcePlayerId == null) return undefined
   const position = snapshot.position || item.positions[0] || ''
   if (!position) return undefined
+  const returnParams = new URLSearchParams({
+    view: 'player',
+    season: String(browsedSeasonId.value),
+    stageKeys: snapshot.stageKeys.join(','),
+    minimumMatchCount: String(snapshot.minimumMatchCount),
+    playerPosition: playerPositionFilter.value,
+    playerSearch: playerSearch.value,
+    playerSortBy: playerSortBy.value,
+    playerSortDirection: playerSortDirection.value,
+    page: String(currentPage.value),
+    pageSize: String(pageSize.value),
+    playerColumns: playerVisibleColumns.value.join(','),
+  })
   const params = new URLSearchParams({
     stageKeys: snapshot.stageKeys.join(','),
     position,
     minimumMatchCount: String(snapshot.minimumMatchCount),
+    returnTo: `/?${returnParams.toString()}`,
   })
   return `/players/${item.sourcePlayerId}?${params.toString()}`
 }
@@ -635,12 +705,14 @@ function fmtTeamNames(teamNames: string[]) {
 }
 
 onMounted(async () => {
+  const restoredQuery = restorePlayerQueryFromLocation()
   try {
     await loadSeasons()
     if (seasons.value.length > 0 && browsedSeasonId.value === 0) {
       browsedSeasonId.value = seasons.value[0].sourceSeasonId
     }
     await loadAvailability()
+    if (restoredQuery && selectedStageKeys.value.size > 0) await query()
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : String(reason)
   }
