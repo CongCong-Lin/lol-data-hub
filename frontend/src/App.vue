@@ -1041,9 +1041,7 @@ onMounted(async () => {
                     v-if="playerDetailHref(item)"
                     :href="playerDetailHref(item)"
                     class="player-avatar-link"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    :title="`在新标签页查看 ${item.playerName} 的选手详情`"
+                    :title="`查看 ${item.playerName} 的选手详情`"
                   >
                     <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
                     <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>

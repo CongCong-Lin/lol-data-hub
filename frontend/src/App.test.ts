@@ -248,7 +248,7 @@ describe('查询状态', () => {
     wrapper.unmount()
   })
 
-  it('提交选手查询后头像包裹新标签页打开的详情链接', async () => {
+  it('提交选手查询后头像包裹当前页面打开的详情链接', async () => {
     const wrapper = mount(App)
     await flushPromises()
 
@@ -260,8 +260,8 @@ describe('查询状态', () => {
     await flushPromises()
 
     const link = wrapper.get('.player-avatar-link')
-    expect(link.attributes('target')).toBe('_blank')
-    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    expect(link.attributes('target')).toBeUndefined()
+    expect(link.attributes('rel')).toBeUndefined()
     const href = link.attributes('href') ?? ''
     expect(href).toContain('/players/1?')
     expect(href).toContain('stageKeys=237%3A100')
