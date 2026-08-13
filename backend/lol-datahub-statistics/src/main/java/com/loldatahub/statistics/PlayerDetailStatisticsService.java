@@ -141,7 +141,7 @@ public class PlayerDetailStatisticsService {
 
     public PlayerDetailStatisticsResult query(PlayerDetailQuery query) {
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s8:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s9:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
         PlayerDetailStatisticsResult cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -289,11 +289,14 @@ public class PlayerDetailStatisticsService {
                     List<BigDecimal> values = cohort.stream()
                             .map(player -> safeValue(definition, player))
                             .toList();
+                    BigDecimal minValue = values.stream()
+                            .min(BigDecimal::compareTo)
+                            .orElse(BigDecimal.ZERO);
                     BigDecimal maxValue = values.stream()
                             .max(BigDecimal::compareTo)
                             .orElse(BigDecimal.ZERO);
                     return new PlayerAverageContrastMetric(
-                            definition.key(), definition.label(), value, average(values), maxValue,
+                            definition.key(), definition.label(), value, average(values), minValue, maxValue,
                             rank(value, definition.higherIsBetter(), player -> safeValue(definition, player), cohort),
                             cohort.size(), definition.higherIsBetter(), PERCENT_METRICS.contains(definition.key()));
                 })

@@ -133,6 +133,7 @@ class PlayerDetailStatisticsServiceTest {
                 .orElseThrow();
         assertThat(kills.value()).isEqualByComparingTo("3");
         assertThat(kills.averageValue()).isEqualByComparingTo("3");
+        assertThat(kills.minValue()).isEqualByComparingTo("1");
         assertThat(kills.maxValue()).isEqualByComparingTo("5");
         assertThat(kills.rank()).isEqualTo(2);
         assertThat(result.averageContrastMetrics()).hasSize(7);
@@ -403,7 +404,7 @@ class PlayerDetailStatisticsServiceTest {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(valueOperations).set(keyCaptor.capture(), anyString(), eq(Duration.ofHours(12)));
         assertThat(keyCaptor.getValue())
-                .isEqualTo("loldatahub:stats:s8:v9:player-detail:11:237:102,237:103:TOP:5");
+                .isEqualTo("loldatahub:stats:s9:v9:player-detail:11:237:102,237:103:TOP:5");
     }
 
     @Test

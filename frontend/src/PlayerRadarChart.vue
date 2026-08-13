@@ -4,9 +4,9 @@ import type { PlayerRadarMetric } from './api'
 
 const props = defineProps<{ metrics: PlayerRadarMetric[] }>()
 
-const CENTER_X = 180
-const CENTER_Y = 152
-const RADIUS = 100
+const CENTER_X = 220
+const CENTER_Y = 160
+const RADIUS = 105
 const GRID_LEVELS = [25, 50, 75, 100]
 
 function angleAt(index: number): number {
@@ -42,12 +42,13 @@ interface AxisLabel {
   y: number
   anchor: 'start' | 'middle' | 'end'
   valueText: string
+  averageText: string
 }
 
 const axisLabels = computed<AxisLabel[]>(() =>
   props.metrics.map((metric, index) => {
     const angle = angleAt(index)
-    const labelRadius = RADIUS + 22
+    const labelRadius = RADIUS + 25
     const x = CENTER_X + labelRadius * Math.cos(angle)
     const y = CENTER_Y + labelRadius * Math.sin(angle)
     const cos = Math.cos(angle)
@@ -57,7 +58,8 @@ const axisLabels = computed<AxisLabel[]>(() =>
       x,
       y,
       anchor,
-      valueText: `${formatMetricValue(metric, metric.value)}（均值 ${formatMetricValue(metric, metric.averageValue)}）`,
+      valueText: formatMetricValue(metric, metric.value),
+      averageText: `均值 ${formatMetricValue(metric, metric.averageValue)}`,
     }
   }),
 )
@@ -79,7 +81,7 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
   <svg
     v-if="metrics.length"
     class="player-radar-chart"
-    viewBox="0 0 360 316"
+    viewBox="0 0 440 344"
     role="img"
     aria-label="选手六维能力雷达图"
   >
@@ -106,12 +108,13 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
     <template v-for="(axis, index) in axisLabels" :key="`label-${index}`">
       <text :x="axis.x" :y="axis.y" :text-anchor="axis.anchor" class="radar-label">{{ axis.label }}</text>
       <text :x="axis.x" :y="axis.y + 13" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
+      <text :x="axis.x" :y="axis.y + 25" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.averageText }}</text>
     </template>
   </svg>
 </template>
 
 <style scoped>
-.player-radar-chart { display: block; width: 100%; max-width: 420px; margin: 0 auto; background: #fff; }
+.player-radar-chart { display: block; width: 100%; max-width: 440px; margin: 0 auto; background: #fff; }
 .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
 .radar-axis { stroke: var(--line); stroke-width: 1; }
 .radar-average { fill: rgba(87, 96, 106, 0.12); stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }

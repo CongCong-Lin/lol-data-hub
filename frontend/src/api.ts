@@ -161,6 +161,7 @@ export interface PlayerAverageContrastMetric {
   label: string
   value: number
   averageValue: number
+  minValue: number
   maxValue: number
   rank: number
   cohortSize: number

@@ -13,6 +13,7 @@ public record PlayerAverageContrastMetric(
         String label,
         BigDecimal value,
         BigDecimal averageValue,
+        BigDecimal minValue,
         BigDecimal maxValue,
         int rank,
         int cohortSize,

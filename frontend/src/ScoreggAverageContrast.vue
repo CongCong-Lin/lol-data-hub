@@ -6,21 +6,48 @@ const props = defineProps<{
   metrics: PlayerAverageContrastMetric[]
 }>()
 
-function height(value: number, maximum: number): string {
-  const max = Number(maximum)
-  if (max <= 0) return '0%'
-  return `${Math.max(0, Math.min(100, (Number(value) / max) * 100))}%`
+const GAP_EMPHASIS = 2
+
+function bestValue(metric: PlayerAverageContrastMetric): number {
+  return metric.higherIsBetter ? Number(metric.maxValue) : Number(metric.minValue)
+}
+
+function bestLabel(metric: PlayerAverageContrastMetric): string {
+  return metric.higherIsBetter ? '赛事最高' : '赛事最佳'
+}
+
+function chartValue(metric: PlayerAverageContrastMetric, value: number): number {
+  const rawValue = Number(value)
+  if (metric.higherIsBetter) return rawValue
+  return Number(metric.maxValue) - rawValue + Number(metric.minValue)
+}
+
+function scaleOf(metric: PlayerAverageContrastMetric): { baseline: number; range: number } {
+  const best = chartValue(metric, bestValue(metric))
+  const average = chartValue(metric, metric.averageValue)
+  const gap = Math.max(best - average, 0)
+  // 采用截断式基线，并将最佳值与平均值之间的视觉间距放大，数值仍以柱体标签为准。
+  const baseline = Math.max(0, average - gap * GAP_EMPHASIS)
+  return { baseline, range: Math.max(best - baseline, 1) }
+}
+
+function height(value: number, metric: PlayerAverageContrastMetric): string {
+  const scale = scaleOf(metric)
+  const ratio = (chartValue(metric, value) - scale.baseline) / scale.range
+  return `${Math.max(0, Math.min(100, ratio * 100))}%`
 }
 
 function averageHeight(metric: PlayerAverageContrastMetric): string {
-  const max = Number(metric.maxValue)
-  if (max <= 0) return '0%'
-  return `${Math.max(0, Math.min(100, (Number(metric.averageValue) / max) * 100))}%`
+  return height(metric.averageValue, metric)
+}
+
+function bestHeight(metric: PlayerAverageContrastMetric): string {
+  return height(bestValue(metric), metric)
 }
 
 function formatValue(value: number, metric: PlayerAverageContrastMetric): string {
   const number = Number(value)
-  if (metric.percentage) return `${(number * 100).toFixed(2)}%`
+  if (metric.percentage) return `${Math.round(number * 100)}%`
   if (Math.abs(number) >= 1000) return `${(number / 1000).toFixed(1)}K`
   return number.toFixed(1)
 }
@@ -35,7 +62,7 @@ function formatValue(value: number, metric: PlayerAverageContrastMetric): string
       </div>
       <div class="average-contrast-legend" aria-label="图例">
         <span><i class="legend-swatch player" />当前选手</span>
-        <span><i class="legend-swatch maximum" />赛事最高</span>
+        <span><i class="legend-swatch maximum" />赛事最高/最佳</span>
         <span><i class="legend-swatch average" />赛事平均</span>
       </div>
     </header>
@@ -44,18 +71,18 @@ function formatValue(value: number, metric: PlayerAverageContrastMetric): string
     <div v-else class="average-contrast-scroll">
       <div class="average-contrast-grid">
         <article v-for="metric in metrics" :key="metric.key" class="average-contrast-item">
-          <div class="contrast-bars" :aria-label="`${metric.label}：当前选手 ${formatValue(metric.value, metric)}，赛事平均 ${formatValue(metric.averageValue, metric)}，赛事最高 ${formatValue(metric.maxValue, metric)}`">
+          <div class="contrast-bars" :aria-label="`${metric.label}：当前选手 ${formatValue(metric.value, metric)}，赛事平均 ${formatValue(metric.averageValue, metric)}，${bestLabel(metric)} ${formatValue(bestValue(metric), metric)}`">
             <div class="contrast-bar-column">
               <div class="contrast-bar-track">
-                <div class="contrast-bar player-bar" :style="{ height: height(metric.value, metric.maxValue) }">
+                <div class="contrast-bar player-bar" :style="{ height: height(metric.value, metric) }">
                   <span class="bar-value">{{ formatValue(metric.value, metric) }}</span>
                 </div>
               </div>
             </div>
             <div class="contrast-bar-column">
               <div class="contrast-bar-track">
-                <div class="contrast-bar maximum-bar" :style="{ height: height(metric.maxValue, metric.maxValue) }">
-                  <span class="bar-value maximum-value">{{ formatValue(metric.maxValue, metric) }}</span>
+                <div class="contrast-bar maximum-bar" :style="{ height: bestHeight(metric) }">
+                  <span class="bar-value maximum-value">{{ formatValue(bestValue(metric), metric) }}</span>
                   <span class="average-bar" :style="{ height: averageHeight(metric) }">
                     <span class="bar-value average-value">{{ formatValue(metric.averageValue, metric) }}</span>
                   </span>
@@ -68,7 +95,7 @@ function formatValue(value: number, metric: PlayerAverageContrastMetric): string
         </article>
       </div>
     </div>
-    <p v-if="metrics.length" class="average-contrast-note">右侧对比柱总高度为赛事最高值，深色部分表示赛事平均值。</p>
+    <p v-if="metrics.length" class="average-contrast-note">对比柱采用差距增强刻度，数值以标签为准；死亡指标按低值优先反向显示。</p>
   </section>
 </template>
 
@@ -84,11 +111,11 @@ function formatValue(value: number, metric: PlayerAverageContrastMetric): string
 .legend-swatch.maximum { background: #d8dee4; }
 .legend-swatch.average { background: #8b949e; }
 .average-contrast-scroll { overflow-x: auto; padding: 16px 0 2px; }
-.average-contrast-grid { display: grid; grid-template-columns: repeat(7, minmax(72px, 1fr)); min-width: 540px; gap: 9px; }
+.average-contrast-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; gap: 4px; }
 .average-contrast-item { min-width: 0; text-align: center; }
-.contrast-bars { height: 190px; display: grid; grid-template-columns: 1fr 1fr; align-items: end; justify-content: center; gap: 7px; padding: 0 3px; }
+.contrast-bars { height: 190px; display: grid; grid-template-columns: 1fr 1fr; align-items: end; justify-content: center; gap: 4px; padding: 0 1px; }
 .contrast-bar-column { height: 100%; min-width: 0; display: flex; align-items: flex-end; justify-content: center; }
-.contrast-bar-track { position: relative; height: 170px; width: 100%; max-width: 40px; display: flex; align-items: flex-end; justify-content: center; }
+.contrast-bar-track { position: relative; height: 170px; width: 100%; max-width: 32px; display: flex; align-items: flex-end; justify-content: center; }
 .contrast-bar { position: relative; width: 100%; min-height: 2px; border-radius: 4px 4px 1px 1px; transition: height .2s ease; }
 .player-bar { background: #2f855a; }
 .maximum-bar { background: #d8dee4; }

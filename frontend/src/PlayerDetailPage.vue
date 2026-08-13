@@ -278,15 +278,17 @@ const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 .position-tabs { display: flex; gap: 6px; }
 .position-tab { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 13px; font-size: 12.5px; cursor: pointer; color: #57606a; }
 .position-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
-.detail-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .detail-columns { grid-template-columns: 1fr; } }
 .core-metrics-card { width: 100%; box-sizing: border-box; }
 .core-metrics-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .core-metrics-note { color: #8b949e; font-size: 11px; white-space: nowrap; }
-.core-metrics-list { display: flex; overflow-x: auto; gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
-.core-metric-item { flex: 0 0 110px; min-width: 0; padding: 12px 12px 4px; border-right: 1px solid var(--line); }
+.core-metrics-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
+.core-metric-item { min-width: 0; padding: 12px 12px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.core-metric-item:nth-child(5n) { border-right: 0; }
+.core-metric-item:nth-last-child(-n + 5) { border-bottom: 0; }
 .core-metric-item:first-child { padding-left: 0; }
-.core-metric-item:last-child { padding-right: 0; border-right: 0; }
+.core-metric-item:nth-child(5n) { padding-right: 0; }
 .core-metric-label { color: #57606a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .core-metric-value { margin-top: 6px; color: var(--accent); font-size: 18px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .core-metric-rank { margin-top: 5px; color: #24292f; font-size: 11px; white-space: nowrap; }
@@ -295,10 +297,13 @@ const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 @media (max-width: 700px) {
   .core-metrics-heading { display: block; }
   .core-metrics-note { display: block; margin-top: 4px; }
-  .core-metrics-list { padding-bottom: 4px; }
+  .core-metrics-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .core-metric-item { padding: 10px 8px; }
+  .core-metric-item:nth-child(5n) { border-right: 1px solid var(--line); padding-right: 8px; }
+  .core-metric-item:nth-child(3n) { border-right: 0; padding-right: 8px; }
+  .core-metric-item:nth-last-child(-n + 5) { border-bottom: 1px solid var(--line); }
+  .core-metric-item:nth-last-child(-n + 3) { border-bottom: 0; }
   .core-metric-item:first-child { padding-left: 8px; }
-  .core-metric-item:last-child { padding-right: 8px; }
 }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table th, .detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
