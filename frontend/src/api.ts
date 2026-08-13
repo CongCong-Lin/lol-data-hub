@@ -156,6 +156,18 @@ export interface PlayerRadarMetric {
   cohortSize: number
 }
 
+export interface PlayerAverageContrastMetric {
+  key: string
+  label: string
+  value: number
+  averageValue: number
+  maxValue: number
+  rank: number
+  cohortSize: number
+  higherIsBetter: boolean
+  percentage: boolean
+}
+
 export interface PlayerHeroUsage {
   sourceChampionId: number
   championName: string
@@ -188,6 +200,7 @@ export interface PlayerDetailStatisticsResult {
   heroUsageTotalGames: number
   heroes: PlayerHeroUsage[]
   latestCollectedAt: string | null
+  averageContrastMetrics: PlayerAverageContrastMetric[]
 }
 
 export interface TeamCombinationStatistics {

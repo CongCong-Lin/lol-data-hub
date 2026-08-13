@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
 import com.loldatahub.domain.statistics.PlayerDetailProfile;
 import com.loldatahub.domain.statistics.PlayerDetailQuery;
+import com.loldatahub.domain.statistics.PlayerAverageContrastMetric;
 import com.loldatahub.domain.statistics.PlayerHeroUsage;
 import com.loldatahub.domain.statistics.PlayerRadarMetric;
 import com.loldatahub.domain.statistics.PlayerStatistics;
@@ -95,6 +96,21 @@ public class PlayerDetailStatisticsService {
             metric("goldGapPerGame", "场均经济差", PlayerStatistics::goldGapPerGame)
     );
 
+    /**
+     * 职业场均对比使用当前数据源实际提供的七项指标。
+     * 数据源没有逐局伤害/承伤绝对值，因此这里使用可比且有明确口径的伤害占比、经济占比，
+     * 不把占比伪装成不存在的场均伤害或场均承伤。
+     */
+    private static final List<MetricDefinition> AVERAGE_CONTRAST_METRICS = List.of(
+            metric("killPerGame", "击杀", PlayerStatistics::killPerGame),
+            new MetricDefinition("deathPerGame", "死亡", false, PlayerStatistics::deathPerGame, false),
+            metric("assistPerGame", "助攻", PlayerStatistics::assistPerGame),
+            metric("creepScorePerGame", "补刀", PlayerStatistics::creepScorePerGame),
+            new MetricDefinition("damagePercent", "伤害占比", true, PlayerStatistics::damagePercent, false),
+            metric("goldPerGame", "经济", PlayerStatistics::goldPerGame),
+            new MetricDefinition("goldPercent", "经济占比", true, PlayerStatistics::goldPercent, false)
+    );
+
     private static MetricDefinition metric(String key, String label, Function<PlayerStatistics, BigDecimal> value) {
         return new MetricDefinition(key, label, true, value, false);
     }
@@ -125,7 +141,7 @@ public class PlayerDetailStatisticsService {
 
     public PlayerDetailStatisticsResult query(PlayerDetailQuery query) {
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s7:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s8:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
         PlayerDetailStatisticsResult cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -160,7 +176,8 @@ public class PlayerDetailStatisticsService {
                 List.of(),
                 0L,
                 List.of(),
-                heroUsageMapper.findLatestCollectedAt(query.stages())
+                heroUsageMapper.findLatestCollectedAt(query.stages()),
+                averageContrastMetrics(target, cohort)
         );
         result = withHeroUsage(result, query);
         writeCache(cacheKey, result);
@@ -178,7 +195,7 @@ public class PlayerDetailStatisticsService {
             return new PlayerDetailStatisticsResult(
                     base.dataVersion(), base.minimumMatchCount(), base.position(), base.cohortSize(),
                     base.player(), base.coreMetrics(), base.radarMetrics(),
-                    false, missing, 0L, List.of(), base.latestCollectedAt());
+                    false, missing, 0L, List.of(), base.latestCollectedAt(), base.averageContrastMetrics());
         }
 
         List<PlayerHeroUsageAggregateRow> aggregateRows = heroUsageMapper.aggregateHeroUsage(
@@ -203,7 +220,7 @@ public class PlayerDetailStatisticsService {
         return new PlayerDetailStatisticsResult(
                 base.dataVersion(), base.minimumMatchCount(), base.position(), base.cohortSize(),
                 base.player(), base.coreMetrics(), base.radarMetrics(),
-                true, List.of(), totalGames, heroes, base.latestCollectedAt());
+                true, List.of(), totalGames, heroes, base.latestCollectedAt(), base.averageContrastMetrics());
     }
 
     private PlayerDetailNotFoundException notFound(PlayerDetailQuery query) {
@@ -262,6 +279,30 @@ public class PlayerDetailStatisticsService {
                             playerScore, averageScore, rank, cohort.size());
                 })
                 .toList();
+    }
+
+    private List<PlayerAverageContrastMetric> averageContrastMetrics(PlayerStatistics target,
+                                                                      List<PlayerStatistics> cohort) {
+        return AVERAGE_CONTRAST_METRICS.stream()
+                .map(definition -> {
+                    BigDecimal value = safeValue(definition, target);
+                    List<BigDecimal> values = cohort.stream()
+                            .map(player -> safeValue(definition, player))
+                            .toList();
+                    BigDecimal maxValue = values.stream()
+                            .max(BigDecimal::compareTo)
+                            .orElse(BigDecimal.ZERO);
+                    return new PlayerAverageContrastMetric(
+                            definition.key(), definition.label(), value, average(values), maxValue,
+                            rank(value, definition.higherIsBetter(), player -> safeValue(definition, player), cohort),
+                            cohort.size(), definition.higherIsBetter(), PERCENT_METRICS.contains(definition.key()));
+                })
+                .toList();
+    }
+
+    private BigDecimal safeValue(MetricDefinition definition, PlayerStatistics player) {
+        BigDecimal value = definition.value().apply(player);
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     /** 竞赛排名：1 + 严格优于当前选手的人数，并列同名次。 */

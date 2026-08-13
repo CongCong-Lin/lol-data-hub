@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type PlayerDetailStatisticsResult } from './api'
 import PlayerRadarChart from './PlayerRadarChart.vue'
+import ScoreggAverageContrast from './ScoreggAverageContrast.vue'
 
 const props = defineProps<{ playerId: string }>()
 
@@ -158,26 +159,32 @@ const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
         当前查询条件下同位置合格选手仅 {{ result.cohortSize }} 人，排名与百分位得分样本不足，仅供参考。
       </div>
 
+      <section class="detail-card core-metrics-card">
+        <div class="core-metrics-heading">
+          <div>
+            <h2 class="detail-heading">核心数据与同位置排名</h2>
+            <p class="detail-subheading">共 {{ result.cohortSize }} 名同位置合格选手参与比较</p>
+          </div>
+          <span class="core-metrics-note">指标数值与同位置排名一并展示</span>
+        </div>
+        <div class="core-metrics-list">
+          <article v-for="metric in result.coreMetrics" :key="metric.key" class="core-metric-item">
+            <div class="core-metric-label">{{ metric.label }}</div>
+            <div class="core-metric-value">{{ metric.formattedValue }}</div>
+            <div class="core-metric-rank">第 {{ metric.rank }} 名 <span>/ 共 {{ metric.cohortSize }} 人</span></div>
+          </article>
+        </div>
+      </section>
+
       <div class="detail-columns">
         <section class="detail-card">
-          <h2 class="detail-heading">核心数据与同位置排名</h2>
-          <p class="detail-subheading">共 {{ result.cohortSize }} 名同位置合格选手参与比较</p>
-          <table class="detail-table metric-table">
-            <thead>
-              <tr><th>指标</th><th>数值</th><th>同位置排名</th><th>方向</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="metric in result.coreMetrics" :key="metric.key">
-                <td>{{ metric.label }}</td>
-                <td class="accent">{{ metric.formattedValue }}</td>
-                <td>第 {{ metric.rank }} 名 / 共 {{ metric.cohortSize }} 人</td>
-                <td class="muted">{{ metric.higherIsBetter ? '越高越好' : '越低越好' }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <ScoreggAverageContrast
+            :player-name="result.player.playerName"
+            :metrics="result.averageContrastMetrics"
+          />
         </section>
 
-        <section class="detail-card">
+        <section class="detail-card radar-card">
           <h2 class="detail-heading">六维能力雷达图</h2>
           <p class="detail-subheading">按同位置百分位归一化（0～100），虚线为同位置选手平均</p>
           <PlayerRadarChart :metrics="result.radarMetrics" />
@@ -273,6 +280,26 @@ const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 .position-tab.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .detail-columns { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .detail-columns { grid-template-columns: 1fr; } }
+.core-metrics-card { width: 100%; box-sizing: border-box; }
+.core-metrics-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.core-metrics-note { color: #8b949e; font-size: 11px; white-space: nowrap; }
+.core-metrics-list { display: flex; overflow-x: auto; gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
+.core-metric-item { flex: 0 0 110px; min-width: 0; padding: 12px 12px 4px; border-right: 1px solid var(--line); }
+.core-metric-item:first-child { padding-left: 0; }
+.core-metric-item:last-child { padding-right: 0; border-right: 0; }
+.core-metric-label { color: #57606a; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.core-metric-value { margin-top: 6px; color: var(--accent); font-size: 18px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.core-metric-rank { margin-top: 5px; color: #24292f; font-size: 11px; white-space: nowrap; }
+.core-metric-rank span { color: #8b949e; }
+.radar-card { min-width: 0; }
+@media (max-width: 700px) {
+  .core-metrics-heading { display: block; }
+  .core-metrics-note { display: block; margin-top: 4px; }
+  .core-metrics-list { padding-bottom: 4px; }
+  .core-metric-item { padding: 10px 8px; }
+  .core-metric-item:first-child { padding-left: 8px; }
+  .core-metric-item:last-child { padding-right: 8px; }
+}
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table th, .detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .detail-table thead th { color: #57606a; font-size: 12px; background: #f6f8fa; }

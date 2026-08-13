@@ -59,6 +59,15 @@ function detailResult(overrides: Partial<PlayerDetailStatisticsResult> = {}): Pl
       },
     ],
     latestCollectedAt: '2026-08-01T10:00:00',
+    averageContrastMetrics: [
+      { key: 'killPerGame', label: '击杀', value: 3, averageValue: 2.5, maxValue: 5, rank: 5, cohortSize: 18, higherIsBetter: true, percentage: false },
+      { key: 'deathPerGame', label: '死亡', value: 1.6, averageValue: 2.1, maxValue: 4, rank: 1, cohortSize: 18, higherIsBetter: false, percentage: false },
+      { key: 'assistPerGame', label: '助攻', value: 4, averageValue: 3.5, maxValue: 7, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: false },
+      { key: 'creepScorePerGame', label: '补刀', value: 300, averageValue: 280, maxValue: 340, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: false },
+      { key: 'damagePercent', label: '伤害占比', value: 0.25, averageValue: 0.24, maxValue: 0.38, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: true },
+      { key: 'goldPerGame', label: '经济', value: 12000, averageValue: 11000, maxValue: 15000, rank: 3, cohortSize: 18, higherIsBetter: true, percentage: false },
+      { key: 'goldPercent', label: '经济占比', value: 0.22, averageValue: 0.2, maxValue: 0.3, rank: 5, cohortSize: 18, higherIsBetter: true, percentage: true },
+    ],
     ...overrides,
   }
 }
@@ -100,6 +109,8 @@ describe('选手详情页', () => {
     expect(wrapper.text()).toContain('第 3 名 / 共 18 人')
     expect(wrapper.text()).toContain('越低越好')
     expect(wrapper.text()).toContain('共 18 名同位置合格选手参与比较')
+    expect(wrapper.text()).toContain('职业场均对比')
+    expect(wrapper.findAll('.average-contrast-item')).toHaveLength(7)
     wrapper.unmount()
   })
 

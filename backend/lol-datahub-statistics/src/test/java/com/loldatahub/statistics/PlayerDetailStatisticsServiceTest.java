@@ -3,6 +3,7 @@ package com.loldatahub.statistics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
 import com.loldatahub.domain.statistics.PlayerDetailQuery;
+import com.loldatahub.domain.statistics.PlayerAverageContrastMetric;
 import com.loldatahub.domain.statistics.PlayerHeroUsage;
 import com.loldatahub.domain.statistics.PlayerRadarMetric;
 import com.loldatahub.domain.statistics.PlayerStatistics;
@@ -114,6 +115,27 @@ class PlayerDetailStatisticsServiceTest {
         assertThat(kda.rank()).isEqualTo(3);
         assertThat(kda.cohortSize()).isEqualTo(3);
         assertThat(kda.higherIsBetter()).isTrue();
+    }
+
+    @Test
+    void buildsAverageContrastFromTheSameQualifiedPositionCohort() {
+        mockCohort(List.of(
+                player(11L, "Bin", bd("4"), bd("3"), bd("1")),
+                player(12L, "Zeus", bd("6"), bd("5"), bd("2")),
+                player(13L, "Kiin", bd("2"), bd("1"), bd("3"))));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        PlayerAverageContrastMetric kills = result.averageContrastMetrics().stream()
+                .filter(metric -> metric.key().equals("killPerGame"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(kills.value()).isEqualByComparingTo("3");
+        assertThat(kills.averageValue()).isEqualByComparingTo("3");
+        assertThat(kills.maxValue()).isEqualByComparingTo("5");
+        assertThat(kills.rank()).isEqualTo(2);
+        assertThat(result.averageContrastMetrics()).hasSize(7);
     }
 
     @Test
@@ -381,7 +403,7 @@ class PlayerDetailStatisticsServiceTest {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(valueOperations).set(keyCaptor.capture(), anyString(), eq(Duration.ofHours(12)));
         assertThat(keyCaptor.getValue())
-                .isEqualTo("loldatahub:stats:s7:v9:player-detail:11:237:102,237:103:TOP:5");
+                .isEqualTo("loldatahub:stats:s8:v9:player-detail:11:237:102,237:103:TOP:5");
     }
 
     @Test
