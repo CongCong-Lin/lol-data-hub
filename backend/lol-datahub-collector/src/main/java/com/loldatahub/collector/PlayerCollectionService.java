@@ -39,7 +39,7 @@ import java.util.TreeSet;
 
 @Service
 public class PlayerCollectionService {
-    static final String CONTENT_SCHEMA_VERSION = "player-v3-exact-match-rates";
+    static final String CONTENT_SCHEMA_VERSION = "player-v4-exact-damage-per-game";
     private static final Logger log = LoggerFactory.getLogger(PlayerCollectionService.class);
 
     private final TjStatsClient client;
@@ -141,8 +141,10 @@ public class PlayerCollectionService {
                                 player.goldPerGame(), player.creepScorePerGame(),
                                 player.wardPlacedPerGame(), player.wardKilledPerGame(),
                                 exactRate(candidate.exactRates(), player.playerId(),
-                                        ExactPlayerRates::killParticipantPercent, player.killParticipantPercent()),
+                                ExactPlayerRates::killParticipantPercent, player.killParticipantPercent()),
                                 player.goldGapPerGame(),
+                                exactRate(candidate.exactRates(), player.playerId(),
+                                        ExactPlayerRates::damagePerGame, player.damagePerGame()),
                                 exactRate(candidate.exactRates(), player.playerId(),
                                         ExactPlayerRates::damagePercent, player.damagePercent()),
                                 exactRate(candidate.exactRates(), player.playerId(),
@@ -366,6 +368,7 @@ public class PlayerCollectionService {
             teamGold = teamGold.add(metric.teamGold());
         }
         return new ExactPlayerRates(
+                metrics.isEmpty() ? null : playerDamage.divide(BigDecimal.valueOf(metrics.size()), MathContext.DECIMAL128),
                 teamKills > 0
                         ? BigDecimal.valueOf(participation)
                         .divide(BigDecimal.valueOf(teamKills), MathContext.DECIMAL128) : null,
@@ -466,6 +469,7 @@ public class PlayerCollectionService {
     }
 
     private record ExactPlayerRates(
+            BigDecimal damagePerGame,
             BigDecimal killParticipantPercent,
             BigDecimal damagePercent,
             BigDecimal goldPercent

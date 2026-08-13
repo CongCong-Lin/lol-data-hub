@@ -106,9 +106,9 @@ public class PlayerDetailStatisticsService {
             new MetricDefinition("deathPerGame", "死亡", false, PlayerStatistics::deathPerGame, false),
             metric("assistPerGame", "助攻", PlayerStatistics::assistPerGame),
             metric("creepScorePerGame", "补刀", PlayerStatistics::creepScorePerGame),
+            metric("damagePerGame", "伤害", PlayerStatistics::damagePerGame),
             new MetricDefinition("damagePercent", "伤害占比", true, PlayerStatistics::damagePercent, false),
-            metric("goldPerGame", "经济", PlayerStatistics::goldPerGame),
-            new MetricDefinition("goldPercent", "经济占比", true, PlayerStatistics::goldPercent, false)
+            metric("goldPerGame", "经济", PlayerStatistics::goldPerGame)
     );
 
     private static MetricDefinition metric(String key, String label, Function<PlayerStatistics, BigDecimal> value) {

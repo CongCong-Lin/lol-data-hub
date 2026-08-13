@@ -50,7 +50,8 @@ const PLAYER_COLUMNS: ColumnOption[] = [
   { key: 'assistPerGame', label: '场均助攻' }, { key: 'totalDeaths', label: '总死亡' },
   { key: 'deathPerGame', label: '场均死亡' }, { key: 'goldPerGame', label: '场均经济' },
   { key: 'creepScorePerGame', label: '场均补刀' }, { key: 'killParticipantPercent', label: '参团率' },
-  { key: 'goldGapPerGame', label: '场均经济差' }, { key: 'damagePercent', label: '伤害占比' },
+  { key: 'goldGapPerGame', label: '场均经济差' }, { key: 'damagePerGame', label: '场均伤害' },
+  { key: 'damagePercent', label: '伤害占比' },
   { key: 'goldPercent', label: '经济占比' },
 ]
 
@@ -198,6 +199,7 @@ function isColumnVisible(visibleColumns: string[], key: string): boolean {
 const TABLE_COLUMN_WIDTHS: Record<string, number> = {
   champion: 169,
   player: 169,
+  damagePerGame: 106,
   team: 150,
   positions: 124,
   mostUsedPlayers: 154,
@@ -688,8 +690,8 @@ function percent(value: number) {
   return formatPercent(value)
 }
 
-function fmtDecimal(value: number, digits = 2) {
-  return value.toFixed(digits)
+function fmtDecimal(value: number | null | undefined, digits = 2) {
+  return value == null ? '-' : value.toFixed(digits)
 }
 
 function fmtGold(value: number) {
@@ -1102,6 +1104,7 @@ onMounted(async () => {
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')" label="场均补刀" field="creepScorePerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')" label="参团率" field="killParticipantPercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')" label="场均经济差" field="goldGapPerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
+              <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'damagePerGame')" label="场均伤害" field="damagePerGame" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')" label="伤害占比" field="damagePercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
               <SortableHeader v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')" label="经济占比" field="goldPercent" :sort-by="playerSortBy" :sort-direction="playerSortDirection" @sort="changeSort('player', $event)" />
             </tr>
@@ -1145,6 +1148,7 @@ onMounted(async () => {
               <td v-if="isColumnVisible(playerVisibleColumns, 'creepScorePerGame')">{{ fmtDecimal(item.creepScorePerGame) }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'killParticipantPercent')" class="accent">{{ percent(item.killParticipantPercent) }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'goldGapPerGame')">{{ fmtGold(item.goldGapPerGame) }}</td>
+              <td v-if="isColumnVisible(playerVisibleColumns, 'damagePerGame')">{{ fmtDecimal(item.damagePerGame) }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'damagePercent')" class="accent">{{ percent(item.damagePercent) }}</td>
               <td v-if="isColumnVisible(playerVisibleColumns, 'goldPercent')">{{ percent(item.goldPercent) }}</td>
             </tr>

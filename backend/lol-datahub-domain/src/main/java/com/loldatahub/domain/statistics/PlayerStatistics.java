@@ -27,6 +27,7 @@ public record PlayerStatistics(
         BigDecimal wardKilledPerGame,
         BigDecimal killParticipantPercent,
         BigDecimal goldGapPerGame,
+        BigDecimal damagePerGame,
         BigDecimal damagePercent,
         BigDecimal goldPercent,
         boolean sampleQualified

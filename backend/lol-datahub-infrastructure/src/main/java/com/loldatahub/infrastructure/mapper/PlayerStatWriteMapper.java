@@ -44,12 +44,12 @@ public interface PlayerStatWriteMapper {
                  match_count, game_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
                  source_gold_per_game, source_creep_score_per_game, source_ward_placed_per_game,
                  source_ward_killed_per_game, source_kill_participant_percent, source_gold_gap_per_game,
-                 source_damage_percent, source_gold_percent, collection_run_id, collected_at)
+                 source_damage_per_game, source_damage_percent, source_gold_percent, collection_run_id, collected_at)
             VALUES (#{seasonId}, #{stageId}, #{playerKey}, #{teamName}, #{teamLogo}, #{playerPosition},
                     #{matchCount}, #{gameCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
                     #{sourceGoldPerGame}, #{sourceCreepScorePerGame}, #{sourceWardPlacedPerGame},
                     #{sourceWardKilledPerGame}, #{sourceKillParticipantPercent}, #{sourceGoldGapPerGame},
-                    #{sourceDamagePercent}, #{sourceGoldPercent}, #{runId}, #{collectedAt})
+                    #{sourceDamagePerGame}, #{sourceDamagePercent}, #{sourceGoldPercent}, #{runId}, #{collectedAt})
             ON DUPLICATE KEY UPDATE team_name = VALUES(team_name), team_logo = VALUES(team_logo),
                 player_position = VALUES(player_position), match_count = VALUES(match_count),
                 game_count = VALUES(game_count),
@@ -62,6 +62,7 @@ public interface PlayerStatWriteMapper {
                 source_ward_killed_per_game = VALUES(source_ward_killed_per_game),
                 source_kill_participant_percent = VALUES(source_kill_participant_percent),
                 source_gold_gap_per_game = VALUES(source_gold_gap_per_game),
+                source_damage_per_game = VALUES(source_damage_per_game),
                 source_damage_percent = VALUES(source_damage_percent),
                 source_gold_percent = VALUES(source_gold_percent),
                 collection_run_id = VALUES(collection_run_id), collected_at = VALUES(collected_at)
@@ -75,13 +76,13 @@ public interface PlayerStatWriteMapper {
                  match_count, game_count, mvp_count, mvp_votes, total_kills, total_assists, total_deaths,
                  source_gold_per_game, source_creep_score_per_game, source_ward_placed_per_game,
                  source_ward_killed_per_game, source_kill_participant_percent, source_gold_gap_per_game,
-                 source_damage_percent, source_gold_percent, collected_at)
+                 source_damage_per_game, source_damage_percent, source_gold_percent, collected_at)
             VALUES (#{runId}, #{seasonId}, #{stageId}, #{playerKey},
                     #{teamName}, #{teamLogo}, #{playerPosition},
                     #{matchCount}, #{gameCount}, #{mvpCount}, #{mvpVotes}, #{totalKills}, #{totalAssists}, #{totalDeaths},
                     #{sourceGoldPerGame}, #{sourceCreepScorePerGame}, #{sourceWardPlacedPerGame},
                     #{sourceWardKilledPerGame}, #{sourceKillParticipantPercent}, #{sourceGoldGapPerGame},
-                    #{sourceDamagePercent}, #{sourceGoldPercent}, #{collectedAt})
+                    #{sourceDamagePerGame}, #{sourceDamagePercent}, #{sourceGoldPercent}, #{collectedAt})
             """)
     void insertSnapshot(PlayerStageStatWrite stat);
 }

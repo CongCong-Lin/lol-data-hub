@@ -64,9 +64,9 @@ function detailResult(overrides: Partial<PlayerDetailStatisticsResult> = {}): Pl
       { key: 'deathPerGame', label: '死亡', value: 1.6, averageValue: 2.1, minValue: 0.8, maxValue: 4, rank: 1, cohortSize: 18, higherIsBetter: false, percentage: false },
       { key: 'assistPerGame', label: '助攻', value: 4, averageValue: 3.5, minValue: 1, maxValue: 7, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: false },
       { key: 'creepScorePerGame', label: '补刀', value: 300, averageValue: 280, minValue: 200, maxValue: 340, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: false },
+      { key: 'damagePerGame', label: '伤害', value: 800, averageValue: 700, minValue: 500, maxValue: 1100, rank: 3, cohortSize: 18, higherIsBetter: true, percentage: false },
       { key: 'damagePercent', label: '伤害占比', value: 0.25, averageValue: 0.24, minValue: 0.18, maxValue: 0.38, rank: 4, cohortSize: 18, higherIsBetter: true, percentage: true },
       { key: 'goldPerGame', label: '经济', value: 12000, averageValue: 11000, minValue: 9000, maxValue: 15000, rank: 3, cohortSize: 18, higherIsBetter: true, percentage: false },
-      { key: 'goldPercent', label: '经济占比', value: 0.22, averageValue: 0.2, minValue: 0.15, maxValue: 0.3, rank: 5, cohortSize: 18, higherIsBetter: true, percentage: true },
     ],
     ...overrides,
   }

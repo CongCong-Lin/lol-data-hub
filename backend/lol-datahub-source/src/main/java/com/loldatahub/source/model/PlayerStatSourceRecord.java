@@ -27,6 +27,7 @@ public record PlayerStatSourceRecord(
         BigDecimal wardKilledPerGame,
         BigDecimal killParticipantPercent,
         BigDecimal goldGapPerGame,
+        BigDecimal damagePerGame,
         BigDecimal damagePercent,
         BigDecimal goldPercent
 ) {

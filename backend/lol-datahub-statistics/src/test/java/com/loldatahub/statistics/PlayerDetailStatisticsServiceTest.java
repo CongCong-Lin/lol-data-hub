@@ -88,7 +88,7 @@ class PlayerDetailStatisticsServiceTest {
                 List.of("TES"), List.of("TOP"), 10L, 20L, 1L, BigDecimal.ONE,
                 40L, 30L, 20L, kda, killPerGame, bd("3"), deathPerGame,
                 bd("12000"), bd("200"), bd("5"), bd("2"), killParticipantPercent, bd("100"),
-                damagePercent, goldPercent,
+                bd("800"), damagePercent, goldPercent,
                 true);
     }
 
@@ -146,6 +146,9 @@ class PlayerDetailStatisticsServiceTest {
         assertThat(kills.maxValue()).isEqualByComparingTo("5");
         assertThat(kills.rank()).isEqualTo(2);
         assertThat(result.averageContrastMetrics()).hasSize(7);
+        assertThat(result.averageContrastMetrics()).extracting(PlayerAverageContrastMetric::key)
+                .containsExactly("killPerGame", "deathPerGame", "assistPerGame", "creepScorePerGame",
+                        "damagePerGame", "damagePercent", "goldPerGame");
     }
 
     @Test

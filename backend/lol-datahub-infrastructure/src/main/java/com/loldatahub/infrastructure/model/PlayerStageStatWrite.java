@@ -24,6 +24,7 @@ public record PlayerStageStatWrite(
         BigDecimal sourceWardKilledPerGame,
         BigDecimal sourceKillParticipantPercent,
         BigDecimal sourceGoldGapPerGame,
+        BigDecimal sourceDamagePerGame,
         BigDecimal sourceDamagePercent,
         BigDecimal sourceGoldPercent,
         OffsetDateTime collectedAt

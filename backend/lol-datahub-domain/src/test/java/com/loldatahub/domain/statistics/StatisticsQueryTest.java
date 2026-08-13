@@ -277,7 +277,7 @@ class StatisticsQueryTest {
         @ValueSource(strings = {"playerName", "positions", "matchCount", "gameCount", "mvpCount", "mvpVotes",
                 "kda", "totalKills", "killPerGame", "totalAssists", "assistPerGame", "totalDeaths",
                 "deathPerGame", "goldPerGame", "creepScorePerGame", "killParticipantPercent",
-                "goldGapPerGame", "damagePercent", "goldPercent"})
+                "goldGapPerGame", "damagePerGame", "damagePercent", "goldPercent"})
         void acceptsEveryVisibleColumnAsSortField(String field) {
             assertThat(new PlayerStatisticsQuery(1, List.of(1L), 0, null, field, SortDirection.DESC).sortBy())
                     .isEqualTo(field);

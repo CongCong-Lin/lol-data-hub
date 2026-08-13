@@ -92,6 +92,7 @@ const playerResult: PlayerStatisticsResult = {
     wardKilledPerGame: 5,
     killParticipantPercent: 0.7,
     goldGapPerGame: 100,
+    damagePerGame: 500,
     damagePercent: 0.25,
     goldPercent: 0.22,
     sampleQualified: true,
@@ -515,9 +516,9 @@ describe('查询状态', () => {
     await flushPromises()
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('.player-table .sort-header')).toHaveLength(19)
+    expect(wrapper.findAll('.player-table .sort-header')).toHaveLength(20)
     await wrapper.get('.column-menu-trigger').trigger('click')
-    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(19)
+    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(20)
     wrapper.unmount()
   })
 

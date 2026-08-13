@@ -113,6 +113,7 @@ export interface PlayerStatistics {
   wardKilledPerGame: number
   killParticipantPercent: number
   goldGapPerGame: number
+  damagePerGame: number | null
   damagePercent: number
   goldPercent: number
   sampleQualified: boolean

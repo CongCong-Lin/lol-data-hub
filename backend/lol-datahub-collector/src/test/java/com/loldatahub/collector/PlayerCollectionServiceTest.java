@@ -101,6 +101,7 @@ class PlayerCollectionServiceTest {
         ArgumentCaptor<PlayerStageStatWrite> captor = ArgumentCaptor.forClass(PlayerStageStatWrite.class);
         verify(writeMapper).upsertCurrent(captor.capture());
         PlayerStageStatWrite stat = captor.getValue();
+        assertThat(stat.sourceDamagePerGame()).isEqualByComparingTo("26");
         assertThat(stat.sourceKillParticipantPercent()).isEqualByComparingTo("0.4285714285714285714285714285714286");
         assertThat(stat.sourceDamagePercent()).isEqualByComparingTo("0.26");
         assertThat(stat.sourceGoldPercent()).isEqualByComparingTo("0.251");
@@ -136,7 +137,8 @@ class PlayerCollectionServiceTest {
         when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
         when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn(
                 sha256(PlayerCollectionService.CONTENT_SCHEMA_VERSION + "\n"
-                        + hashMaterial("/compound/public/player", json)));
+                        + hashMaterial("/compound/public/player", json)
+                        + hashMaterial("exact-rates", "fallback")));
 
         CollectionResult result = service.collect(1L, List.of(100L));
 

@@ -15,7 +15,7 @@ public record PlayerStatisticsQuery(
             "playerName", "positions", "matchCount", "gameCount", "mvpCount", "mvpVotes", "kda",
             "totalKills", "killPerGame", "totalAssists", "assistPerGame", "totalDeaths", "deathPerGame",
             "goldPerGame", "creepScorePerGame", "killParticipantPercent", "goldGapPerGame",
-            "damagePercent", "goldPercent"
+            "damagePerGame", "damagePercent", "goldPercent"
     );
     private static final String DEFAULT_SORT_BY = "kda";
     private static final int MAX_STAGES = 50;

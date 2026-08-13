@@ -22,6 +22,7 @@ public record PlayerAggregateRow(
         BigDecimal weightedWardKilledPerGame,
         BigDecimal weightedKillParticipantPercent,
         BigDecimal weightedGoldGapPerGame,
+        BigDecimal weightedDamagePerGame,
         BigDecimal weightedDamagePercent,
         BigDecimal weightedGoldPercent
 ) {

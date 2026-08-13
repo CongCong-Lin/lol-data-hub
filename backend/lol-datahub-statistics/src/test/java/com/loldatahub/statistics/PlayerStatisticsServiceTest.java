@@ -54,10 +54,10 @@ class PlayerStatisticsServiceTest {
         when(mapper.aggregatePlayers(eq(normalized), eq(5), eq(null))).thenReturn(List.of(
                 new PlayerAggregateRow("p1", 11L, "Zed", "zed.png", "Team A,Team B", "TOP,MID",
                         8L, 20L, 2L, bd("10"), 80L, 40L, 20L, bd("12000"), bd("220"), bd("5"), bd("2"),
-                        bd("65"), bd("100"), bd("28"), bd("48")),
+                        bd("65"), bd("100"), bd("800"), bd("28"), bd("48")),
                 new PlayerAggregateRow("p2", 12L, "Alpha", "alpha.png", "Team C", "JUG",
                         2L, 5L, 0L, bd("1"), 100L, 20L, 50L, bd("11000"), bd("180"), bd("4"), bd("1"),
-                        bd("55"), bd("-50"), bd("22"), bd("45"))
+                        bd("55"), bd("-50"), bd("700"), bd("22"), bd("45"))
         ));
 
         PlayerStatisticsQuery query = new PlayerStatisticsQuery(
@@ -90,7 +90,7 @@ class PlayerStatisticsServiceTest {
         when(mapper.aggregatePlayers(eq(stages), eq(0), eq("TOP"))).thenReturn(List.of(
                 new PlayerAggregateRow("p1", 11L, "Zed", null, "Team A", "TOP,MID",
                         1L, 3L, 0L, bd("0"), 1L, 1L, 1L, bd("1"), bd("1"), bd("1"), bd("1"),
-                        bd("1"), bd("1"), bd("1"), bd("1"))
+                        bd("1"), bd("1"), bd("1"), bd("1"), bd("1"))
         ));
 
         PlayerStatisticsQuery query = new PlayerStatisticsQuery(
@@ -112,7 +112,7 @@ class PlayerStatisticsServiceTest {
         PlayerStatistics cached = new PlayerStatistics("p-cache", 99L, "Cached", "cached.png",
                 List.of("Team"), List.of("MID"), 10L, 25L, 2L, bd("5"), 70L, 40L, 20L,
                 bd("5.5"), bd("7"), bd("4"), bd("2"), bd("12000"), bd("200"),
-                bd("5"), bd("2"), bd("60"), bd("100"), bd("25"), bd("50"), true);
+                bd("5"), bd("2"), bd("60"), bd("100"), bd("800"), bd("25"), bd("50"), true);
         when(valueOperations.get(anyString())).thenReturn(new ObjectMapper().writeValueAsString(List.of(cached)));
 
         PlayerStatisticsQuery query = new PlayerStatisticsQuery(

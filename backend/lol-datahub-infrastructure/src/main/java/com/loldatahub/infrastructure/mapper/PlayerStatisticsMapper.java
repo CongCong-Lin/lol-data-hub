@@ -64,6 +64,12 @@ public interface PlayerStatisticsMapper {
                    COALESCE(SUM(ps.source_gold_gap_per_game * COALESCE(ps.game_count, ps.match_count))
                        / NULLIF(SUM(CASE WHEN ps.source_gold_gap_per_game IS NOT NULL THEN COALESCE(ps.game_count, ps.match_count) ELSE 0 END), 0), 0)
                        AS weightedGoldGapPerGame,
+                   SUM(CASE WHEN ps.source_damage_per_game IS NOT NULL
+                            THEN ps.source_damage_per_game * COALESCE(ps.game_count, ps.match_count)
+                            ELSE 0 END)
+                       / NULLIF(SUM(CASE WHEN ps.source_damage_per_game IS NOT NULL
+                                         THEN COALESCE(ps.game_count, ps.match_count) ELSE 0 END), 0)
+                       AS weightedDamagePerGame,
                    COALESCE(SUM(ps.source_damage_percent * COALESCE(ps.game_count, ps.match_count))
                        / NULLIF(SUM(CASE WHEN ps.source_damage_percent IS NOT NULL THEN COALESCE(ps.game_count, ps.match_count) ELSE 0 END), 0), 0)
                        AS weightedDamagePercent,

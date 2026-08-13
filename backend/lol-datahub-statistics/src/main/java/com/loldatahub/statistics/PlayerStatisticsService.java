@@ -101,6 +101,7 @@ public class PlayerStatisticsService {
                 row.weightedWardKilledPerGame(),
                 row.weightedKillParticipantPercent(),
                 row.weightedGoldGapPerGame(),
+                row.weightedDamagePerGame(),
                 row.weightedDamagePercent(),
                 row.weightedGoldPercent(),
                 matchCount >= query.minimumMatchCount()
@@ -126,6 +127,8 @@ public class PlayerStatisticsService {
             case "creepScorePerGame" -> Comparator.comparing(PlayerStatistics::creepScorePerGame);
             case "killParticipantPercent" -> Comparator.comparing(PlayerStatistics::killParticipantPercent);
             case "goldGapPerGame" -> Comparator.comparing(PlayerStatistics::goldGapPerGame);
+            case "damagePerGame" -> Comparator.comparing(PlayerStatistics::damagePerGame,
+                    Comparator.nullsLast(Comparator.naturalOrder()));
             case "damagePercent" -> Comparator.comparing(PlayerStatistics::damagePercent);
             case "goldPercent" -> Comparator.comparing(PlayerStatistics::goldPercent);
             default -> throw new IllegalStateException("未实现的选手排序字段：" + query.sortBy());
