@@ -31,6 +31,7 @@ function detailResult(overrides: Partial<PlayerDetailStatisticsResult> = {}): Pl
     coreMetrics: [
       { key: 'kda', label: 'KDA', value: 4.2, formattedValue: '4.20', rank: 3, cohortSize: 18, higherIsBetter: true },
       { key: 'deathPerGame', label: '场均死亡', value: 1.6, formattedValue: '1.60', rank: 1, cohortSize: 18, higherIsBetter: false },
+      { key: 'damagePercent', label: '伤害占比', value: 0.25, formattedValue: '25.00%', rank: 4, cohortSize: 18, higherIsBetter: true },
     ],
     radarMetrics: [
       { key: 'kda', label: 'KDA', value: 4.2, averageValue: 3.1, playerScore: 80, averageScore: 50, rank: 3, cohortSize: 18 },
@@ -95,6 +96,7 @@ describe('选手详情页', () => {
     expect(wrapper.text()).toContain('Bin')
     expect(wrapper.text()).toContain('BLG')
     expect(wrapper.text()).toContain('4.20')
+    expect(wrapper.text()).toContain('25.00%')
     expect(wrapper.text()).toContain('第 3 名 / 共 18 人')
     expect(wrapper.text()).toContain('越低越好')
     expect(wrapper.text()).toContain('共 18 名同位置合格选手参与比较')

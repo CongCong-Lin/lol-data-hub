@@ -57,13 +57,21 @@ const axisLabels = computed<AxisLabel[]>(() =>
       x,
       y,
       anchor,
-      valueText: `${formatValue(metric.value)}（均值 ${formatValue(metric.averageValue)}）`,
+      valueText: `${formatMetricValue(metric, metric.value)}（均值 ${formatMetricValue(metric, metric.averageValue)}）`,
     }
   }),
 )
 
 function formatValue(value: number): string {
   return Number(value).toFixed(2)
+}
+
+const PERCENT_METRICS = new Set(['killParticipantPercent', 'damagePercent', 'goldPercent'])
+
+function formatMetricValue(metric: PlayerRadarMetric, value: number): string {
+  return PERCENT_METRICS.has(metric.key)
+    ? `${(Number(value) * 100).toFixed(2)}%`
+    : formatValue(value)
 }
 </script>
 
@@ -106,7 +114,7 @@ function formatValue(value: number): string {
 .player-radar-chart { display: block; width: 100%; max-width: 420px; margin: 0 auto; background: #fff; }
 .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
 .radar-axis { stroke: var(--line); stroke-width: 1; }
-.radar-average { fill: none; stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.radar-average { fill: rgba(87, 96, 106, 0.12); stroke: #8b949e; stroke-width: 1.5; stroke-dasharray: 5 4; }
 .radar-player { fill: rgba(47, 133, 90, 0.16); stroke: var(--accent); stroke-width: 2; }
 .radar-point { fill: var(--accent); }
 .radar-label { font-size: 12px; font-weight: 650; fill: #24292f; }

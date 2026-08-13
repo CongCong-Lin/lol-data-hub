@@ -28,6 +28,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,6 +61,8 @@ class PlayerDetailStatisticsServiceTest {
         when(systemStateMapper.currentDataVersion()).thenReturn(9L);
         when(championStatisticsMapper.findCollectedStageKeys(any())).thenReturn(STAGES);
         when(heroUsageMapper.findLatestCollectedAt(any())).thenReturn(COLLECTED_AT);
+        when(heroUsageMapper.findQualifiedPlayerPositions(any(), anyLong(), anyInt()))
+                .thenReturn(List.of("TOP"));
         service = new PlayerDetailStatisticsService(playerStatisticsService, heroUsageMapper,
                 championStatisticsMapper, systemStateMapper, redisTemplate,
                 new ObjectMapper().findAndRegisterModules(), Duration.ofHours(12));
@@ -214,6 +217,30 @@ class PlayerDetailStatisticsServiceTest {
     }
 
     @Test
+    void exposesAllQualifiedPositionsForDetailSwitching() {
+        mockCohort(List.of(player(11L, "Xun", bd("4"), bd("3"), bd("1"))));
+        when(heroUsageMapper.findQualifiedPlayerPositions(STAGES, 11L, 5))
+                .thenReturn(List.of("TOP", "JUG"));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        assertThat(result.player().positions()).containsExactly("TOP", "JUG");
+    }
+
+    @Test
+    void formatsRatioCoreMetricsAsPercentages() {
+        mockCohort(List.of(player(11L, "Bin", bd("4"), bd("3"), bd("1"))));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        assertThat(metric(result, "killParticipantPercent").formattedValue()).isEqualTo("60.00%");
+        assertThat(metric(result, "damagePercent").formattedValue()).isEqualTo("25.00%");
+        assertThat(metric(result, "goldPercent").formattedValue()).isEqualTo("22.00%");
+    }
+
+    @Test
     void unknownPlayerIdThrowsNotFound() {
         mockCohort(List.of(player(11L, "Bin", bd("4"), bd("3"), bd("1"))));
         when(heroUsageMapper.countPlayersBySourceId(99L)).thenReturn(0L);
@@ -354,7 +381,7 @@ class PlayerDetailStatisticsServiceTest {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(valueOperations).set(keyCaptor.capture(), anyString(), eq(Duration.ofHours(12)));
         assertThat(keyCaptor.getValue())
-                .isEqualTo("loldatahub:stats:s6:v9:player-detail:11:237:102,237:103:TOP:5");
+                .isEqualTo("loldatahub:stats:s7:v9:player-detail:11:237:102,237:103:TOP:5");
     }
 
     @Test

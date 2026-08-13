@@ -7,11 +7,12 @@ import PlayerRadarChart from './PlayerRadarChart.vue'
 import type { PlayerRadarMetric } from './api'
 
 function metric(key: string, label: string, playerScore: number, averageScore: number): PlayerRadarMetric {
+  const percentageMetric = ['killParticipantPercent', 'damagePercent', 'goldPercent'].includes(key)
   return {
     key,
     label,
-    value: playerScore / 10,
-    averageValue: averageScore / 10,
+    value: percentageMetric ? playerScore / 100 : playerScore / 10,
+    averageValue: percentageMetric ? averageScore / 100 : averageScore / 10,
     playerScore,
     averageScore,
     rank: 1,
@@ -60,6 +61,7 @@ describe('PlayerRadarChart', () => {
     const labels = wrapper.findAll('text.radar-label').map((node) => node.text())
     expect(labels).toEqual(['KDA', '场均击杀', '参团率', '伤害占比', '场均补刀', '场均经济差'])
     expect(wrapper.text()).toContain('8.00（均值 5.00）')
+    expect(wrapper.text()).toContain('60.00%（均值 50.00%）')
   })
 
   it('指标为空时不渲染图表', () => {

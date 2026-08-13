@@ -69,6 +69,25 @@ public interface PlayerHeroUsageMapper {
                                  @Param("sourcePlayerId") long sourcePlayerId,
                                  @Param("position") String position);
 
+    @Select("""
+            <script>
+            SELECT UPPER(ps.player_position)
+              FROM player_stage_stat_current ps
+              JOIN player p ON p.player_key = ps.player_key
+             WHERE p.source_player_id = #{sourcePlayerId}
+               AND (ps.source_season_id, ps.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             GROUP BY UPPER(ps.player_position)
+            HAVING SUM(ps.match_count) &gt;= #{minimumMatchCount}
+             ORDER BY FIELD(MIN(UPPER(ps.player_position)), 'TOP', 'JUG', 'MID', 'AD', 'SUP')
+            </script>
+            """)
+    List<String> findQualifiedPlayerPositions(@Param("stages") List<StageKey> stages,
+                                              @Param("sourcePlayerId") long sourcePlayerId,
+                                              @Param("minimumMatchCount") int minimumMatchCount);
+
     /**
      * 所选赛段选手数据的最近采集时间，用于详情页展示数据新鲜度。
      */

@@ -31,6 +31,7 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -42,6 +43,8 @@ public class PlayerDetailStatisticsService {
     private static final Logger log = LoggerFactory.getLogger(PlayerDetailStatisticsService.class);
     private static final TypeReference<PlayerDetailStatisticsResult> CACHE_TYPE = new TypeReference<>() { };
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    private static final Set<String> PERCENT_METRICS = Set.of(
+            "killParticipantPercent", "damagePercent", "goldPercent");
 
     private record MetricDefinition(String key, String label, boolean higherIsBetter,
                                     Function<PlayerStatistics, BigDecimal> value, boolean integerDisplay) {
@@ -122,7 +125,7 @@ public class PlayerDetailStatisticsService {
 
     public PlayerDetailStatisticsResult query(PlayerDetailQuery query) {
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s6:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s7:v" + dataVersion + ":player-detail:" + query.cacheFingerprint();
         PlayerDetailStatisticsResult cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -138,13 +141,19 @@ public class PlayerDetailStatisticsService {
                 .findFirst()
                 .orElseThrow(() -> notFound(query));
 
+        List<String> availablePositions = heroUsageMapper.findQualifiedPlayerPositions(
+                query.stages(), query.sourcePlayerId(), query.minimumMatchCount());
+        if (!availablePositions.contains(query.position())) {
+            availablePositions = List.of(query.position());
+        }
+
         PlayerDetailStatisticsResult result = new PlayerDetailStatisticsResult(
                 dataVersion,
                 query.minimumMatchCount(),
                 query.position(),
                 cohort.size(),
                 new PlayerDetailProfile(target.sourcePlayerId(), target.playerName(), target.playerAvatar(),
-                        target.teamNames(), target.positions(), target.matchCount(), target.gameCount()),
+                        target.teamNames(), availablePositions, target.matchCount(), target.gameCount()),
                 coreMetrics(target, cohort),
                 radarMetrics(query.position(), target, cohort),
                 true,
@@ -214,13 +223,21 @@ public class PlayerDetailStatisticsService {
                 .map(definition -> {
                     BigDecimal value = definition.value().apply(target);
                     int rank = rank(value, definition.higherIsBetter(), definition.value(), cohort);
-                    String formatted = definition.integerDisplay()
-                            ? String.valueOf(value.longValue())
-                            : value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+                    String formatted = formatMetricValue(definition, value);
                     return new RankedPlayerMetric(definition.key(), definition.label(), value,
                             formatted, rank, cohort.size(), definition.higherIsBetter());
                 })
                 .toList();
+    }
+
+    private String formatMetricValue(MetricDefinition definition, BigDecimal value) {
+        if (definition.integerDisplay()) {
+            return String.valueOf(value.longValue());
+        }
+        if (PERCENT_METRICS.contains(definition.key())) {
+            return value.multiply(HUNDRED).setScale(2, RoundingMode.HALF_UP).toPlainString() + "%";
+        }
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private List<PlayerRadarMetric> radarMetrics(String position, PlayerStatistics target,
