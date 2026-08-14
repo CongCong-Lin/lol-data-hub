@@ -5,7 +5,9 @@ import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatisticsMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.mapper.TeamStageDetailMetricWriteMapper;
 import com.loldatahub.infrastructure.model.PlayerStageStatWrite;
+import com.loldatahub.infrastructure.model.TeamStageDetailMetricWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -28,6 +30,7 @@ class PlayerCollectionServiceTest {
     private TjStatsClient client;
     private CollectionMapper collectionMapper;
     private PlayerStatWriteMapper writeMapper;
+    private TeamStageDetailMetricWriteMapper teamDetailMetricWriteMapper;
     private PlayerStatisticsMapper statisticsMapper;
     private SystemStateMapper systemStateMapper;
     private TransactionTemplate transactionTemplate;
@@ -38,6 +41,7 @@ class PlayerCollectionServiceTest {
         client = mock(TjStatsClient.class);
         collectionMapper = mock(CollectionMapper.class);
         writeMapper = mock(PlayerStatWriteMapper.class);
+        teamDetailMetricWriteMapper = mock(TeamStageDetailMetricWriteMapper.class);
         statisticsMapper = mock(PlayerStatisticsMapper.class);
         systemStateMapper = mock(SystemStateMapper.class);
         CatalogCollectionService catalog = mock(CatalogCollectionService.class);
@@ -45,7 +49,7 @@ class PlayerCollectionServiceTest {
 
         service = new PlayerCollectionService(
                 client, new TjStatsResponseParser(new ObjectMapper()), new ObjectMapper(),
-                collectionMapper, writeMapper, statisticsMapper, systemStateMapper,
+                collectionMapper, writeMapper, teamDetailMetricWriteMapper, statisticsMapper, systemStateMapper,
                 catalog, transactionTemplate
         );
         doAnswer(invocation -> {
@@ -105,6 +109,16 @@ class PlayerCollectionServiceTest {
         assertThat(stat.sourceKillParticipantPercent()).isEqualByComparingTo("0.4285714285714285714285714285714286");
         assertThat(stat.sourceDamagePercent()).isEqualByComparingTo("0.26");
         assertThat(stat.sourceGoldPercent()).isEqualByComparingTo("0.251");
+        ArgumentCaptor<TeamStageDetailMetricWrite> teamMetric = ArgumentCaptor.forClass(TeamStageDetailMetricWrite.class);
+        verify(teamDetailMetricWriteMapper, times(2)).upsertCurrent(teamMetric.capture());
+        assertThat(teamMetric.getAllValues())
+                .filteredOn(metric -> metric.teamId() == 100L)
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.gameCount()).isEqualTo(1);
+                    assertThat(metric.totalAssists()).isEqualTo(1);
+                    assertThat(metric.totalDamage()).isEqualByComparingTo("100");
+                });
         verify(client).fetchMatchDetail(9984L);
         verify(collectionMapper).insertRawResponse(
                 eq(42L), eq("/compound/matchDetail"), anyString(),

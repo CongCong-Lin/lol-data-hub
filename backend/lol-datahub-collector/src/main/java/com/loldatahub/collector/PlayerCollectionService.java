@@ -7,8 +7,10 @@ import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatWriteMapper;
 import com.loldatahub.infrastructure.mapper.PlayerStatisticsMapper;
 import com.loldatahub.infrastructure.mapper.SystemStateMapper;
+import com.loldatahub.infrastructure.mapper.TeamStageDetailMetricWriteMapper;
 import com.loldatahub.infrastructure.model.PlayerStageStatWrite;
 import com.loldatahub.infrastructure.model.PlayerWrite;
+import com.loldatahub.infrastructure.model.TeamStageDetailMetricWrite;
 import com.loldatahub.source.TjStatsClient;
 import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
@@ -39,7 +41,7 @@ import java.util.TreeSet;
 
 @Service
 public class PlayerCollectionService {
-    static final String CONTENT_SCHEMA_VERSION = "player-v4-exact-damage-per-game";
+    static final String CONTENT_SCHEMA_VERSION = "player-v5-exact-damage-and-team-metrics";
     private static final Logger log = LoggerFactory.getLogger(PlayerCollectionService.class);
 
     private final TjStatsClient client;
@@ -47,6 +49,7 @@ public class PlayerCollectionService {
     private final ObjectMapper objectMapper;
     private final CollectionMapper collectionMapper;
     private final PlayerStatWriteMapper writeMapper;
+    private final TeamStageDetailMetricWriteMapper teamDetailMetricWriteMapper;
     private final PlayerStatisticsMapper statisticsMapper;
     private final SystemStateMapper systemStateMapper;
     private final CatalogCollectionService catalogCollectionService;
@@ -57,6 +60,7 @@ public class PlayerCollectionService {
                                    ObjectMapper objectMapper,
                                    CollectionMapper collectionMapper,
                                    PlayerStatWriteMapper writeMapper,
+                                   TeamStageDetailMetricWriteMapper teamDetailMetricWriteMapper,
                                    PlayerStatisticsMapper statisticsMapper,
                                    SystemStateMapper systemStateMapper,
                                    CatalogCollectionService catalogCollectionService,
@@ -66,6 +70,7 @@ public class PlayerCollectionService {
         this.objectMapper = objectMapper;
         this.collectionMapper = collectionMapper;
         this.writeMapper = writeMapper;
+        this.teamDetailMetricWriteMapper = teamDetailMetricWriteMapper;
         this.statisticsMapper = statisticsMapper;
         this.systemStateMapper = systemStateMapper;
         this.catalogCollectionService = catalogCollectionService;
@@ -104,7 +109,7 @@ public class PlayerCollectionService {
                 List<PlayerStatSourceRecord> players = parser.parsePlayerStage(rawJson);
                 StringBuilder hashMaterial = new StringBuilder(CONTENT_SCHEMA_VERSION).append('\n');
                 appendHashMaterial(hashMaterial, "/compound/public/player", rawJson);
-                Map<Long, ExactPlayerRates> exactRates = enrichExactRates(
+                ExactStageData exactData = enrichExactRates(
                         runId, seasonId, stageId, players, collectedAt, hashMaterial);
                 String contentHash = sha256(hashMaterial.toString());
 
@@ -113,7 +118,7 @@ public class PlayerCollectionService {
                     continue;
                 }
                 changedStages.add(new PlayerStageCandidate(
-                        stageId, contentHash, collectedAt, players, exactRates));
+                        stageId, contentHash, collectedAt, players, exactData));
             }
 
             if (changedStages.isEmpty()) {
@@ -122,7 +127,8 @@ public class PlayerCollectionService {
             }
 
             int changedRecords = changedStages.stream()
-                    .mapToInt(candidate -> 1 + candidate.players().size()).sum();
+                    .mapToInt(candidate -> 1 + candidate.players().size()
+                            + candidate.exactData().teamMetrics().size()).sum();
             Integer committedRecords = transactionTemplate.execute(status -> {
                 for (PlayerStageCandidate candidate : changedStages) {
                     long stageId = candidate.stageId();
@@ -140,18 +146,26 @@ public class PlayerCollectionService {
                                 player.totalKills(), player.totalAssists(), player.totalDeath(),
                                 player.goldPerGame(), player.creepScorePerGame(),
                                 player.wardPlacedPerGame(), player.wardKilledPerGame(),
-                                exactRate(candidate.exactRates(), player.playerId(),
+                                exactRate(candidate.exactData().playerRates(), player.playerId(),
                                 ExactPlayerRates::killParticipantPercent, player.killParticipantPercent()),
                                 player.goldGapPerGame(),
-                                exactRate(candidate.exactRates(), player.playerId(),
+                                exactRate(candidate.exactData().playerRates(), player.playerId(),
                                         ExactPlayerRates::damagePerGame, player.damagePerGame()),
-                                exactRate(candidate.exactRates(), player.playerId(),
+                                exactRate(candidate.exactData().playerRates(), player.playerId(),
                                         ExactPlayerRates::damagePercent, player.damagePercent()),
-                                exactRate(candidate.exactRates(), player.playerId(),
+                                exactRate(candidate.exactData().playerRates(), player.playerId(),
                                         ExactPlayerRates::goldPercent, player.goldPercent()),
                                 candidate.collectedAt());
                         writeMapper.upsertCurrent(stat);
                         writeMapper.insertSnapshot(stat);
+                    }
+                    teamDetailMetricWriteMapper.deleteCurrentForStage(seasonId, stageId);
+                    for (TeamStageDetailMetric metric : candidate.exactData().teamMetrics()) {
+                        TeamStageDetailMetricWrite write = new TeamStageDetailMetricWrite(
+                                runId, seasonId, stageId, metric.teamId(), metric.gameCount(),
+                                metric.totalAssists(), metric.totalDamage(), candidate.collectedAt());
+                        teamDetailMetricWriteMapper.upsertCurrent(write);
+                        teamDetailMetricWriteMapper.insertSnapshot(write);
                     }
                 }
                 systemStateMapper.incrementDataVersion();
@@ -173,7 +187,7 @@ public class PlayerCollectionService {
      * 使用逐局英雄记录确定统计范围，再与比赛详情按比赛、局次、选手精确对齐。
      * 本地逐局记录过期时只刷新对应选手，比赛详情缺失时只补拉缺失比赛。
      */
-    private Map<Long, ExactPlayerRates> enrichExactRates(long runId,
+    private ExactStageData enrichExactRates(long runId,
                                                          long seasonId,
                                                          long stageId,
                                                          List<PlayerStatSourceRecord> players,
@@ -282,13 +296,51 @@ public class PlayerCollectionService {
                 result.put(playerId, aggregateExactRates(metrics));
             }
             hashMaterial.append(exactHashMaterial);
-            return Map.copyOf(result);
+            return new ExactStageData(
+                    Map.copyOf(result),
+                    aggregateTeamMetrics(metricsByGamePlayer.values()));
         } catch (RuntimeException exception) {
             log.warn("PLAYER {}:{} 无法从本地比赛详情计算精确指标，回退官网聚合比例: {}",
                     seasonId, stageId, exception.getMessage());
             appendHashMaterial(hashMaterial, "exact-rates", "fallback");
-            return Map.of();
+            return new ExactStageData(Map.of(), List.of());
         }
+    }
+
+    /**
+     * 只在逐局明细完整且每队恰有五名选手时发布战队指标，避免用选手聚合数据猜测转会或替补归属。
+     */
+    private static List<TeamStageDetailMetric> aggregateTeamMetrics(
+            java.util.Collection<MatchPlayerMetricSourceRecord> metrics) {
+        Map<GameTeamKey, TeamGameMetricAccumulator> games = new HashMap<>();
+        Map<GameKey, Set<Long>> teamsByGame = new HashMap<>();
+        for (MatchPlayerMetricSourceRecord metric : metrics) {
+            GameTeamKey key = new GameTeamKey(metric.matchId(), metric.bo(), metric.teamId());
+            games.computeIfAbsent(key, ignored -> new TeamGameMetricAccumulator()).add(metric);
+            teamsByGame.computeIfAbsent(new GameKey(metric.matchId(), metric.bo()), ignored -> new java.util.HashSet<>())
+                    .add(metric.teamId());
+        }
+        if (games.isEmpty()) {
+            return List.of();
+        }
+        if (teamsByGame.values().stream().anyMatch(teams -> teams.size() != 2)) {
+            throw new TjStatsSourceException("PLAYER_EXACT: 比赛详情缺少一方战队数据，不能发布战队逐局指标");
+        }
+
+        Map<Long, TeamStageMetricAccumulator> totals = new java.util.TreeMap<>();
+        for (Map.Entry<GameTeamKey, TeamGameMetricAccumulator> entry : games.entrySet()) {
+            TeamGameMetricAccumulator game = entry.getValue();
+            if (game.playerCount != 5) {
+                throw new TjStatsSourceException("PLAYER_EXACT: 单局战队选手数不是 5，不能发布战队逐局指标");
+            }
+            totals.computeIfAbsent(entry.getKey().teamId(), ignored -> new TeamStageMetricAccumulator())
+                    .add(game);
+        }
+        return totals.entrySet().stream()
+                .map(entry -> new TeamStageDetailMetric(
+                        entry.getKey(), entry.getValue().gameCount, entry.getValue().totalAssists,
+                        entry.getValue().totalDamage))
+                .toList();
     }
 
     private static void addMatchMetrics(
@@ -464,8 +516,18 @@ public class PlayerCollectionService {
             String contentHash,
             OffsetDateTime collectedAt,
             List<PlayerStatSourceRecord> players,
-            Map<Long, ExactPlayerRates> exactRates
+            ExactStageData exactData
     ) {
+    }
+
+    private record ExactStageData(
+            Map<Long, ExactPlayerRates> playerRates,
+            List<TeamStageDetailMetric> teamMetrics
+    ) {
+    }
+
+    private record TeamStageDetailMetric(long teamId, long gameCount, long totalAssists,
+                                         BigDecimal totalDamage) {
     }
 
     private record ExactPlayerRates(
@@ -477,5 +539,35 @@ public class PlayerCollectionService {
     }
 
     private record GamePlayerKey(long matchId, long bo, long playerId) {
+    }
+
+    private record GameKey(long matchId, long bo) {
+    }
+
+    private record GameTeamKey(long matchId, long bo, long teamId) {
+    }
+
+    private static final class TeamGameMetricAccumulator {
+        private int playerCount;
+        private long totalAssists;
+        private BigDecimal totalDamage = BigDecimal.ZERO;
+
+        void add(MatchPlayerMetricSourceRecord metric) {
+            playerCount++;
+            totalAssists += metric.assists();
+            totalDamage = totalDamage.add(metric.heroDamage());
+        }
+    }
+
+    private static final class TeamStageMetricAccumulator {
+        private long gameCount;
+        private long totalAssists;
+        private BigDecimal totalDamage = BigDecimal.ZERO;
+
+        void add(TeamGameMetricAccumulator game) {
+            gameCount++;
+            totalAssists += game.totalAssists;
+            totalDamage = totalDamage.add(game.totalDamage);
+        }
     }
 }

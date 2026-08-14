@@ -65,7 +65,7 @@ public class TeamStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集战队数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s4:v" + dataVersion + ":team:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s5:v" + dataVersion + ":team:" + query.cacheFingerprint();
         List<TeamStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new TeamStatisticsResult(dataVersion, query.minimumMatchCount(), cached.size(), cached);
@@ -84,10 +84,14 @@ public class TeamStatisticsService {
                 row.teamId(), row.teamName(), row.teamLogo(),
                 row.matchCount(), row.gameCount(), row.matchWinCount(),
                 TeamStatisticsMath.ratio(row.matchWinCount(), row.matchCount()),
+                row.totalAssists() == null ? null
+                        : TeamStatisticsMath.kda(row.totalKills(), row.totalAssists(), row.totalDeaths()),
                 row.totalKills(),
                 TeamStatisticsMath.ratio(row.totalKills(), row.gameCount()),
                 row.totalDeaths(),
                 TeamStatisticsMath.ratio(row.totalDeaths(), row.gameCount()),
+                row.totalDamage() == null ? null
+                        : row.totalDamage().divide(BigDecimal.valueOf(row.gameCount()), 6, java.math.RoundingMode.HALF_UP),
                 row.weightedWardPlacedPerGame(),
                 row.weightedWardKilledPerGame(),
                 row.weightedGoldPerGame(),
@@ -104,17 +108,24 @@ public class TeamStatisticsService {
             case "gameCount" -> Comparator.comparingLong(TeamStatistics::gameCount);
             case "matchWinCount" -> Comparator.comparingLong(TeamStatistics::matchWinCount);
             case "winningRate" -> Comparator.comparing(TeamStatistics::winningRate);
+            case "kda" -> nullableDecimalComparator(TeamStatistics::kda);
             case "totalKills" -> Comparator.comparingLong(TeamStatistics::totalKills);
             case "killPerGame" -> Comparator.comparing(TeamStatistics::killPerGame);
             case "deathPerGame" -> Comparator.comparing(TeamStatistics::deathPerGame);
             case "wardPlacedPerGame" -> Comparator.comparing(TeamStatistics::wardPlacedPerGame);
             case "wardKilledPerGame" -> Comparator.comparing(TeamStatistics::wardKilledPerGame);
             case "goldPerGame" -> Comparator.comparing(TeamStatistics::goldPerGame);
+            case "damagePerGame" -> nullableDecimalComparator(TeamStatistics::damagePerGame);
             case "baronKillPerGame" -> Comparator.comparing(TeamStatistics::baronKillPerGame);
             case "drakeKillPerGame" -> Comparator.comparing(TeamStatistics::drakeKillPerGame);
             default -> throw new IllegalStateException("未实现的战队排序字段：" + query.sortBy());
         };
         return query.sortDirection().apply(comparator).thenComparing(TeamStatistics::teamName);
+    }
+
+    private static Comparator<TeamStatistics> nullableDecimalComparator(
+            java.util.function.Function<TeamStatistics, BigDecimal> extractor) {
+        return Comparator.comparing(extractor, Comparator.nullsLast(Comparator.naturalOrder()));
     }
 
     private List<TeamStatistics> readCache(String key) {

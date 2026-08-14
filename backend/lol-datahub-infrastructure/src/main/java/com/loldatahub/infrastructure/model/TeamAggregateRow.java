@@ -11,6 +11,8 @@ public record TeamAggregateRow(
         long matchWinCount,
         long totalKills,
         long totalDeaths,
+        Long totalAssists,
+        BigDecimal totalDamage,
         BigDecimal weightedWardPlacedPerGame,
         BigDecimal weightedWardKilledPerGame,
         BigDecimal weightedGoldPerGame,

@@ -111,10 +111,12 @@ const teamResult: TeamStatisticsResult = {
     gameCount: 12,
     matchWinCount: 3,
     winningRate: 0.6,
+    kda: 3.2,
     totalKills: 120,
     killPerGame: 10,
     totalDeaths: 80,
     deathPerGame: 6.67,
+    damagePerGame: 42180.5,
     wardPlacedPerGame: 20,
     wardKilledPerGame: 10,
     goldPerGame: 60000,
@@ -507,9 +509,9 @@ describe('查询状态', () => {
     await flushPromises()
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('.team-table .sort-header')).toHaveLength(13)
+    expect(wrapper.findAll('.team-table .sort-header')).toHaveLength(15)
     await wrapper.get('.column-menu-trigger').trigger('click')
-    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(13)
+    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(15)
 
     const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
     await playerTab!.trigger('click')

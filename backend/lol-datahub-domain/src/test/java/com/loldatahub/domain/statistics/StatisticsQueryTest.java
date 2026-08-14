@@ -223,9 +223,9 @@ class StatisticsQueryTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"teamName", "matchCount", "gameCount", "matchWinCount", "winningRate",
+        @ValueSource(strings = {"teamName", "matchCount", "gameCount", "matchWinCount", "winningRate", "kda",
                 "totalKills", "killPerGame", "deathPerGame", "wardPlacedPerGame", "wardKilledPerGame",
-                "goldPerGame", "baronKillPerGame", "drakeKillPerGame"})
+                "goldPerGame", "damagePerGame", "baronKillPerGame", "drakeKillPerGame"})
         void acceptsEveryVisibleColumnAsSortField(String field) {
             assertThat(new TeamStatisticsQuery(1, List.of(1L), 0, field, SortDirection.DESC).sortBy())
                     .isEqualTo(field);

@@ -70,10 +70,12 @@ export interface TeamStatistics {
   gameCount: number
   matchWinCount: number
   winningRate: number
+  kda: number | null
   totalKills: number
   killPerGame: number
   totalDeaths: number
   deathPerGame: number
+  damagePerGame: number | null
   wardPlacedPerGame: number
   wardKilledPerGame: number
   goldPerGame: number

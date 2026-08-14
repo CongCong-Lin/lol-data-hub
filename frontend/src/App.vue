@@ -34,8 +34,9 @@ const CHAMPION_COLUMNS: ColumnOption[] = [
 const TEAM_COLUMNS: ColumnOption[] = [
   { key: 'team', label: '战队' }, { key: 'matchCount', label: '系列赛' },
   { key: 'gameCount', label: '对局' }, { key: 'matchWinCount', label: '胜场' },
-  { key: 'winningRate', label: '胜率' }, { key: 'totalKills', label: '总击杀' },
+  { key: 'winningRate', label: '胜率' }, { key: 'kda', label: 'KDA' }, { key: 'totalKills', label: '总击杀' },
   { key: 'killPerGame', label: '场均击杀' }, { key: 'deathPerGame', label: '场均死亡' },
+  { key: 'damagePerGame', label: '场均输出' },
   { key: 'wardPlacedPerGame', label: '场均插眼' }, { key: 'wardKilledPerGame', label: '场均排眼' },
   { key: 'goldPerGame', label: '场均经济' }, { key: 'baronKillPerGame', label: '场均大龙' },
   { key: 'drakeKillPerGame', label: '场均小龙' },
@@ -1003,9 +1004,11 @@ onMounted(async () => {
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'gameCount')" label="对局" field="gameCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')" label="胜场" field="matchWinCount" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'winningRate')" label="胜率" field="winningRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'kda')" label="KDA" field="kda" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'totalKills')" label="总击杀" field="totalKills" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')" label="场均死亡" field="deathPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')" label="场均输出" field="damagePerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')" label="场均插眼" field="wardPlacedPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')" label="场均排眼" field="wardKilledPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')" label="场均经济" field="goldPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
@@ -1026,9 +1029,11 @@ onMounted(async () => {
               <td v-if="isColumnVisible(teamVisibleColumns, 'gameCount')">{{ item.gameCount }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'matchWinCount')">{{ item.matchWinCount }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'winningRate')" class="accent">{{ percent(item.winningRate) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'kda')" class="accent">{{ fmtDecimal(item.kda) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'totalKills')">{{ item.totalKills }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')">{{ fmtDecimal(item.damagePerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">{{ fmtDecimal(item.wardPlacedPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">{{ fmtDecimal(item.wardKilledPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">{{ fmtGold(item.goldPerGame) }}</td>
