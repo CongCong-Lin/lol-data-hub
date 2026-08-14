@@ -11,6 +11,18 @@ public record TeamStageDetailMetricWrite(
         long gameCount,
         long totalAssists,
         BigDecimal totalDamage,
+        Long totalGameSeconds,
+        BigDecimal totalGold,
+        Long totalWardsPlaced,
+        Long totalWardsKilled,
+        Long totalMinionKills,
+        Long totalDragons,
+        Long totalDragonOpportunities,
+        Long totalBarons,
+        Long totalBaronOpportunities,
+        Long totalTurrets,
+        Long totalTurretsLost,
+        Long firstBloodGames,
         OffsetDateTime collectedAt
 ) {
 }

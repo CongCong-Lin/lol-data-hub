@@ -117,6 +117,17 @@ const teamResult: TeamStatisticsResult = {
     totalDeaths: 80,
     deathPerGame: 6.67,
     damagePerGame: 42180.5,
+    averageGameDurationSeconds: 1800,
+    goldPerMinute: 2000,
+    wardPlacedPerMinute: 0.67,
+    wardKilledPerMinute: 0.33,
+    drakeControlRate: 0.6,
+    baronControlRate: 0.5,
+    firstBloodRate: 0.4,
+    damagePerMinute: 1406.02,
+    creepScorePerMinute: 8.1,
+    turretKillPerGame: 4.2,
+    turretLostPerGame: 2.3,
     wardPlacedPerGame: 20,
     wardKilledPerGame: 10,
     goldPerGame: 60000,
@@ -509,9 +520,9 @@ describe('查询状态', () => {
     await flushPromises()
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('.team-table .sort-header')).toHaveLength(15)
+    expect(wrapper.findAll('.team-table .sort-header')).toHaveLength(26)
     await wrapper.get('.column-menu-trigger').trigger('click')
-    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(15)
+    expect(wrapper.findAll('.column-menu-option input')).toHaveLength(26)
 
     const playerTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '选手统计')
     await playerTab!.trigger('click')

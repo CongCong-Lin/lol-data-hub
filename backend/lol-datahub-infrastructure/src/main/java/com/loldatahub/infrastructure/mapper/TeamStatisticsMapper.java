@@ -28,6 +28,66 @@ public interface TeamStatisticsMapper {
                                            AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
                                       THEN 1 ELSE 0 END) = COUNT(*)
                         THEN SUM(tdm.total_damage) ELSE NULL END AS totalDamage,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_game_seconds) ELSE NULL END AS totalGameSeconds,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_gold) ELSE NULL END AS totalGold,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_wards_placed) ELSE NULL END AS totalWardsPlaced,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_wards_killed) ELSE NULL END AS totalWardsKilled,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_minion_kills) ELSE NULL END AS totalMinionKills,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_dragons) ELSE NULL END AS totalDragons,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_dragon_opportunities) ELSE NULL END AS totalDragonOpportunities,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_barons) ELSE NULL END AS totalBarons,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_baron_opportunities) ELSE NULL END AS totalBaronOpportunities,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_turrets) ELSE NULL END AS totalTurrets,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.total_turrets_lost) ELSE NULL END AS totalTurretsLost,
+                   CASE WHEN SUM(CASE WHEN tdm.source_team_id IS NOT NULL
+                                           AND tdm.game_count = COALESCE(ts.game_count, ts.match_count)
+                                           AND tdm.total_game_seconds IS NOT NULL
+                                      THEN 1 ELSE 0 END) = COUNT(*)
+                        THEN SUM(tdm.first_blood_games) ELSE NULL END AS firstBloodGames,
                    COALESCE(SUM(ts.source_ward_placed_per_game * COALESCE(ts.game_count, ts.match_count))
                        / NULLIF(SUM(CASE WHEN ts.source_ward_placed_per_game IS NOT NULL THEN COALESCE(ts.game_count, ts.match_count) ELSE 0 END), 0), 0)
                        AS weightedWardPlacedPerGame,

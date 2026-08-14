@@ -14,6 +14,9 @@ public record TeamStatisticsQuery(
             "teamName", "matchCount", "gameCount", "matchWinCount", "winningRate", "kda", "totalKills",
             "killPerGame", "deathPerGame", "wardPlacedPerGame", "wardKilledPerGame", "goldPerGame",
             "damagePerGame", "baronKillPerGame", "drakeKillPerGame"
+            , "averageGameDurationSeconds", "goldPerMinute", "wardPlacedPerMinute", "wardKilledPerMinute",
+            "drakeControlRate", "baronControlRate", "firstBloodRate", "damagePerMinute",
+            "creepScorePerMinute", "turretKillPerGame", "turretLostPerGame"
     );
     private static final String DEFAULT_SORT_BY = "winningRate";
     private static final int MAX_STAGES = 50;

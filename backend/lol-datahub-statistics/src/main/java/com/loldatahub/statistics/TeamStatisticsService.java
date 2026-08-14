@@ -65,7 +65,7 @@ public class TeamStatisticsService {
             throw new IllegalArgumentException("以下赛段尚未采集战队数据：" + missingStr);
         }
         long dataVersion = systemStateMapper.currentDataVersion();
-        String cacheKey = "loldatahub:stats:s5:v" + dataVersion + ":team:" + query.cacheFingerprint();
+        String cacheKey = "loldatahub:stats:s6:v" + dataVersion + ":team:" + query.cacheFingerprint();
         List<TeamStatistics> cached = readCache(cacheKey);
         if (cached != null) {
             return new TeamStatisticsResult(dataVersion, query.minimumMatchCount(), cached.size(), cached);
@@ -92,6 +92,17 @@ public class TeamStatisticsService {
                 TeamStatisticsMath.ratio(row.totalDeaths(), row.gameCount()),
                 row.totalDamage() == null ? null
                         : row.totalDamage().divide(BigDecimal.valueOf(row.gameCount()), 6, java.math.RoundingMode.HALF_UP),
+                perGame(row.totalGameSeconds(), row.gameCount()),
+                perMinute(row.totalGold(), row.totalGameSeconds()),
+                perMinute(row.totalWardsPlaced(), row.totalGameSeconds()),
+                perMinute(row.totalWardsKilled(), row.totalGameSeconds()),
+                ratio(row.totalDragons(), row.totalDragonOpportunities()),
+                ratio(row.totalBarons(), row.totalBaronOpportunities()),
+                ratio(row.firstBloodGames(), row.gameCount()),
+                perMinute(row.totalDamage(), row.totalGameSeconds()),
+                perMinute(row.totalMinionKills(), row.totalGameSeconds()),
+                perGame(row.totalTurrets(), row.gameCount()),
+                perGame(row.totalTurretsLost(), row.gameCount()),
                 row.weightedWardPlacedPerGame(),
                 row.weightedWardKilledPerGame(),
                 row.weightedGoldPerGame(),
@@ -99,6 +110,22 @@ public class TeamStatisticsService {
                 row.weightedDrakeKillPerGame(),
                 row.matchCount() >= minimumMatchCount
         );
+    }
+
+    private static BigDecimal perGame(Number total, long games) {
+        if (total == null || games <= 0) return null;
+        return new BigDecimal(total.toString()).divide(BigDecimal.valueOf(games), 6, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal perMinute(Number total, Long seconds) {
+        if (total == null || seconds == null || seconds <= 0) return null;
+        return new BigDecimal(total.toString()).multiply(BigDecimal.valueOf(60))
+                .divide(BigDecimal.valueOf(seconds), 6, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal ratio(Long numerator, Long denominator) {
+        if (numerator == null || denominator == null || denominator <= 0) return null;
+        return BigDecimal.valueOf(numerator).divide(BigDecimal.valueOf(denominator), 6, java.math.RoundingMode.HALF_UP);
     }
 
     private Comparator<TeamStatistics> comparator(TeamStatisticsQuery query) {
@@ -116,6 +143,17 @@ public class TeamStatisticsService {
             case "wardKilledPerGame" -> Comparator.comparing(TeamStatistics::wardKilledPerGame);
             case "goldPerGame" -> Comparator.comparing(TeamStatistics::goldPerGame);
             case "damagePerGame" -> nullableDecimalComparator(TeamStatistics::damagePerGame);
+            case "averageGameDurationSeconds" -> nullableDecimalComparator(TeamStatistics::averageGameDurationSeconds);
+            case "goldPerMinute" -> nullableDecimalComparator(TeamStatistics::goldPerMinute);
+            case "wardPlacedPerMinute" -> nullableDecimalComparator(TeamStatistics::wardPlacedPerMinute);
+            case "wardKilledPerMinute" -> nullableDecimalComparator(TeamStatistics::wardKilledPerMinute);
+            case "drakeControlRate" -> nullableDecimalComparator(TeamStatistics::drakeControlRate);
+            case "baronControlRate" -> nullableDecimalComparator(TeamStatistics::baronControlRate);
+            case "firstBloodRate" -> nullableDecimalComparator(TeamStatistics::firstBloodRate);
+            case "damagePerMinute" -> nullableDecimalComparator(TeamStatistics::damagePerMinute);
+            case "creepScorePerMinute" -> nullableDecimalComparator(TeamStatistics::creepScorePerMinute);
+            case "turretKillPerGame" -> nullableDecimalComparator(TeamStatistics::turretKillPerGame);
+            case "turretLostPerGame" -> nullableDecimalComparator(TeamStatistics::turretLostPerGame);
             case "baronKillPerGame" -> Comparator.comparing(TeamStatistics::baronKillPerGame);
             case "drakeKillPerGame" -> Comparator.comparing(TeamStatistics::drakeKillPerGame);
             default -> throw new IllegalStateException("未实现的战队排序字段：" + query.sortBy());

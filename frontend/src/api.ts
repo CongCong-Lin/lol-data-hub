@@ -76,6 +76,17 @@ export interface TeamStatistics {
   totalDeaths: number
   deathPerGame: number
   damagePerGame: number | null
+  averageGameDurationSeconds: number | null
+  goldPerMinute: number | null
+  wardPlacedPerMinute: number | null
+  wardKilledPerMinute: number | null
+  drakeControlRate: number | null
+  baronControlRate: number | null
+  firstBloodRate: number | null
+  damagePerMinute: number | null
+  creepScorePerMinute: number | null
+  turretKillPerGame: number | null
+  turretLostPerGame: number | null
   wardPlacedPerGame: number
   wardKilledPerGame: number
   goldPerGame: number

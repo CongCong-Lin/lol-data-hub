@@ -37,6 +37,12 @@ const TEAM_COLUMNS: ColumnOption[] = [
   { key: 'winningRate', label: '胜率' }, { key: 'kda', label: 'KDA' }, { key: 'totalKills', label: '总击杀' },
   { key: 'killPerGame', label: '场均击杀' }, { key: 'deathPerGame', label: '场均死亡' },
   { key: 'damagePerGame', label: '场均输出' },
+  { key: 'damagePerMinute', label: '每分钟输出' }, { key: 'averageGameDurationSeconds', label: '场均时长' },
+  { key: 'goldPerMinute', label: '每分钟经济' }, { key: 'creepScorePerMinute', label: '每分钟补刀' },
+  { key: 'wardPlacedPerMinute', label: '每分钟插眼' }, { key: 'wardKilledPerMinute', label: '每分钟拆眼' },
+  { key: 'drakeControlRate', label: '小龙控制率' }, { key: 'baronControlRate', label: '大龙控制率' },
+  { key: 'firstBloodRate', label: '一血率' }, { key: 'turretKillPerGame', label: '场均推塔' },
+  { key: 'turretLostPerGame', label: '场均被推塔' },
   { key: 'wardPlacedPerGame', label: '场均插眼' }, { key: 'wardKilledPerGame', label: '场均排眼' },
   { key: 'goldPerGame', label: '场均经济' }, { key: 'baronKillPerGame', label: '场均大龙' },
   { key: 'drakeKillPerGame', label: '场均小龙' },
@@ -700,6 +706,12 @@ function fmtGold(value: number) {
   return (value / 1000).toFixed(1) + 'k'
 }
 
+function fmtDuration(value: number | null | undefined) {
+  if (value == null) return '-'
+  const seconds = Math.round(value)
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 function fmtPositions(positions: string[]) {
   return positions.join(' / ') || '—'
 }
@@ -1009,6 +1021,17 @@ onMounted(async () => {
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')" label="场均击杀" field="killPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')" label="场均死亡" field="deathPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')" label="场均输出" field="damagePerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'damagePerMinute')" label="每分钟输出" field="damagePerMinute" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'averageGameDurationSeconds')" label="场均时长" field="averageGameDurationSeconds" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'goldPerMinute')" label="每分钟经济" field="goldPerMinute" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'creepScorePerMinute')" label="每分钟补刀" field="creepScorePerMinute" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerMinute')" label="每分钟插眼" field="wardPlacedPerMinute" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerMinute')" label="每分钟拆眼" field="wardKilledPerMinute" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'drakeControlRate')" label="小龙控制率" field="drakeControlRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'baronControlRate')" label="大龙控制率" field="baronControlRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'firstBloodRate')" label="一血率" field="firstBloodRate" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'turretKillPerGame')" label="场均推塔" field="turretKillPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
+              <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'turretLostPerGame')" label="场均被推塔" field="turretLostPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')" label="场均插眼" field="wardPlacedPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')" label="场均排眼" field="wardKilledPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
               <SortableHeader v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')" label="场均经济" field="goldPerGame" :sort-by="teamSortBy" :sort-direction="teamSortDirection" @sort="changeSort('team', $event)" />
@@ -1034,6 +1057,17 @@ onMounted(async () => {
               <td v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')">{{ fmtDecimal(item.damagePerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerMinute')">{{ fmtDecimal(item.damagePerMinute) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'averageGameDurationSeconds')">{{ fmtDuration(item.averageGameDurationSeconds) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'goldPerMinute')">{{ fmtDecimal(item.goldPerMinute) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'creepScorePerMinute')">{{ fmtDecimal(item.creepScorePerMinute) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerMinute')">{{ fmtDecimal(item.wardPlacedPerMinute) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerMinute')">{{ fmtDecimal(item.wardKilledPerMinute) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'drakeControlRate')">{{ item.drakeControlRate == null ? '-' : percent(item.drakeControlRate) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'baronControlRate')">{{ item.baronControlRate == null ? '-' : percent(item.baronControlRate) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'firstBloodRate')">{{ item.firstBloodRate == null ? '-' : percent(item.firstBloodRate) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'turretKillPerGame')">{{ fmtDecimal(item.turretKillPerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'turretLostPerGame')">{{ fmtDecimal(item.turretLostPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'wardPlacedPerGame')">{{ fmtDecimal(item.wardPlacedPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'wardKilledPerGame')">{{ fmtDecimal(item.wardKilledPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'goldPerGame')">{{ fmtGold(item.goldPerGame) }}</td>

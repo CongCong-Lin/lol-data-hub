@@ -16,6 +16,7 @@ import com.loldatahub.source.TjStatsResponseParser;
 import com.loldatahub.source.TjStatsSourceException;
 import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.MatchPlayerMetricSourceRecord;
+import com.loldatahub.source.model.MatchTeamMetricSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import org.slf4j.Logger;
@@ -41,7 +42,7 @@ import java.util.TreeSet;
 
 @Service
 public class PlayerCollectionService {
-    static final String CONTENT_SCHEMA_VERSION = "player-v5-exact-damage-and-team-metrics";
+    static final String CONTENT_SCHEMA_VERSION = "player-v6-team-extended-metrics";
     private static final Logger log = LoggerFactory.getLogger(PlayerCollectionService.class);
 
     private final TjStatsClient client;
@@ -163,7 +164,11 @@ public class PlayerCollectionService {
                     for (TeamStageDetailMetric metric : candidate.exactData().teamMetrics()) {
                         TeamStageDetailMetricWrite write = new TeamStageDetailMetricWrite(
                                 runId, seasonId, stageId, metric.teamId(), metric.gameCount(),
-                                metric.totalAssists(), metric.totalDamage(), candidate.collectedAt());
+                                metric.totalAssists(), metric.totalDamage(), metric.totalGameSeconds(), metric.totalGold(),
+                                metric.totalWardsPlaced(), metric.totalWardsKilled(), metric.totalMinionKills(),
+                                metric.totalDragons(), metric.totalDragonOpportunities(), metric.totalBarons(),
+                                metric.totalBaronOpportunities(), metric.totalTurrets(), metric.totalTurretsLost(),
+                                metric.firstBloodGames(), candidate.collectedAt());
                         teamDetailMetricWriteMapper.upsertCurrent(write);
                         teamDetailMetricWriteMapper.insertSnapshot(write);
                     }
@@ -221,6 +226,8 @@ public class PlayerCollectionService {
             }
 
             Map<GamePlayerKey, MatchPlayerMetricSourceRecord> metricsByGamePlayer = new HashMap<>();
+            Map<GameTeamKey, MatchTeamMetricSourceRecord> teamMetricsByGame = new HashMap<>();
+            boolean extendedTeamMetricsAvailable = true;
             Map<Long, String> usedDetailsByMatch = new LinkedHashMap<>();
             for (Long matchId : requiredMatchIds) {
                 String rawDetail = detailsByMatch.get(matchId);
@@ -244,6 +251,12 @@ public class PlayerCollectionService {
                 }
                 usedDetailsByMatch.put(matchId, rawDetail);
                 addMatchMetrics(metricsByGamePlayer, parsedMetrics);
+                try {
+                    addMatchTeamMetrics(teamMetricsByGame, parser.parseMatchTeamMetrics(rawDetail, matchId));
+                } catch (RuntimeException exception) {
+                    extendedTeamMetricsAvailable = false;
+                    log.info("PLAYER {}:{} 的单局扩展战队指标不可用：{}", seasonId, stageId, exception.getMessage());
+                }
             }
 
             // 官网会在比赛结束后分批更新同一个 matchDetail。旧响应可能是合法 JSON，
@@ -262,8 +275,14 @@ public class PlayerCollectionService {
                 storeMatchDetailRawResponse(
                         runId, seasonId, stageId, matchId, rawDetail, collectedAt);
                 metricsByGamePlayer.keySet().removeIf(key -> key.matchId() == matchId);
+                teamMetricsByGame.keySet().removeIf(key -> key.matchId() == matchId);
                 addMatchMetrics(
                         metricsByGamePlayer, parser.parseMatchPlayerMetrics(rawDetail, matchId));
+                try {
+                    addMatchTeamMetrics(teamMetricsByGame, parser.parseMatchTeamMetrics(rawDetail, matchId));
+                } catch (RuntimeException exception) {
+                    extendedTeamMetricsAvailable = false;
+                }
                 usedDetailsByMatch.put(matchId, rawDetail);
             }
             for (Map.Entry<Long, String> detail : usedDetailsByMatch.entrySet()) {
@@ -298,7 +317,8 @@ public class PlayerCollectionService {
             hashMaterial.append(exactHashMaterial);
             return new ExactStageData(
                     Map.copyOf(result),
-                    aggregateTeamMetrics(metricsByGamePlayer.values()));
+                    aggregateTeamMetrics(metricsByGamePlayer.values(), teamMetricsByGame,
+                            extendedTeamMetricsAvailable));
         } catch (RuntimeException exception) {
             log.warn("PLAYER {}:{} 无法从本地比赛详情计算精确指标，回退官网聚合比例: {}",
                     seasonId, stageId, exception.getMessage());
@@ -311,7 +331,9 @@ public class PlayerCollectionService {
      * 只在逐局明细完整且每队恰有五名选手时发布战队指标，避免用选手聚合数据猜测转会或替补归属。
      */
     private static List<TeamStageDetailMetric> aggregateTeamMetrics(
-            java.util.Collection<MatchPlayerMetricSourceRecord> metrics) {
+            java.util.Collection<MatchPlayerMetricSourceRecord> metrics,
+            Map<GameTeamKey, MatchTeamMetricSourceRecord> extendedMetrics,
+            boolean extendedMetricsAvailable) {
         Map<GameTeamKey, TeamGameMetricAccumulator> games = new HashMap<>();
         Map<GameKey, Set<Long>> teamsByGame = new HashMap<>();
         for (MatchPlayerMetricSourceRecord metric : metrics) {
@@ -333,13 +355,38 @@ public class PlayerCollectionService {
             if (game.playerCount != 5) {
                 throw new TjStatsSourceException("PLAYER_EXACT: 单局战队选手数不是 5，不能发布战队逐局指标");
             }
+            MatchTeamMetricSourceRecord extended = extendedMetrics.get(entry.getKey());
+            MatchTeamMetricSourceRecord opponent = extendedMetrics.values().stream()
+                    .filter(candidate -> candidate.matchId() == entry.getKey().matchId()
+                            && candidate.bo() == entry.getKey().bo()
+                            && candidate.teamId() != entry.getKey().teamId())
+                    .findFirst().orElse(null);
+            if (extendedMetricsAvailable && extended == null) {
+                extendedMetricsAvailable = false;
+            }
+            if (extendedMetricsAvailable && opponent == null) {
+                extendedMetricsAvailable = false;
+            }
             totals.computeIfAbsent(entry.getKey().teamId(), ignored -> new TeamStageMetricAccumulator())
-                    .add(game);
+                    .add(game, extended, opponent);
         }
+        final boolean publishExtendedMetrics = extendedMetricsAvailable;
         return totals.entrySet().stream()
                 .map(entry -> new TeamStageDetailMetric(
                         entry.getKey(), entry.getValue().gameCount, entry.getValue().totalAssists,
-                        entry.getValue().totalDamage))
+                        entry.getValue().totalDamage,
+                        publishExtendedMetrics ? entry.getValue().totalGameSeconds : null,
+                        publishExtendedMetrics ? entry.getValue().totalGold : null,
+                        publishExtendedMetrics ? entry.getValue().totalWardsPlaced : null,
+                        publishExtendedMetrics ? entry.getValue().totalWardsKilled : null,
+                        publishExtendedMetrics ? entry.getValue().totalMinionKills : null,
+                        publishExtendedMetrics ? entry.getValue().totalDragons : null,
+                        publishExtendedMetrics ? entry.getValue().totalDragonOpportunities : null,
+                        publishExtendedMetrics ? entry.getValue().totalBarons : null,
+                        publishExtendedMetrics ? entry.getValue().totalBaronOpportunities : null,
+                        publishExtendedMetrics ? entry.getValue().totalTurrets : null,
+                        publishExtendedMetrics ? entry.getValue().totalTurretsLost : null,
+                        publishExtendedMetrics ? entry.getValue().firstBloodGames : null))
                 .toList();
     }
 
@@ -352,6 +399,17 @@ public class PlayerCollectionService {
             if (target.putIfAbsent(key, metric) != null) {
                 throw new TjStatsSourceException(
                         "PLAYER_EXACT: 比赛详情存在重复选手记录 " + key);
+            }
+        }
+    }
+
+    private static void addMatchTeamMetrics(
+            Map<GameTeamKey, MatchTeamMetricSourceRecord> target,
+            List<MatchTeamMetricSourceRecord> metrics) {
+        for (MatchTeamMetricSourceRecord metric : metrics) {
+            GameTeamKey key = new GameTeamKey(metric.matchId(), metric.bo(), metric.teamId());
+            if (target.putIfAbsent(key, metric) != null) {
+                throw new TjStatsSourceException("PLAYER_EXACT: 比赛详情存在重复战队记录 " + key);
             }
         }
     }
@@ -526,8 +584,11 @@ public class PlayerCollectionService {
     ) {
     }
 
-    private record TeamStageDetailMetric(long teamId, long gameCount, long totalAssists,
-                                         BigDecimal totalDamage) {
+    private record TeamStageDetailMetric(long teamId, long gameCount, long totalAssists, BigDecimal totalDamage,
+                                         Long totalGameSeconds, BigDecimal totalGold, Long totalWardsPlaced,
+                                         Long totalWardsKilled, Long totalMinionKills, Long totalDragons,
+                                         Long totalDragonOpportunities, Long totalBarons, Long totalBaronOpportunities,
+                                         Long totalTurrets, Long totalTurretsLost, Long firstBloodGames) {
     }
 
     private record ExactPlayerRates(
@@ -563,11 +624,40 @@ public class PlayerCollectionService {
         private long gameCount;
         private long totalAssists;
         private BigDecimal totalDamage = BigDecimal.ZERO;
+        private long totalGameSeconds;
+        private BigDecimal totalGold = BigDecimal.ZERO;
+        private long totalWardsPlaced;
+        private long totalWardsKilled;
+        private long totalMinionKills;
+        private long totalDragons;
+        private long totalDragonOpportunities;
+        private long totalBarons;
+        private long totalBaronOpportunities;
+        private long totalTurrets;
+        private long totalTurretsLost;
+        private long firstBloodGames;
 
-        void add(TeamGameMetricAccumulator game) {
+        void add(TeamGameMetricAccumulator game, MatchTeamMetricSourceRecord extended,
+                 MatchTeamMetricSourceRecord opponent) {
             gameCount++;
             totalAssists += game.totalAssists;
             totalDamage = totalDamage.add(game.totalDamage);
+            if (extended != null) {
+                totalGameSeconds += extended.gameTimeSeconds();
+                totalGold = totalGold.add(extended.gold());
+                totalWardsPlaced += extended.wardPlaced();
+                totalWardsKilled += extended.wardKilled();
+                totalMinionKills += extended.minionKills();
+                totalDragons += extended.dragonAmount();
+                totalBarons += extended.baronAmount();
+                totalTurrets += extended.turretAmount();
+                firstBloodGames += extended.firstBlood() ? 1 : 0;
+                if (opponent != null) {
+                    totalDragonOpportunities += extended.dragonAmount() + opponent.dragonAmount();
+                    totalBaronOpportunities += extended.baronAmount() + opponent.baronAmount();
+                    totalTurretsLost += opponent.turretAmount();
+                }
+            }
         }
     }
 }

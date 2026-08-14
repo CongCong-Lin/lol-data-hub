@@ -8,6 +8,7 @@ import com.loldatahub.source.model.HeroRecordSourceRecord;
 import com.loldatahub.source.model.HeroStatSourceRecord;
 import com.loldatahub.source.model.MatchPlayerGameSourceRecord;
 import com.loldatahub.source.model.MatchPlayerMetricSourceRecord;
+import com.loldatahub.source.model.MatchTeamMetricSourceRecord;
 import com.loldatahub.source.model.PlayerHeroRecordPayload;
 import com.loldatahub.source.model.PlayerStatSourceRecord;
 import com.loldatahub.source.model.MatchPlayerPositionSourceRecord;
@@ -481,6 +482,68 @@ public class TjStatsResponseParser {
                             killParticipant, damagePercent, goldPercent
                     ));
                 }
+            }
+        }
+        return List.copyOf(records);
+    }
+
+    /**
+     * 解析单局详情中可由战队维度准确累加的指标。此方法刻意独立于选手聚合：
+     * 当历史响应缺少这些扩展字段时，调用方可以保留已验证的 KDA/输出数据，而不把未知值写成 0。
+     */
+    public List<MatchTeamMetricSourceRecord> parseMatchTeamMetrics(String rawJson, long expectedMatchId) {
+        // 先复用既有的严格十人详情校验，避免扩展指标绕过人员完整性校验。
+        parseMatchPlayerMetrics(rawJson, expectedMatchId);
+        JsonNode data = validatedData(rawJson);
+        JsonNode matchInfos = data.get("matchInfos");
+        List<MatchTeamMetricSourceRecord> records = new java.util.ArrayList<>();
+        Set<String> seenTeams = new HashSet<>();
+        for (int gameIndex = 0; gameIndex < matchInfos.size(); gameIndex++) {
+            JsonNode game = matchInfos.get(gameIndex);
+            long bo = game.path("bo").longValue();
+            JsonNode teams = game.get("teamInfos");
+            if (isOfficialEmptyGamePlaceholder(teams)) {
+                continue;
+            }
+            JsonNode duration = game.get("gameTime");
+            if (duration == null || !duration.isIntegralNumber() || duration.longValue() <= 0) {
+                throw new TjStatsSourceException("MATCH_DETAIL: gameTime 必须是大于 0 的秒数，matchId=" + expectedMatchId + "，bo=" + bo);
+            }
+            for (JsonNode team : teams) {
+                long teamId = team.path("teamId").longValue();
+                String key = bo + ":" + teamId;
+                if (teamId <= 0 || !seenTeams.add(key)) {
+                    throw new TjStatsSourceException("MATCH_DETAIL: 战队记录无效或重复，matchId=" + expectedMatchId + "，key=" + key);
+                }
+                BigDecimal gold = requireNonNegativeDecimal(team, "golds", "MATCH_DETAIL[" + gameIndex + "]");
+                long dragons = requireNonNegativeIntegral(team, "dragonAmount", expectedMatchId, bo, teamId);
+                long barons = requireNonNegativeIntegral(team, "baronAmount", expectedMatchId, bo, teamId);
+                long turrets = requireNonNegativeIntegral(team, "turretAmount", expectedMatchId, bo, teamId);
+                long assists = 0;
+                long wardsPlaced = 0;
+                long wardsKilled = 0;
+                long minionKills = 0;
+                BigDecimal damage = BigDecimal.ZERO;
+                boolean firstBlood = false;
+                JsonNode players = team.get("playerInfos");
+                for (JsonNode player : players) {
+                    long playerId = player.path("playerId").longValue();
+                    JsonNode battle = player.get("battleDetail");
+                    JsonNode vision = player.get("visionDetail");
+                    JsonNode damageDetail = player.get("damageDetail");
+                    JsonNode other = player.get("otherDetail");
+                    if (vision == null || !vision.isObject() || other == null || !other.isObject()) {
+                        throw new TjStatsSourceException("MATCH_DETAIL: 缺少视野或其他指标对象，matchId=" + expectedMatchId + "，playerId=" + playerId);
+                    }
+                    assists += requireNonNegativeIntegral(battle, "assist", expectedMatchId, bo, playerId);
+                    wardsPlaced += requireNonNegativeIntegral(vision, "wardPlaced", expectedMatchId, bo, playerId);
+                    wardsKilled += requireNonNegativeIntegral(vision, "wardKilled", expectedMatchId, bo, playerId);
+                    minionKills += requireNonNegativeIntegral(player, "minionKilled", expectedMatchId, bo, playerId);
+                    damage = damage.add(requireNonNegativeDecimal(damageDetail, "heroDamage", "MATCH_DETAIL[" + gameIndex + "]"));
+                    firstBlood |= other.path("firstBlood").asBoolean(false) || other.path("firstBloodAssists").asBoolean(false);
+                }
+                records.add(new MatchTeamMetricSourceRecord(expectedMatchId, bo, teamId, duration.longValue(), assists,
+                        damage, gold, wardsPlaced, wardsKilled, minionKills, dragons, barons, turrets, firstBlood));
             }
         }
         return List.copyOf(records);
