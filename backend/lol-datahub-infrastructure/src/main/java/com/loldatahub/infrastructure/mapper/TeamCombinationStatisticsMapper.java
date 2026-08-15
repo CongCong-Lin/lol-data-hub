@@ -14,10 +14,22 @@ public interface TeamCombinationStatisticsMapper {
             <script>
             WITH selected_lineups AS (
                 SELECT l.source_team_id AS team_id,
-                       CASE WHEN #{combinationType} = 'MID_JUNGLE'
-                            THEN l.jungle_champion_id ELSE l.bot_champion_id END AS first_champion_id,
-                       CASE WHEN #{combinationType} = 'MID_JUNGLE'
-                            THEN l.mid_champion_id ELSE l.support_champion_id END AS second_champion_id,
+                       CASE #{firstPosition}
+                           WHEN 'TOP' THEN l.top_champion_id
+                           WHEN 'JUN' THEN l.jungle_champion_id
+                           WHEN 'MID' THEN l.mid_champion_id
+                           WHEN 'BOT' THEN l.bot_champion_id
+                           WHEN 'SUP' THEN l.support_champion_id
+                           ELSE l.top_champion_id
+                       END AS first_champion_id,
+                       CASE #{secondPosition}
+                           WHEN 'TOP' THEN l.top_champion_id
+                           WHEN 'JUN' THEN l.jungle_champion_id
+                           WHEN 'MID' THEN l.mid_champion_id
+                           WHEN 'BOT' THEN l.bot_champion_id
+                           WHEN 'SUP' THEN l.support_champion_id
+                           ELSE l.mid_champion_id
+                       END AS second_champion_id,
                        l.won
                   FROM team_game_lineup_current l
                  WHERE (l.source_season_id, l.source_stage_id) IN
@@ -57,7 +69,8 @@ public interface TeamCombinationStatisticsMapper {
             """)
     List<TeamCombinationAggregateRow> aggregate(
             @Param("stages") List<StageKey> stages,
-            @Param("combinationType") String combinationType,
+            @Param("firstPosition") String firstPosition,
+            @Param("secondPosition") String secondPosition,
             @Param("minimumPickCount") int minimumPickCount);
 
     @Select("""

@@ -63,7 +63,8 @@ public class TeamCombinationStatisticsService {
         }
 
         List<TeamCombinationStatistics> items = new ArrayList<>(mapper.aggregate(
-                query.stages(), query.combinationType().name(), query.minimumPickCount()
+                query.stages(), query.combinationType().firstPosition(),
+                query.combinationType().secondPosition(), query.minimumPickCount()
         ).stream().map(row -> new TeamCombinationStatistics(
                 row.teamId(), row.teamName(), row.teamLogo(), query.combinationType(),
                 query.combinationType().firstPosition(), row.firstChampionId(), row.firstChampionName(),
