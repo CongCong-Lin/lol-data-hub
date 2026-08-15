@@ -2,10 +2,14 @@ package com.loldatahub.infrastructure.mapper;
 
 import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.model.ChampionAggregateRow;
+import com.loldatahub.infrastructure.model.ChampionPlayerUsageRow;
+import com.loldatahub.infrastructure.model.ChampionPositionStatRow;
+import com.loldatahub.infrastructure.model.ChampionTrendRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -124,4 +128,115 @@ public interface ChampionStatisticsMapper {
             </script>
             """)
     List<StageKey> findCollectedStageKeys(@Param("stages") List<StageKey> stages);
+
+    /** 英雄在全部五个分路的实际使用合计，供详情页分路统计展示。 */
+    @Select("""
+            <script>
+            SELECT ps.position AS position,
+                   SUM(ps.pick_count) AS pickCount,
+                   SUM(ps.winning_count) AS winningCount,
+                   SUM(ps.total_kills) AS totalKills,
+                   SUM(ps.total_deaths) AS totalDeaths,
+                   SUM(ps.total_assists) AS totalAssists
+              FROM champion_position_player_stage_stat_current ps
+             WHERE ps.source_champion_id = #{championId}
+               AND (ps.source_season_id, ps.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             GROUP BY ps.position
+             ORDER BY FIELD(ps.position, 'TOP', 'JUN', 'MID', 'BOT', 'SUP')
+            </script>
+            """)
+    List<ChampionPositionStatRow> aggregatePositionStats(@Param("stages") List<StageKey> stages,
+                                                         @Param("championId") long championId);
+
+    /**
+     * 英雄常用选手榜：按 (选手, 分路) 聚合逐局明细，出场次数达到门槛的选手。
+     * position 为空表示不限分路。
+     */
+    @Select("""
+            <script>
+            SELECT ps.source_player_id AS sourcePlayerId,
+                   MAX(COALESCE(p.name, ps.player_name)) AS playerName,
+                   (SELECT avatar_url FROM player
+                     WHERE source_player_id = ps.source_player_id
+                     ORDER BY player_key LIMIT 1) AS playerAvatar,
+                   ps.position AS position,
+                   SUM(ps.pick_count) AS pickCount,
+                   SUM(ps.winning_count) AS winningCount,
+                   SUM(ps.total_kills) AS totalKills,
+                   SUM(ps.total_deaths) AS totalDeaths,
+                   SUM(ps.total_assists) AS totalAssists
+              FROM champion_position_player_stage_stat_current ps
+              LEFT JOIN player p ON p.source_player_id = ps.source_player_id
+             WHERE ps.source_champion_id = #{championId}
+               <if test="position != null">
+               AND ps.position = #{position}
+               </if>
+               AND (ps.source_season_id, ps.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             GROUP BY ps.source_player_id, ps.position
+            HAVING SUM(ps.pick_count) &gt;= #{minimumPickCount}
+             ORDER BY pickCount DESC, ps.position, ps.source_player_id
+            </script>
+            """)
+    List<ChampionPlayerUsageRow> aggregatePlayerUsage(@Param("stages") List<StageKey> stages,
+                                                      @Param("championId") long championId,
+                                                      @Param("position") String position,
+                                                      @Param("minimumPickCount") int minimumPickCount);
+
+    /** 英雄按赛段的指标趋势，按赛段时间升序返回。 */
+    @Select("""
+            <script>
+            SELECT cs.source_season_id AS sourceSeasonId,
+                   cs.source_stage_id AS sourceStageId,
+                   st.name AS stageName,
+                   cs.pick_count AS pickCount,
+                   cs.ban_count AS banCount,
+                   cs.winning_count AS winningCount,
+                   cs.pick_rate AS pickRate,
+                   cs.ban_rate AS banRate,
+                   cs.winning_rate AS winningRate
+              FROM champion_stage_stat_current cs
+              JOIN stage st
+                ON st.source_season_id = cs.source_season_id
+               AND st.source_stage_id = cs.source_stage_id
+             WHERE cs.source_champion_id = #{championId}
+               AND (cs.source_season_id, cs.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             ORDER BY st.start_time, cs.source_stage_id
+            </script>
+            """)
+    List<ChampionTrendRow> findChampionTrends(@Param("stages") List<StageKey> stages,
+                                              @Param("championId") long championId);
+
+    /** 英雄基本信息（目录表），供详情页头部展示。 */
+    @Select("""
+            SELECT internal_name AS internalName,
+                   chinese_name AS chineseName,
+                   chinese_title AS chineseTitle,
+                   logo_url AS logoUrl
+              FROM champion
+             WHERE source_champion_id = #{championId}
+            """)
+    com.loldatahub.infrastructure.model.ChampionProfileRow findChampionProfile(
+            @Param("championId") long championId);
+
+    /** 所选赛段逐局英雄明细的最近采集时间，用于详情页展示数据新鲜度。 */
+    @Select("""
+            <script>
+            SELECT MAX(ps.collected_at)
+              FROM champion_position_player_stage_stat_current ps
+             WHERE (ps.source_season_id, ps.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+            </script>
+            """)
+    LocalDateTime findLatestCollectedAt(@Param("stages") List<StageKey> stages);
 }

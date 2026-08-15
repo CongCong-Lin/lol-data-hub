@@ -1,5 +1,6 @@
 package com.loldatahub.api;
 
+import com.loldatahub.domain.statistics.ChampionDetailNotFoundException;
 import com.loldatahub.domain.statistics.MatchGameNotFoundException;
 import com.loldatahub.domain.statistics.PlayerDetailNotFoundException;
 import com.loldatahub.domain.statistics.TeamDetailNotFoundException;
@@ -39,7 +40,7 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler({PlayerDetailNotFoundException.class, MatchGameNotFoundException.class,
-            TeamDetailNotFoundException.class})
+            TeamDetailNotFoundException.class, ChampionDetailNotFoundException.class})
     ResponseEntity<ApiResponse<Void>> detailNotFound(RuntimeException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure(exception.getMessage()));
     }
