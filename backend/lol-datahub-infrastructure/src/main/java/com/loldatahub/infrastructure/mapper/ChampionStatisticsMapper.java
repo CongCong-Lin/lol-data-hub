@@ -197,9 +197,9 @@ public interface ChampionStatisticsMapper {
                    cs.pick_count AS pickCount,
                    cs.ban_count AS banCount,
                    cs.winning_count AS winningCount,
-                   cs.pick_rate AS pickRate,
-                   cs.ban_rate AS banRate,
-                   cs.winning_rate AS winningRate
+                   cs.source_pick_rate AS pickRate,
+                   cs.source_ban_rate AS banRate,
+                   cs.source_winning_rate AS winningRate
               FROM champion_stage_stat_current cs
               JOIN stage st
                 ON st.source_season_id = cs.source_season_id
