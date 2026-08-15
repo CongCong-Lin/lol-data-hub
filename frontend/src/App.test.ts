@@ -622,3 +622,150 @@ describe('查询状态', () => {
     wrapper.unmount()
   })
 })
+
+describe('详情链接与 URL 状态同步', () => {
+  it('英雄统计行包裹指向英雄详情页的链接', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const link = wrapper.get('.champion-detail-link')
+    const href = link.attributes('href') ?? ''
+    expect(href).toContain('/champions/1?')
+    expect(href).toContain('stageKeys=237%3A100')
+    expect(href).toContain('minimumPickCount=10')
+    expect(href).toContain('returnTo=%2F%3Fview%3Dchampion')
+    wrapper.unmount()
+  })
+
+  it('战队统计行包裹指向战队详情页的链接', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    const teamTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '战队统计')
+    await teamTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const link = wrapper.get('.team-detail-link')
+    const href = link.attributes('href') ?? ''
+    expect(href).toContain('/teams/1?')
+    expect(href).toContain('stageKeys=237%3A100')
+    expect(href).toContain('minimumMatchCount=5')
+    expect(href).toContain('returnTo=%2F%3Fview%3Dteam')
+    wrapper.unmount()
+  })
+
+  it('未选择赛段时英雄与战队不渲染详情链接', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.find('.champion-detail-link').exists()).toBe(false)
+    expect(wrapper.find('.team-detail-link').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('点击上野组合按钮后按 TOP_JUNGLE 口径重新查询', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const comboTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '英雄组合')
+    await comboTab!.trigger('click')
+    await flushPromises()
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const topJungle = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上野组合')
+    expect(topJungle).toBeDefined()
+    await topJungle!.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 'TOP_JUNGLE', 3, 'pickCount', 'desc',
+    )
+    wrapper.unmount()
+  })
+
+  it('点击上中组合按钮后按 TOP_MID 口径重新查询', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const comboTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '英雄组合')
+    await comboTab!.trigger('click')
+    await flushPromises()
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const topMid = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上中组合')
+    expect(topMid).toBeDefined()
+    await topMid!.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 'TOP_MID', 3, 'pickCount', 'desc',
+    )
+    wrapper.unmount()
+  })
+
+  it('点击中下组合按钮后按 MID_BOT 口径重新查询', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const comboTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '英雄组合')
+    await comboTab!.trigger('click')
+    await flushPromises()
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const midBot = wrapper.findAll('button.pos-chip').find((button) => button.text() === '中下组合')
+    expect(midBot).toBeDefined()
+    await midBot!.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 'MID_BOT', 3, 'pickCount', 'desc',
+    )
+    wrapper.unmount()
+  })
+
+  it('查询条件变化时将状态写入地址栏', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    expect(window.location.search).toContain('stageKeys=237%3A100')
+    expect(window.location.search).toContain('view=champion')
+    expect(window.location.search).toContain('minimumPickCount=10')
+
+    await wrapper.get('#minimum').setValue('11')
+    expect(window.location.search).toContain('minimumPickCount=11')
+    wrapper.unmount()
+  })
+
+  it('带查询参数进入时恢复英雄分路筛选并保留在 URL 中', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?view=champion&season=237&stageKeys=237%3A100&minimumPickCount=6&position=TOP&championSortBy=winningRate&championSortDirection=asc',
+    )
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.findAll('button.pos-chip.active').map((button) => button.text())).toEqual(['上单'])
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 6, 'TOP', 'winningRate', 'asc',
+    )
+    expect(window.location.search).toContain('position=TOP')
+    wrapper.unmount()
+  })
+})
