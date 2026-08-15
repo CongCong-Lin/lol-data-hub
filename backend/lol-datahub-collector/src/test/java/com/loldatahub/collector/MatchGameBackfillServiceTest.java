@@ -3,6 +3,7 @@ package com.loldatahub.collector;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.MatchGameWriteMapper;
+import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.MatchDetailSourceRow;
 import com.loldatahub.infrastructure.model.MatchGameWrite;
 import com.loldatahub.source.TjStatsResponseParser;
@@ -21,12 +22,14 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MatchGameBackfillServiceTest {
     private CollectionMapper collectionMapper;
     private MatchGameWriteMapper writeMapper;
+    private SystemStateMapper systemStateMapper;
     private TransactionTemplate transactionTemplate;
     private MatchGameBackfillService service;
 
@@ -34,11 +37,12 @@ class MatchGameBackfillServiceTest {
     void setUp() {
         collectionMapper = mock(CollectionMapper.class);
         writeMapper = mock(MatchGameWriteMapper.class);
+        systemStateMapper = mock(SystemStateMapper.class);
         transactionTemplate = mock(TransactionTemplate.class);
 
         service = new MatchGameBackfillService(
                 new TjStatsResponseParser(new ObjectMapper()), new ObjectMapper(),
-                collectionMapper, writeMapper, transactionTemplate
+                collectionMapper, writeMapper, systemStateMapper, transactionTemplate
         );
         doAnswer(invocation -> {
             CollectionMapper.GeneratedId holder = invocation.getArgument(4);
@@ -101,6 +105,29 @@ class MatchGameBackfillServiceTest {
         assertThat(captor.getAllValues())
                 .extracting(MatchGameWrite::startTime)
                 .containsOnly((LocalDateTime) null);
+    }
+
+    @Test
+    void bumpsDataVersionOnSuccessfulBackfill() {
+        when(collectionMapper.findLatestMatchDetails(1L, 100L))
+                .thenReturn(List.of(new MatchDetailSourceRow(1L, 9984L, matchDetailJson(
+                        "2025-04-20T20:29:46+08:00", "2025-04-20T21:19:34+08:00", null))));
+
+        CollectionResult result = service.collect(1L, List.of(100L));
+
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        verify(systemStateMapper).incrementDataVersion();
+    }
+
+    @Test
+    void skipsVersionBumpWhenNothingToWrite() {
+        when(collectionMapper.findLatestMatchDetails(1L, 100L))
+                .thenReturn(List.of());
+
+        CollectionResult result = service.collect(1L, List.of(100L));
+
+        assertThat(result.status()).isEqualTo("NO_CHANGE");
+        verify(systemStateMapper, never()).incrementDataVersion();
     }
 
     private static String matchDetailJson(String bo1Start, String bo2Start, String matchTime) {

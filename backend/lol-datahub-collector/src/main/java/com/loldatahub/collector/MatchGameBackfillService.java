@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loldatahub.infrastructure.mapper.CollectionMapper;
 import com.loldatahub.infrastructure.mapper.MatchGameWriteMapper;
+import com.loldatahub.infrastructure.mapper.SystemStateMapper;
 import com.loldatahub.infrastructure.model.MatchDetailSourceRow;
 import com.loldatahub.infrastructure.model.MatchGamePlayerWrite;
 import com.loldatahub.infrastructure.model.MatchGameWrite;
@@ -37,7 +38,8 @@ import java.util.TreeMap;
  * 解析逐局对局与选手表现，重建 match_game_current / match_game_player_current。
  *
  * <p>回填不重新请求官网，只消费既有原始响应，因此可重复执行且不改变原有采集幂等语义；
- * 单场比赛解析失败时跳过该场并计数，保证历史脏数据不会阻断整个赛段回填。</p>
+ * 单场比赛解析失败时跳过该场并计数，保证历史脏数据不会阻断整个赛段回填。
+ * 回填成功后递增数据版本，使对局赛果与战队详情（近期对局）缓存随之失效。</p>
  */
 @Service
 public class MatchGameBackfillService {
@@ -48,17 +50,20 @@ public class MatchGameBackfillService {
     private final ObjectMapper objectMapper;
     private final CollectionMapper collectionMapper;
     private final MatchGameWriteMapper writeMapper;
+    private final SystemStateMapper systemStateMapper;
     private final TransactionTemplate transactionTemplate;
 
     public MatchGameBackfillService(TjStatsResponseParser parser,
                                     ObjectMapper objectMapper,
                                     CollectionMapper collectionMapper,
                                     MatchGameWriteMapper writeMapper,
+                                    SystemStateMapper systemStateMapper,
                                     TransactionTemplate transactionTemplate) {
         this.parser = parser;
         this.objectMapper = objectMapper;
         this.collectionMapper = collectionMapper;
         this.writeMapper = writeMapper;
+        this.systemStateMapper = systemStateMapper;
         this.transactionTemplate = transactionTemplate;
     }
 
@@ -119,7 +124,9 @@ public class MatchGameBackfillService {
                         writeMapper.insertMatchGamePlayerSnapshot(player);
                     }
                 }
-                // 回填基于已持久化的原始响应，不改变聚合表的数据版本
+                // 对局赛果已重建：递增数据版本使对局赛果与战队详情（近期对局）的缓存失效，
+                // 与统计采集保持一致，避免前端在 TTL 内继续展示回填前的旧明细。
+                systemStateMapper.incrementDataVersion();
                 return null;
             });
             collectionMapper.finishRun(runId, "SUCCESS", OffsetDateTime.now(ZoneOffset.UTC), changedRecords,
