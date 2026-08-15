@@ -852,6 +852,7 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     expect(wrapper.find('.controls').exists()).toBe(true)
     expect(wrapper.find('#minimum').exists()).toBe(false)
     expect(wrapper.find('button.tab-btn.active').exists()).toBe(false)
+    expect(wrapper.find('.view-tabs').exists()).toBe(false)
     expect(window.location.search).toContain('view=matches')
     expect(window.location.search).toContain('matchesSortBy=startTime')
 
@@ -937,6 +938,7 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     expect((wrapper.get('#comparePosition').element as HTMLSelectElement).value).toBe('TOP')
     expect((wrapper.get('#compareMinimum').element as HTMLInputElement).value).toBe('7')
     expect(wrapper.find('.controls button.primary').exists()).toBe(false)
+    expect(wrapper.find('.view-tabs').exists()).toBe(false)
     expect(window.location.search).toContain('comparePosition=TOP')
     wrapper.unmount()
   })
@@ -949,6 +951,7 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     await flushPromises()
 
     expect(wrapper.find('.controls').exists()).toBe(false)
+    expect(wrapper.find('.view-tabs').exists()).toBe(false)
     expect(wrapper.find('.collections-panel').exists()).toBe(true)
     expect(vi.mocked(api.collectionStatus)).toHaveBeenCalledWith(50)
     expect(wrapper.text()).toContain('对局明细')

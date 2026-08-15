@@ -975,7 +975,7 @@ onMounted(async () => {
       <p class="hero-copy">基于本地持久化数据重新计算跨赛事指标，并用明确的样本门槛隔离低样本噪声。支持跨赛事赛段选择，如 LPL + MSI（需已有采集数据）。</p>
     </header>
 
-    <nav class="view-tabs">
+    <nav v-if="STATISTIC_VIEWS.has(activeView)" class="view-tabs">
       <button
         class="tab-btn"
         :class="{ active: activeView === 'champion' }"
