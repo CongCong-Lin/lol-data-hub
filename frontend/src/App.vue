@@ -18,9 +18,17 @@ import PaginationControls from './PaginationControls.vue'
 import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
 import SortableHeader from './SortableHeader.vue'
 import SiteNav from './SiteNav.vue'
+import MatchesPage from './MatchesPage.vue'
+import PlayerComparePage from './PlayerComparePage.vue'
+import CollectionsPage from './CollectionsPage.vue'
 import { formatPercent } from './formatters'
 
-type ActiveView = 'champion' | 'team' | 'player' | 'combo'
+type ActiveView = 'champion' | 'team' | 'player' | 'combo' | 'matches' | 'compare' | 'collections'
+
+const STATISTIC_VIEWS: ReadonlySet<ActiveView> = new Set(['champion', 'team', 'player', 'combo'])
+const VIEW_VALUES: ReadonlySet<string> = new Set([
+  'champion', 'team', 'player', 'combo', 'matches', 'compare', 'collections',
+])
 
 const CHAMPION_COLUMNS: ColumnOption[] = [
   { key: 'champion', label: '英雄' }, { key: 'positions', label: '分路' },
@@ -95,7 +103,14 @@ const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   team: 'TEAM',
   player: 'PLAYER',
   combo: 'COMBO',
+  matches: 'HERO',
+  compare: 'PLAYER',
+  /* 占位：collections 视图不使用赛段可用性（controls 区隐藏） */
+  collections: 'HERO',
 }
+
+const MATCHES_SORT_FIELDS = new Set(['startTime', 'matchId'])
+const MATCHES_SORT_DIRECTION_VALUES = new Set(['asc', 'desc'])
 
 const MAX_STAGE_SELECTION = 50
 
@@ -122,6 +137,11 @@ const combinationType = ref<TeamCombinationType>('MID_JUNGLE')
 const minimumCombinationPickCount = ref(3)
 const positionFilter = ref('')
 const playerPositionFilter = ref('')
+const matchesSortBy = ref<'startTime' | 'matchId'>('startTime')
+const matchesSortDirection = ref<'asc' | 'desc'>('desc')
+const matchesOffset = ref(0)
+const comparePositionFilter = ref('')
+const compareMinimumMatchCount = ref(5)
 const search = ref('')
 const teamSearch = ref('')
 const playerSearch = ref('')
@@ -203,8 +223,8 @@ function restoreQueryFromLocation(): boolean {
   if (typeof window === 'undefined') return false
   const params = new URLSearchParams(window.location.search)
   const view = params.get('view')
-  if (view === 'champion' || view === 'team' || view === 'player' || view === 'combo') {
-    activeView.value = view
+  if (VIEW_VALUES.has(view ?? '')) {
+    activeView.value = view as ActiveView
   } else if (view !== null) {
     return false
   }
@@ -241,6 +261,24 @@ function restoreQueryFromLocation(): boolean {
   if (CHAMPION_POSITION_VALUES.has(position)) positionFilter.value = position
   const playerPosition = params.get('playerPosition') ?? ''
   if (PLAYER_POSITION_VALUES.has(playerPosition)) playerPositionFilter.value = playerPosition
+  const comparePosition = params.get('comparePosition') ?? ''
+  if (PLAYER_POSITION_VALUES.has(comparePosition)) comparePositionFilter.value = comparePosition
+  const compareMinimumRaw = params.get('compareMinimumMatchCount')
+  if (compareMinimumRaw !== null) {
+    const compareMinimum = Number(compareMinimumRaw)
+    if (Number.isInteger(compareMinimum) && compareMinimum >= 0 && compareMinimum <= 10_000) {
+      compareMinimumMatchCount.value = compareMinimum
+    }
+  }
+
+  const restoredMatchesSort = params.get('matchesSortBy') ?? ''
+  if (MATCHES_SORT_FIELDS.has(restoredMatchesSort)) matchesSortBy.value = restoredMatchesSort as 'startTime' | 'matchId'
+  const restoredMatchesDirection = params.get('matchesSortDirection')
+  if (MATCHES_SORT_DIRECTION_VALUES.has(restoredMatchesDirection ?? '')) {
+    matchesSortDirection.value = restoredMatchesDirection as 'asc' | 'desc'
+  }
+  const restoredMatchesOffset = Number(params.get('matchesOffset'))
+  if (Number.isInteger(restoredMatchesOffset) && restoredMatchesOffset >= 0) matchesOffset.value = restoredMatchesOffset
 
   const comboType = params.get('combinationType') ?? ''
   if (COMBINATION_TYPE_VALUES.has(comboType as TeamCombinationType)) {
@@ -318,6 +356,13 @@ function buildQueryString(): string {
     params.set('playerSortDirection', playerSortDirection.value)
     params.set('playerColumns', playerVisibleColumns.value.join(','))
     if (playerSearch.value) params.set('playerSearch', playerSearch.value)
+  } else if (activeView.value === 'matches') {
+    params.set('matchesSortBy', matchesSortBy.value)
+    params.set('matchesSortDirection', matchesSortDirection.value)
+    if (matchesOffset.value > 0) params.set('matchesOffset', String(matchesOffset.value))
+  } else if (activeView.value === 'compare') {
+    if (comparePositionFilter.value) params.set('comparePosition', comparePositionFilter.value)
+    params.set('compareMinimumMatchCount', String(compareMinimumMatchCount.value))
   } else {
     params.set('combinationType', combinationType.value)
     params.set('minimumCombinationPickCount', String(minimumCombinationPickCount.value))
@@ -472,6 +517,7 @@ function isValidMinimum(value: number): boolean {
 const minimumPickCountValid = computed(() => isValidMinimum(minimumPickCount.value))
 const minimumMatchCountValid = computed(() => isValidMinimum(minimumMatchCount.value))
 const minimumCombinationPickCountValid = computed(() => isValidMinimum(minimumCombinationPickCount.value))
+const compareMinimumMatchCountValid = computed(() => isValidMinimum(compareMinimumMatchCount.value))
 const activeMinimumValid = computed(() =>
   activeView.value === 'champion' ? minimumPickCountValid.value
     : activeView.value === 'combo' ? minimumCombinationPickCountValid.value : minimumMatchCountValid.value,
@@ -630,6 +676,7 @@ watch(pageSize, () => {
 watch(
   [activeView, browsedSeasonId, selectedStageKeys, minimumPickCount, minimumMatchCount, minimumCombinationPickCount,
    positionFilter, playerPositionFilter, combinationType,
+   matchesSortBy, matchesSortDirection, matchesOffset, comparePositionFilter, compareMinimumMatchCount,
    sortBy, championSortDirection, teamSortBy, teamSortDirection,
    playerSortBy, playerSortDirection, combinationSortBy, combinationSortDirection,
    search, teamSearch, playerSearch, combinationSearch,
@@ -649,6 +696,8 @@ async function loadSeasons() {
 }
 
 async function loadAvailability() {
+  /* 采集状态视图不使用赛段选择，无需加载可用性数据 */
+  if (activeView.value === 'collections') return
   const seq = ++loadAvailabilitySeq
   const previouslySelected = new Set(selectedStageKeys.value)
   querySeq++
@@ -687,13 +736,15 @@ async function loadAvailability() {
 }
 
 async function query(preserveCurrentResult = false) {
+  const view = activeView.value
+  /* 对局赛果/选手对比/采集状态由各自面板自行查询，不参与统计查询 */
+  if (view === 'matches' || view === 'compare' || view === 'collections') return
   if (!activeMinimumValid.value) {
     error.value = '最低样本数必须是 0 到 10000 之间的整数'
     return
   }
   if (!canQuery.value) return
   const seq = ++querySeq
-  const view = activeView.value
   const keys = [...selectedStageKeys.value]
   const selectedChampionPosition = positionFilter.value
   const selectedPlayerPosition = playerPositionFilter.value
@@ -830,6 +881,11 @@ function switchView(view: ActiveView) {
   void loadAvailability()
 }
 
+/** 站点导航点击：切换到对应视图（类型收窄）。 */
+function navigateView(view: string) {
+  switchView(view as ActiveView)
+}
+
 function toggleStage(compositeKey: string, collected: boolean) {
   if (!collected) return
   const newSet = new Set(selectedStageKeys.value)
@@ -902,7 +958,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <SiteNav :stage-keys="[...selectedStageKeys]" />
+  <SiteNav :stage-keys="[...selectedStageKeys]" :current-view="activeView" @navigate="navigateView" />
   <main class="shell">
     <header class="hero">
       <div>
@@ -948,7 +1004,7 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <section class="panel controls">
+    <section v-if="activeView !== 'collections'" class="panel controls">
       <div class="field">
         <label for="season">赛事/赛季（浏览）</label>
         <select id="season" v-model.number="browsedSeasonId">
@@ -968,12 +1024,25 @@ onMounted(async () => {
         <input id="minimumCombination" v-model.number="minimumCombinationPickCount" type="number" min="0" max="10000" step="1" />
         <small v-if="!minimumCombinationPickCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
-      <div v-else class="field compact">
+      <template v-else-if="activeView === 'compare'">
+        <div class="field compact">
+          <label for="comparePosition">位置筛选</label>
+          <select id="comparePosition" v-model="comparePositionFilter">
+            <option v-for="opt in PLAYER_POSITION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </div>
+        <div class="field compact">
+          <label for="compareMinimum">最低比赛场数</label>
+          <input id="compareMinimum" v-model.number="compareMinimumMatchCount" type="number" min="0" max="10000" step="1" />
+          <small v-if="!compareMinimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
+        </div>
+      </template>
+      <div v-else-if="activeView === 'team' || activeView === 'player'" class="field compact">
         <label for="minimumMatch">最低比赛场数</label>
         <input id="minimumMatch" v-model.number="minimumMatchCount" type="number" min="0" max="10000" step="1" />
         <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
-      <div class="actions">
+      <div v-if="STATISTIC_VIEWS.has(activeView)" class="actions">
         <button class="primary" :disabled="!canQuery" @click="query()">{{ busy ? '处理中…' : '查询统计' }}</button>
       </div>
 
@@ -999,7 +1068,7 @@ onMounted(async () => {
           </button>
         </div>
         <p v-else class="empty-inline">
-          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : activeView === 'combo' ? '该赛季暂无已采集单局阵容数据。' : '该赛季暂无赛段数据。' }}
+          {{ activeView === 'team' ? '该赛季暂无已采集战队数据。' : activeView === 'player' ? '该赛季暂无已采集选手数据。' : activeView === 'combo' ? '该赛季暂无已采集单局阵容数据。' : activeView === 'matches' ? '该赛季暂无已回填的对局明细。' : activeView === 'compare' ? '该赛季暂无已采集选手数据。' : '该赛季暂无赛段数据。' }}
         </p>
 
         <!-- 跨赛事选择篮 -->
@@ -1042,7 +1111,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="selectedStageKeys.size > 0" class="query-summary">
+    <section v-if="selectedStageKeys.size > 0 && activeView !== 'collections'" class="query-summary">
       <span>已选 <strong>{{ selectedSeasonCount }}</strong> 个赛事 · <strong>{{ selectedStageKeys.size }}</strong> 个赛段</span>
       <span v-if="activeView === 'champion'">样本基数合计 <strong>{{ totalSampleBase }}</strong></span>
       <span>数据版本 <strong>{{ currentDataVersion ?? '—' }}</strong></span>
@@ -1510,6 +1579,30 @@ onMounted(async () => {
         v-model:page-size="pageSize"
         :total-items="filteredCombinationItems.length"
       />
+    </section>
+
+    <!-- 对局赛果面板 -->
+    <section v-if="activeView === 'matches'" class="panel table-panel">
+      <MatchesPage
+        :stage-keys="[...selectedStageKeys]"
+        v-model:sort-by="matchesSortBy"
+        v-model:sort-direction="matchesSortDirection"
+        v-model:offset="matchesOffset"
+      />
+    </section>
+
+    <!-- 选手对比面板 -->
+    <section v-if="activeView === 'compare'" class="panel table-panel">
+      <PlayerComparePage
+        :stage-keys="[...selectedStageKeys]"
+        v-model:position-filter="comparePositionFilter"
+        v-model:minimum-match-count="compareMinimumMatchCount"
+      />
+    </section>
+
+    <!-- 采集状态面板 -->
+    <section v-if="activeView === 'collections'" class="panel table-panel">
+      <CollectionsPage />
     </section>
   </main>
 </template>

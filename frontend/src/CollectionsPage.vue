@@ -61,21 +61,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="collections-page shell">
-    <header class="hero">
+  <div class="collections-panel">
+    <div class="table-toolbar">
       <div>
         <p class="eyebrow">COLLECTION STATUS</p>
-        <h1>{{ t('collections.title') }}</h1>
+        <h2>{{ t('collections.title') }}</h2>
       </div>
-      <RouterLink class="back-link" to="/">{{ t('collections.back') }}</RouterLink>
-      <p class="hero-copy">{{ t('collections.note', { n: LIMIT }) }}；对局明细（MATCH_GAME）为逐局战绩回填，其余类型为常规统计采集。</p>
-    </header>
+      <p class="toolbar-note">{{ t('collections.note', { n: LIMIT }) }}；对局明细（MATCH_GAME）为逐局战绩回填，其余类型为常规统计采集。</p>
+    </div>
 
     <p v-if="error" class="message error">{{ error }}</p>
     <p v-if="loading" class="message success">{{ t('common.loading') }}</p>
 
-    <section class="panel table-panel">
-      <div v-if="rows.length" class="table-scroll" tabindex="0" aria-label="采集运行记录表">
+    <div v-if="rows.length" class="table-scroll" tabindex="0" aria-label="采集运行记录表">
         <table class="collection-table">
           <thead>
             <tr>
@@ -113,13 +111,11 @@ onMounted(() => {
         <strong>暂无采集记录</strong>
         <p>采集任务运行后这里会显示最近 {{ LIMIT }} 条执行记录。</p>
       </div>
-    </section>
   </div>
 </template>
 
 <style scoped>
-.back-link { color: var(--accent); text-decoration: none; font-weight: 600; justify-self: end; }
-.back-link:hover { text-decoration: underline; }
+.toolbar-note { max-width: 420px; color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
 .collection-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 980px; }
 .collection-table th, .collection-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .collection-table thead th { color: var(--text-3); font-size: 12px; background: var(--th-bg); }

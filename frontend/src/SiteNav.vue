@@ -4,7 +4,12 @@ import GlobalSearch from './GlobalSearch.vue'
 import { setLocale, useI18n, type Locale } from './i18n'
 import { applyTheme, type Theme } from './theme'
 
-const props = defineProps<{ stageKeys: string[] }>()
+const props = defineProps<{
+  stageKeys: string[]
+  currentView: string
+}>()
+
+const emit = defineEmits<{ navigate: [view: string] }>()
 
 const { t, locale } = useI18n()
 
@@ -24,11 +29,12 @@ function toggleLocale() {
   setLocale(next)
 }
 
-function isCurrent(path: string): boolean {
-  if (typeof window === 'undefined') return false
-  const current = window.location.pathname
-  if (path === '/') return current === '/'
-  return current === path || current.startsWith(`${path}/`)
+const STATISTIC_VIEWS = new Set(['champion', 'team', 'player', 'combo'])
+
+/** 当前视图与导航项匹配时高亮；「统计查询」覆盖四个统计视图。 */
+function isActive(view: string): boolean {
+  if (view === 'statistics') return STATISTIC_VIEWS.has(props.currentView)
+  return props.currentView === view
 }
 </script>
 
@@ -37,10 +43,10 @@ function isCurrent(path: string): boolean {
     <div class="site-nav-inner">
       <a href="/" class="site-brand">LoL&nbsp;Data&nbsp;Hub</a>
       <nav class="site-links" aria-label="主导航">
-        <a href="/" class="site-link" :class="{ active: isCurrent('/') }">{{ t('nav.statistics') }}</a>
-        <a href="/matches" class="site-link" :class="{ active: isCurrent('/matches') }">{{ t('nav.matches') }}</a>
-        <a href="/compare" class="site-link" :class="{ active: isCurrent('/compare') }">{{ t('nav.compare') }}</a>
-        <a href="/collections" class="site-link" :class="{ active: isCurrent('/collections') }">{{ t('nav.collections') }}</a>
+        <a href="/?view=champion" class="site-link" :class="{ active: isActive('statistics') }" @click.prevent="emit('navigate', 'champion')">{{ t('nav.statistics') }}</a>
+        <a href="/?view=matches" class="site-link" :class="{ active: isActive('matches') }" @click.prevent="emit('navigate', 'matches')">{{ t('nav.matches') }}</a>
+        <a href="/?view=compare" class="site-link" :class="{ active: isActive('compare') }" @click.prevent="emit('navigate', 'compare')">{{ t('nav.compare') }}</a>
+        <a href="/?view=collections" class="site-link" :class="{ active: isActive('collections') }" @click.prevent="emit('navigate', 'collections')">{{ t('nav.collections') }}</a>
       </nav>
       <div class="site-actions">
         <GlobalSearch :stage-keys="props.stageKeys" />

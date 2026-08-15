@@ -2,28 +2,15 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMemoryHistory, createRouter } from 'vue-router'
 
 import PlayerComparePage from './PlayerComparePage.vue'
-import { api, type PlayerStatistics, type PlayerStatisticsResult, type Stage } from './api'
+import { api, type PlayerStatistics, type PlayerStatisticsResult } from './api'
 
 vi.mock('./api', () => ({
   api: {
-    seasons: vi.fn(),
-    availability: vi.fn(),
     playerStatisticsByKeys: vi.fn(),
   },
 }))
-
-const stages: Stage[] = [{
-  sourceSeasonId: 237,
-  sourceStageId: 100,
-  seasonName: '2026LPL',
-  name: '第一赛段',
-  collected: true,
-  sampleBaseCount: 54,
-  collectedAt: '2026-03-08T12:38:16Z',
-}]
 
 function player(overrides: Partial<PlayerStatistics> = {}): PlayerStatistics {
   return {
@@ -69,14 +56,6 @@ function playersResult(items: PlayerStatistics[]): PlayerStatisticsResult {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(api.seasons).mockResolvedValue([{
-    sourceSeasonId: 237,
-    name: '2026LPL',
-    startTime: null,
-    endTime: null,
-    open: true,
-  }])
-  vi.mocked(api.availability).mockResolvedValue(stages)
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playersResult([
     player(),
     player({ playerKey: 'id:2', sourcePlayerId: 2, playerName: 'knight', teamNames: ['BLG'], positions: ['MID'] }),
@@ -84,43 +63,43 @@ beforeEach(() => {
   ]))
 })
 
-async function mountAt(path = '/compare'): Promise<ReturnType<typeof mount>> {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/compare', component: PlayerComparePage }],
+function mountPage(props: Partial<InstanceType<typeof PlayerComparePage>['$props']> = {}) {
+  return mount(PlayerComparePage, {
+    props: {
+      stageKeys: ['237:100'],
+      positionFilter: '',
+      minimumMatchCount: 5,
+      ...props,
+    },
   })
-  await router.push(path)
-  await router.isReady()
-  const wrapper = mount(PlayerComparePage, { global: { plugins: [router] } })
-  return wrapper
 }
 
 describe('PlayerComparePage', () => {
-  it('未选择赛段时搜索提示先选择赛段', async () => {
-    const wrapper = await mountAt()
+  it('未选择赛段时搜索按钮禁用且不会发起查询', async () => {
+    const wrapper = mountPage({ stageKeys: [] })
     await flushPromises()
+
+    const searchButton = wrapper.get('.primary.search-button')
+    expect((searchButton.element as HTMLButtonElement).disabled).toBe(true)
 
     await wrapper.get('input[type="search"]').setValue('Knight')
-    await wrapper.get('.primary.search-button').trigger('click')
+    await searchButton.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('请先选择赛段')
     expect(api.playerStatisticsByKeys).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
   it('选择赛段后搜索并添加选手到对比列表', async () => {
-    const wrapper = await mountAt()
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.get('button.stage-chip').trigger('click')
-    await flushPromises()
     await wrapper.get('input[type="search"]').setValue('Knight')
     await wrapper.get('.primary.search-button').trigger('click')
     await flushPromises()
 
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenCalledWith(
-      ['237:100'], 0, '', 'kda', 'desc',
+      ['237:100'], 5, '', 'kda', 'desc',
     )
     const candidates = wrapper.findAll('.candidate-item')
     expect(candidates).toHaveLength(2)
@@ -132,11 +111,9 @@ describe('PlayerComparePage', () => {
   })
 
   it('仅选择一名选手时提示需要至少两位', async () => {
-    const wrapper = await mountAt()
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.get('button.stage-chip').trigger('click')
-    await flushPromises()
     await wrapper.get('input[type="search"]').setValue('Knight')
     await wrapper.get('.primary.search-button').trigger('click')
     await flushPromises()
@@ -149,11 +126,9 @@ describe('PlayerComparePage', () => {
   })
 
   it('选择两位选手后渲染对比表并高亮最优值', async () => {
-    const wrapper = await mountAt()
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.get('button.stage-chip').trigger('click')
-    await flushPromises()
     await wrapper.get('input[type="search"]').setValue('Knight')
     await wrapper.get('.primary.search-button').trigger('click')
     await flushPromises()
@@ -164,7 +139,6 @@ describe('PlayerComparePage', () => {
     await candidates[0].get('.add-button').trigger('click')
     await wrapper.findAll('.candidate-item')[0].get('.add-button').trigger('click')
 
-    const table = wrapper.get('table.compare-table')
     const metricRows = wrapper.findAll('.compare-table .metric-label')
     expect(metricRows.length).toBeGreaterThanOrEqual(12)
     expect(wrapper.findAll('.compare-table .best-value').length).toBeGreaterThan(0)
@@ -182,11 +156,9 @@ describe('PlayerComparePage', () => {
       player({ playerKey: 'id:6', sourcePlayerId: 6, playerName: 'Falcon', teamNames: ['T5'] }),
       player({ playerKey: 'id:7', sourcePlayerId: 7, playerName: 'Artemis', teamNames: ['T6'] }),
     ]))
-    const wrapper = await mountAt()
+    const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.get('button.stage-chip').trigger('click')
-    await flushPromises()
     await wrapper.get('input[type="search"]').setValue('a')
     await wrapper.get('.primary.search-button').trigger('click')
     await flushPromises()
@@ -201,23 +173,36 @@ describe('PlayerComparePage', () => {
     wrapper.unmount()
   })
 
-  it('按分路筛选搜索候选', async () => {
-    const wrapper = await mountAt()
+  it('按分路筛选搜索候选（分路由父组件传入）', async () => {
+    const wrapper = mountPage({ positionFilter: 'TOP' })
     await flushPromises()
 
-    await wrapper.get('button.stage-chip').trigger('click')
-    await flushPromises()
-    const positionSelect = wrapper.findAll('select')[1]
-    expect(positionSelect).toBeDefined()
-    await positionSelect.setValue('TOP')
-    await flushPromises()
     await wrapper.get('input[type="search"]').setValue('369')
     await wrapper.get('.primary.search-button').trigger('click')
     await flushPromises()
 
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenLastCalledWith(
-      ['237:100'], 0, 'TOP', 'kda', 'desc',
+      ['237:100'], 5, 'TOP', 'kda', 'desc',
     )
+    wrapper.unmount()
+  })
+
+  it('已选选手详情链接携带对比视图返回地址', async () => {
+    const wrapper = mountPage({ positionFilter: 'TOP' })
+    await flushPromises()
+
+    await wrapper.get('input[type="search"]').setValue('Knight')
+    await wrapper.get('.primary.search-button').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('.candidate-item')[0].get('.add-button').trigger('click')
+
+    const href = wrapper.get('a.selected-name').attributes('href') ?? ''
+    expect(href).toContain('/players/1?')
+    expect(href).toContain('stageKeys=237%3A100')
+    expect(href).toContain('position=TOP')
+    expect(href).toContain('minimumMatchCount=5')
+    expect(decodeURIComponent(href)).toContain('returnTo=/?view=compare')
     wrapper.unmount()
   })
 })

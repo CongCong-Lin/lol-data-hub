@@ -152,7 +152,7 @@ function playerHref(player: MatchGamePlayerRecord): string {
 
 const backPath = computed(() => {
   const candidate = String(route.query.returnTo ?? '')
-  if (!candidate.startsWith('/') || candidate.startsWith('//')) return '/matches'
+  if (!candidate.startsWith('/') || candidate.startsWith('//')) return '/?view=matches'
   return candidate
 })
 </script>

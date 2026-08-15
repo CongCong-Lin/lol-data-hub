@@ -2,14 +2,12 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
 import MatchesPage from './MatchesPage.vue'
 import { api, type MatchGameRecord, type MatchGamesResult, type Stage } from './api'
 
 vi.mock('./api', () => ({
   api: {
-    seasons: vi.fn(),
     availability: vi.fn(),
     matchGames: vi.fn(),
   },
@@ -79,46 +77,34 @@ function gamesResult(overrides: Partial<MatchGamesResult> = {}): MatchGamesResul
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(api.seasons).mockResolvedValue([{
-    sourceSeasonId: 237,
-    name: '2026LPL',
-    startTime: null,
-    endTime: null,
-    open: true,
-  }])
   vi.mocked(api.availability).mockResolvedValue(stages)
   vi.mocked(api.matchGames).mockResolvedValue(gamesResult())
 })
 
-async function mountAt(path: string): Promise<{ wrapper: ReturnType<typeof mount>; router: Router }> {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      { path: '/', component: { template: '<div />' } },
-      { path: '/matches', component: MatchesPage },
-    ],
+function mountPage(props: Partial<InstanceType<typeof MatchesPage>['$props']> = {}) {
+  return mount(MatchesPage, {
+    props: {
+      stageKeys: ['237:100'],
+      sortBy: 'startTime',
+      sortDirection: 'desc',
+      offset: 0,
+      ...props,
+    },
   })
-  await router.push(path)
-  await router.isReady()
-  const wrapper = mount(MatchesPage, { global: { plugins: [router] } })
-  return { wrapper, router }
 }
 
 describe('MatchesPage', () => {
-  it('未选择赛段时提示先选择赛段', async () => {
-    const { wrapper } = await mountAt('/matches')
+  it('未选择赛段时提示先选择赛段且不查询', async () => {
+    const wrapper = mountPage({ stageKeys: [] })
     await flushPromises()
 
-    expect(wrapper.get('.matches-page').text()).toContain('请选择要查询的赛段')
+    expect(wrapper.text()).toContain('请先在上方选择要查询的赛段')
     expect(api.matchGames).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
-  it('选择赛段后按默认排序查询并渲染对局赛果', async () => {
-    const { wrapper } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+  it('挂载后按传入赛段与排序查询并渲染对局赛果', async () => {
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 
@@ -132,10 +118,7 @@ describe('MatchesPage', () => {
   })
 
   it('为胜方渲染结果徽章与一血标记', async () => {
-    const { wrapper } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 
@@ -146,10 +129,7 @@ describe('MatchesPage', () => {
   })
 
   it('对局行包含指向对局详情页的链接', async () => {
-    const { wrapper } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 
@@ -159,28 +139,35 @@ describe('MatchesPage', () => {
     wrapper.unmount()
   })
 
-  it('点击排序按钮切换排序并更新 URL', async () => {
-    const { wrapper, router } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+  it('点击排序按钮通过事件切换排序', async () => {
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 
     await wrapper.findAll('button.pos-chip').find((button) => button.text()!.includes('系列赛'))!.trigger('click')
     await flushPromises()
 
-    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'matchId', 'desc', 0, 50)
-    expect(router.currentRoute.value.query.sortBy).toBe('matchId')
+    expect(wrapper.emitted('update:sortBy')).toEqual([['matchId']])
+    expect(wrapper.emitted('update:sortDirection')).toEqual([['desc']])
+    expect(wrapper.emitted('update:offset')).toEqual([[0]])
+    wrapper.unmount()
+  })
+
+  it('排序状态变化时重新查询', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.setProps({ sortBy: 'matchId', sortDirection: 'asc', offset: 0 })
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'matchId', 'asc', 0, 50)
     wrapper.unmount()
   })
 
   it('分页按钮按每页 50 局翻页', async () => {
     vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120 }))
-    const { wrapper } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 
@@ -189,16 +176,42 @@ describe('MatchesPage', () => {
     await nextButton!.trigger('click')
     await flushPromises()
 
+    expect(wrapper.emitted('update:offset')).toEqual([[50]])
+    wrapper.unmount()
+  })
+
+  it('offset 变化时重新查询', async () => {
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120, offset: 50 }))
+    const wrapper = mountPage({ offset: 50 })
+    await flushPromises()
+    await flushPromises()
+
     expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'startTime', 'desc', 50, 50)
+    wrapper.unmount()
+  })
+
+  it('赛段变化时重置偏移并重新查询', async () => {
+    const wrapper = mountPage({ offset: 50 })
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.setProps({ stageKeys: ['237:100', '237:101'] })
+    await flushPromises()
+
+    // 组件发出偏移归零事件，由父组件（App）响应后更新 offset
+    expect(wrapper.emitted('update:offset')).toEqual([[0]])
+    await wrapper.setProps({ offset: 0 })
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(
+      ['237:100', '237:101'], 'startTime', 'desc', 0, 50,
+    )
     wrapper.unmount()
   })
 
   it('查询失败时展示错误信息', async () => {
     vi.mocked(api.matchGames).mockRejectedValue(new Error('对局数据加载失败'))
-    const { wrapper } = await mountAt('/matches')
-    await flushPromises()
-
-    await wrapper.get('button.stage-chip').trigger('click')
+    const wrapper = mountPage()
     await flushPromises()
     await flushPromises()
 

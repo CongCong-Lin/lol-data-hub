@@ -18,6 +18,8 @@ vi.mock('./api', () => ({
     teamStatisticsByKeys: vi.fn(),
     playerStatisticsByKeys: vi.fn(),
     teamCombinationStatisticsByKeys: vi.fn(),
+    matchGames: vi.fn(),
+    collectionStatus: vi.fn(),
     playerDetail: vi.fn(),
   },
 }))
@@ -180,6 +182,60 @@ beforeEach(() => {
   vi.mocked(api.teamStatisticsByKeys).mockResolvedValue(teamResult)
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playerResult)
   vi.mocked(api.teamCombinationStatisticsByKeys).mockResolvedValue(combinationResult)
+  vi.mocked(api.matchGames).mockResolvedValue({
+    dataVersion: 17,
+    total: 2,
+    offset: 0,
+    limit: 50,
+    items: [{
+      sourceSeasonId: 237,
+      sourceStageId: 100,
+      sourceMatchId: 9001,
+      gameNumber: 1,
+      startTime: '2026-03-01T10:00:00Z',
+      teamAId: 1,
+      teamAName: 'TES',
+      teamALogo: null,
+      teamAKills: 15,
+      teamAAssists: 20,
+      teamADamage: 60000,
+      teamAGold: 70000,
+      teamAWardsPlaced: 40,
+      teamAWardsKilled: 20,
+      teamAMinionKills: 600,
+      teamADragons: 3,
+      teamABarons: 1,
+      teamATurrets: 8,
+      teamAFirstBlood: true,
+      teamBId: 2,
+      teamBName: 'BLG',
+      teamBLogo: null,
+      teamBKills: 8,
+      teamBAssists: 12,
+      teamBDamage: 50000,
+      teamBGold: 60000,
+      teamBWardsPlaced: 35,
+      teamBWardsKilled: 15,
+      teamBMinionKills: 580,
+      teamBDragons: 1,
+      teamBBarons: 0,
+      teamBTurrets: 2,
+      teamBFirstBlood: false,
+      winnerTeamId: 1,
+      gameDurationSeconds: 2100,
+    }],
+  })
+  vi.mocked(api.collectionStatus).mockResolvedValue([{
+    id: 1,
+    collectionType: 'MATCH_GAME',
+    sourceSeasonId: 237,
+    requestedStageIds: '237:100',
+    status: 'SUCCESS',
+    startedAt: '2026-08-01T09:00:00',
+    finishedAt: '2026-08-01T09:05:00',
+    changedRecords: 120,
+    errorMessage: null,
+  }])
 })
 
 afterEach(() => {
@@ -770,6 +826,129 @@ describe('详情链接与 URL 状态同步', () => {
       ['237:100'], 6, 'TOP', 'winningRate', 'asc',
     )
     expect(window.location.search).toContain('position=TOP')
+    wrapper.unmount()
+  })
+})
+
+describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', () => {
+  async function clickNav(wrapper: ReturnType<typeof mount>, text: string) {
+    const link = wrapper.findAll('a.site-link').find((item) => item.text() === text)
+    expect(link).toBeDefined()
+    await link!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+  }
+
+  it('点击导航切换到对局赛果视图并写入地址栏', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await clickNav(wrapper, '对局赛果')
+
+    expect(wrapper.find('.matches-panel').exists()).toBe(true)
+    expect(wrapper.find('.controls').exists()).toBe(true)
+    expect(wrapper.find('#minimum').exists()).toBe(false)
+    expect(wrapper.find('button.tab-btn.active').exists()).toBe(false)
+    expect(window.location.search).toContain('view=matches')
+    expect(window.location.search).toContain('matchesSortBy=startTime')
+
+    // 选择赛段后对局面板自动查询
+    await wrapper.get('button.stage-chip').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'startTime', 'desc', 0, 50)
+    expect(wrapper.text()).toContain('TES')
+    wrapper.unmount()
+  })
+
+  it('导航高亮跟随当前视图', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const statisticsLink = wrapper.findAll('a.site-link').find((item) => item.text() === '统计查询')
+    const matchesLink = wrapper.findAll('a.site-link').find((item) => item.text() === '对局赛果')
+    expect(statisticsLink!.classes()).toContain('active')
+
+    await matchesLink!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(statisticsLink!.classes()).not.toContain('active')
+    expect(matchesLink!.classes()).toContain('active')
+
+    // 统计视图下「统计查询」重新高亮
+    await statisticsLink!.trigger('click')
+    await flushPromises()
+    expect(statisticsLink!.classes()).toContain('active')
+    wrapper.unmount()
+  })
+
+  it('带 view=matches 参数进入时恢复对局赛果视图与排序状态', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?view=matches&season=237&stageKeys=237%3A100&matchesSortBy=matchId&matchesSortDirection=asc&matchesOffset=50',
+    )
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.matches-panel').exists()).toBe(true)
+    expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'matchId', 'asc', 50, 50)
+    expect(window.location.search).toContain('matchesSortBy=matchId')
+    wrapper.unmount()
+  })
+
+  it('对局赛果视图下点击排序按钮更新地址栏参数', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await clickNav(wrapper, '对局赛果')
+    await wrapper.get('button.stage-chip').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.findAll('button.pos-chip').find((button) => button.text()!.includes('系列赛'))!.trigger('click')
+    await flushPromises()
+
+    expect(window.location.search).toContain('matchesSortBy=matchId')
+    expect(window.location.search).toContain('matchesSortDirection=desc')
+    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'matchId', 'desc', 0, 50)
+    wrapper.unmount()
+  })
+
+  it('带 view=compare 参数进入时恢复选手对比视图与筛选条件', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?view=compare&season=237&stageKeys=237%3A100&comparePosition=TOP&compareMinimumMatchCount=7',
+    )
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.compare-panel').exists()).toBe(true)
+    expect((wrapper.get('#comparePosition').element as HTMLSelectElement).value).toBe('TOP')
+    expect((wrapper.get('#compareMinimum').element as HTMLInputElement).value).toBe('7')
+    expect(wrapper.find('.controls button.primary').exists()).toBe(false)
+    expect(window.location.search).toContain('comparePosition=TOP')
+    wrapper.unmount()
+  })
+
+  it('带 view=collections 参数进入时隐藏查询控件并渲染采集状态', async () => {
+    window.history.replaceState({}, '', '/?view=collections')
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.controls').exists()).toBe(false)
+    expect(wrapper.find('.collections-panel').exists()).toBe(true)
+    expect(vi.mocked(api.collectionStatus)).toHaveBeenCalledWith(50)
+    expect(wrapper.text()).toContain('对局明细')
     wrapper.unmount()
   })
 })

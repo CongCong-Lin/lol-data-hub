@@ -1,26 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { api, type PlayerStatistics, type Season, type Stage } from './api'
+import { computed, ref } from 'vue'
+import { api, type PlayerStatistics } from './api'
 import { useI18n } from './i18n'
 
-const route = useRoute()
+const props = defineProps<{
+  stageKeys: string[]
+  positionFilter: string
+  minimumMatchCount: number
+}>()
+
+const emit = defineEmits<{
+  'update:positionFilter': [value: string]
+  'update:minimumMatchCount': [value: number]
+}>()
+
 const { t } = useI18n()
 
-const MAX_STAGE_SELECTION = 50
 const MAX_SELECTED_PLAYERS = 5
 const MAX_CANDIDATES = 5
-
-function makeKey(seasonId: number, stageId: number): string {
-  return `${seasonId}:${stageId}`
-}
-
-const seasons = ref<Season[]>([])
-const allStages = ref<Stage[]>([])
-const browsedSeasonId = ref(0)
-const selectedStageKeys = ref<Set<string>>(new Set())
-const positionFilter = ref('')
-const minimumMatchCount = ref(5)
 
 const searchKeyword = ref('')
 const searching = ref(false)
@@ -29,27 +26,6 @@ const candidates = ref<PlayerStatistics[]>([])
 const selectedPlayers = ref<PlayerStatistics[]>([])
 const comparing = ref(false)
 const compareError = ref('')
-
-const PLAYER_POSITION_OPTIONS = [
-  { value: '', label: '全部' },
-  { value: 'TOP', label: '上单' },
-  { value: 'JUG', label: '打野' },
-  { value: 'MID', label: '中路' },
-  { value: 'AD', label: '下路' },
-  { value: 'SUP', label: '辅助' },
-]
-
-const sortedSeasons = computed(() =>
-  [...seasons.value].sort((left, right) => left.sourceSeasonId - right.sourceSeasonId),
-)
-
-const browsedStages = computed(() =>
-  allStages.value.filter((s) => s.sourceSeasonId === browsedSeasonId.value),
-)
-
-const selectedStageDetails = computed(() =>
-  allStages.value.filter((s) => selectedStageKeys.value.has(makeKey(s.sourceSeasonId, s.sourceStageId))),
-)
 
 interface CompareMetric {
   key: keyof PlayerStatistics
@@ -106,34 +82,8 @@ function metricValue(metric: CompareMetric, player: PlayerStatistics): string {
   return metric.format(value)
 }
 
-function toggleStage(compositeKey: string) {
-  const newSet = new Set(selectedStageKeys.value)
-  if (newSet.has(compositeKey)) newSet.delete(compositeKey)
-  else {
-    if (newSet.size >= MAX_STAGE_SELECTION) {
-      searchError.value = `最多选择 ${MAX_STAGE_SELECTION} 个赛段`
-      return
-    }
-    newSet.add(compositeKey)
-  }
-  selectedStageKeys.value = newSet
-  candidates.value = []
-}
-
-function removeStage(compositeKey: string) {
-  const newSet = new Set(selectedStageKeys.value)
-  newSet.delete(compositeKey)
-  selectedStageKeys.value = newSet
-  candidates.value = []
-}
-
-function clearSelectedStages() {
-  selectedStageKeys.value = new Set()
-  candidates.value = []
-}
-
 async function searchPlayers() {
-  const keys = [...selectedStageKeys.value]
+  const keys = props.stageKeys
   if (!keys.length) {
     searchError.value = '请先选择赛段再搜索选手'
     return
@@ -149,8 +99,8 @@ async function searchPlayers() {
   try {
     const data = await api.playerStatisticsByKeys(
       keys,
-      minimumMatchCount.value,
-      positionFilter.value,
+      props.minimumMatchCount,
+      props.positionFilter,
       'kda',
       'desc',
     )
@@ -188,16 +138,25 @@ function clearPlayers() {
 }
 
 function canCompare(): boolean {
-  return selectedPlayers.value.length >= 2 && selectedStageKeys.value.size > 0
+  return selectedPlayers.value.length >= 2 && props.stageKeys.length > 0
+}
+
+/** 返回首页选手对比视图的完整地址，供详情页返回。 */
+function returnToUrl(): string {
+  const params = new URLSearchParams({ view: 'compare' })
+  if (props.stageKeys.length) params.set('stageKeys', props.stageKeys.join(','))
+  if (props.positionFilter) params.set('comparePosition', props.positionFilter)
+  params.set('compareMinimumMatchCount', String(props.minimumMatchCount))
+  return `/?${params.toString()}`
 }
 
 function playerDetailHref(player: PlayerStatistics): string {
-  const position = positionFilter.value || player.positions[0] || ''
+  const position = props.positionFilter || player.positions[0] || ''
   const params = new URLSearchParams({
-    stageKeys: [...selectedStageKeys.value].join(','),
+    stageKeys: props.stageKeys.join(','),
     position,
-    minimumMatchCount: String(minimumMatchCount.value),
-    returnTo: route.fullPath,
+    minimumMatchCount: String(props.minimumMatchCount),
+    returnTo: returnToUrl(),
   })
   if (player.sourcePlayerId == null) return '#'
   return `/players/${player.sourcePlayerId}?${params.toString()}`
@@ -210,199 +169,73 @@ function fmtPositions(positions: string[]): string {
 function fmtTeamNames(teamNames: string[]): string {
   return teamNames.join(' / ') || '—'
 }
-
-async function loadSeasons() {
-  seasons.value = await api.seasons()
-  if (seasons.value.length && !seasons.value.some((item) => item.sourceSeasonId === browsedSeasonId.value)) {
-    browsedSeasonId.value = seasons.value[0].sourceSeasonId
-  }
-}
-
-async function loadStages() {
-  try {
-    allStages.value = await api.availability('PLAYER', false)
-  } catch (reason) {
-    compareError.value = reason instanceof Error ? reason.message : `加载赛段失败：${String(reason)}`
-  }
-}
-
-function restoreFromUrl(): boolean {
-  if (typeof window === 'undefined') return false
-  const params = new URLSearchParams(window.location.search)
-  const keys = (params.get('stageKeys') ?? '')
-    .split(',')
-    .map((key) => key.trim())
-    .filter((key) => /^\d+:\d+$/.test(key))
-    .slice(0, MAX_STAGE_SELECTION)
-  if (keys.length) selectedStageKeys.value = new Set(keys)
-  const position = params.get('position') ?? ''
-  if (PLAYER_POSITION_OPTIONS.some((opt) => opt.value === position)) positionFilter.value = position
-  const minimum = Number(params.get('minimumMatchCount'))
-  if (Number.isInteger(minimum) && minimum >= 0 && minimum <= 10000) minimumMatchCount.value = minimum
-  return keys.length > 0
-}
-
-onMounted(async () => {
-  try {
-    await loadSeasons()
-    await loadStages()
-    restoreFromUrl()
-  } catch (reason) {
-    compareError.value = reason instanceof Error ? reason.message : String(reason)
-  }
-})
 </script>
 
 <template>
-  <div class="compare-page shell">
-    <header class="hero">
+  <div class="compare-panel">
+    <div class="table-toolbar">
       <div>
-        <p class="eyebrow">PLAYER COMPARISON</p>
-        <h1>{{ t('compare.title') }}</h1>
+        <p class="eyebrow">SEARCH &amp; SELECT</p>
+        <h2>{{ t('compare.title') }}</h2>
       </div>
-      <RouterLink class="back-link" to="/">{{ t('compare.back') }}</RouterLink>
-      <p class="hero-copy">选择赛段后搜索选手加入对比，同一指标的最优值自动高亮（场均死亡为越低越好）。对比数据与选手统计列表口径一致。</p>
-    </header>
-
-    <section class="panel controls">
-      <div class="field">
-        <label for="season">赛事/赛季（浏览）</label>
-        <select id="season" v-model.number="browsedSeasonId">
-          <option v-if="!seasons.length" :value="browsedSeasonId">赛事 #{{ browsedSeasonId }}</option>
-          <option v-for="season in sortedSeasons" :key="season.sourceSeasonId" :value="season.sourceSeasonId">
-            {{ season.name }} · #{{ season.sourceSeasonId }}
-          </option>
-        </select>
-      </div>
-      <div class="field compact">
-        <label>{{ t('compare.positionFilter') }}</label>
-        <select v-model="positionFilter">
-          <option v-for="opt in PLAYER_POSITION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-      </div>
-      <div class="field compact">
-        <label>{{ t('compare.minimumMatches') }}</label>
-        <input v-model.number="minimumMatchCount" type="number" min="0" max="10000" step="1" />
-      </div>
-      <div class="actions">
-        <button class="ghost" :disabled="!selectedStageKeys.size" @click="clearPlayers">{{ t('common.close') }}</button>
-      </div>
-
-      <div class="stage-block">
-        <div class="stage-heading">
-          <span>选择赛段（支持跨赛事选择）</span>
-          <small>当前浏览：{{ seasons.find((s) => s.sourceSeasonId === browsedSeasonId)?.name ?? `赛事 #${browsedSeasonId}` }}</small>
-        </div>
-        <div v-if="browsedStages.length" class="stage-list">
-          <button
-            v-for="stage in browsedStages"
-            :key="makeKey(stage.sourceSeasonId, stage.sourceStageId)"
-            class="stage-chip"
-            :class="{ selected: selectedStageKeys.has(makeKey(stage.sourceSeasonId, stage.sourceStageId)), disabled: !stage.collected }"
-            :disabled="!stage.collected"
-            @click="toggleStage(makeKey(stage.sourceSeasonId, stage.sourceStageId))"
-          >
-            <span>{{ stage.name }}</span>
-            <small v-if="!stage.collected" class="uncollected-tag">未采集</small>
+      <div class="toolbar-right">
+        <div class="search-wrap">
+          <input
+            v-model="searchKeyword"
+            type="search"
+            :placeholder="t('compare.placeholder')"
+            @keyup.enter="searchPlayers"
+          />
+          <button class="primary search-button" :disabled="searching || !props.stageKeys.length" @click="searchPlayers">
+            {{ searching ? t('common.searching') : '搜索' }}
           </button>
         </div>
-        <p v-else class="empty-inline">该赛事暂无赛段数据。</p>
-
-        <div class="basket-section">
-          <div class="basket-heading">
-            <span>已选赛段</span>
-            <div v-if="selectedStageKeys.size > 0" class="basket-heading-actions">
-              <small>{{ selectedStageKeys.size }} 个赛段</small>
-              <button type="button" class="basket-clear" @click="clearSelectedStages">清空全部</button>
-            </div>
-          </div>
-          <div v-if="selectedStageKeys.size === 0" class="empty-inline">
-            请先选择赛段，再搜索要对比的选手。
-          </div>
-          <div v-else class="basket-list">
-            <div
-              v-for="stage in selectedStageDetails"
-              :key="makeKey(stage.sourceSeasonId, stage.sourceStageId)"
-              class="basket-item"
-            >
-              <span class="basket-season">{{ stage.seasonName ?? `赛事#${stage.sourceSeasonId}` }}</span>
-              <span class="basket-stage">{{ stage.name }}</span>
-              <button
-                class="basket-remove"
-                :aria-label="`移除 ${stage.seasonName ?? ''} ${stage.name}`"
-                @click="removeStage(makeKey(stage.sourceSeasonId, stage.sourceStageId))"
-              >&times;</button>
-            </div>
-          </div>
-        </div>
+        <span class="selected-count">{{ t('compare.selected', { n: selectedPlayers.length }) }} · {{ t('compare.searchLimit') }}</span>
       </div>
-    </section>
+    </div>
 
     <p v-if="searchError" class="message error">{{ searchError }}</p>
     <p v-if="compareError" class="message error">{{ compareError }}</p>
 
-    <section class="panel table-panel">
-      <div class="table-toolbar">
-        <div>
-          <p class="eyebrow">SEARCH &amp; SELECT</p>
-          <h2>{{ t('compare.title') }}</h2>
+    <div v-if="candidates.length" class="candidate-list">
+      <div v-for="player in candidates" :key="player.playerKey" class="candidate-item">
+        <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar" />
+        <span class="player-placeholder player-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
+        <div class="candidate-info">
+          <strong>{{ player.playerName }}</strong>
+          <small>{{ fmtTeamNames(player.teamNames) }} · {{ fmtPositions(player.positions) }} · KDA {{ player.kda.toFixed(2) }}</small>
         </div>
-        <div class="toolbar-right">
-          <div class="search-wrap">
-            <input
-              v-model="searchKeyword"
-              type="search"
-              :placeholder="t('compare.placeholder')"
-              @keyup.enter="searchPlayers"
-            />
-            <button class="primary search-button" :disabled="searching || !selectedStageKeys.size" @click="searchPlayers">
-              {{ searching ? t('common.searching') : '搜索' }}
-            </button>
-          </div>
-          <span class="selected-count">{{ t('compare.selected', { n: selectedPlayers.length }) }} · {{ t('compare.searchLimit') }}</span>
-        </div>
+        <button
+          type="button"
+          class="add-button"
+          :disabled="selectedPlayers.some((p) => p.playerKey === player.playerKey)"
+          @click="addPlayer(player)"
+        >
+          {{ selectedPlayers.some((p) => p.playerKey === player.playerKey) ? '已添加' : '添加' }}
+        </button>
       </div>
+    </div>
 
-      <div v-if="candidates.length" class="candidate-list">
-        <div v-for="player in candidates" :key="player.playerKey" class="candidate-item">
-          <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar" />
-          <span class="player-placeholder player-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
-          <div class="candidate-info">
-            <strong>{{ player.playerName }}</strong>
-            <small>{{ fmtTeamNames(player.teamNames) }} · {{ fmtPositions(player.positions) }} · KDA {{ player.kda.toFixed(2) }}</small>
-          </div>
+    <div v-if="selectedPlayers.length" class="selected-players">
+      <div class="selected-heading">
+        <span>{{ t('compare.selected', { n: selectedPlayers.length }) }}</span>
+        <button type="button" class="basket-clear" @click="clearPlayers">清空</button>
+      </div>
+      <div class="basket-list">
+        <div v-for="player in selectedPlayers" :key="player.playerKey" class="basket-item">
+          <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar small-avatar" />
+          <span class="player-placeholder small-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
+          <a class="selected-name" :href="playerDetailHref(player)">{{ player.playerName }}</a>
           <button
-            type="button"
-            class="add-button"
-            :disabled="selectedPlayers.some((p) => p.playerKey === player.playerKey)"
-            @click="addPlayer(player)"
-          >
-            {{ selectedPlayers.some((p) => p.playerKey === player.playerKey) ? '已添加' : '添加' }}
-          </button>
+            class="basket-remove"
+            :aria-label="`移除 ${player.playerName}`"
+            @click="removePlayer(player.playerKey)"
+          >&times;</button>
         </div>
       </div>
+    </div>
 
-      <div v-if="selectedPlayers.length" class="selected-players">
-        <div class="selected-heading">
-          <span>{{ t('compare.selected', { n: selectedPlayers.length }) }}</span>
-          <button type="button" class="basket-clear" @click="clearPlayers">清空</button>
-        </div>
-        <div class="basket-list">
-          <div v-for="player in selectedPlayers" :key="player.playerKey" class="basket-item">
-            <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar small-avatar" />
-            <span class="player-placeholder small-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
-            <a class="selected-name" :href="playerDetailHref(player)">{{ player.playerName }}</a>
-            <button
-              class="basket-remove"
-              :aria-label="`移除 ${player.playerName}`"
-              @click="removePlayer(player.playerKey)"
-            >&times;</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section v-if="canCompare()" class="panel table-panel compare-result">
+    <div v-if="canCompare()" class="compare-result">
       <div class="table-toolbar">
         <div>
           <p class="eyebrow">COMPARISON</p>
@@ -447,7 +280,7 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
 
     <p v-else-if="selectedPlayers.length === 1" class="message success">
       {{ t('compare.noPlayers') }} —— 当前已选择 1 人，请再添加至少 1 人。
@@ -456,8 +289,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.back-link { color: var(--accent); text-decoration: none; font-weight: 600; justify-self: end; }
-.back-link:hover { text-decoration: underline; }
 .search-button { min-height: 36px; }
 .selected-count { color: var(--muted); font-size: 12px; }
 .candidate-list { padding: 10px 20px; border-bottom: 1px solid var(--line); }
