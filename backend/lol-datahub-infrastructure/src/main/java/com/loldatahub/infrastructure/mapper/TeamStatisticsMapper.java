@@ -2,6 +2,8 @@ package com.loldatahub.infrastructure.mapper;
 
 import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.model.TeamAggregateRow;
+import com.loldatahub.infrastructure.model.TeamLineupPreferenceRow;
+import com.loldatahub.infrastructure.model.TeamPlayerUsageRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -137,4 +139,97 @@ public interface TeamStatisticsMapper {
             WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
             """)
     String findCurrentContentHash(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
+
+    /**
+     * 战队阵容偏好：把单局完整阵容的五个英雄列展开为 (位置, 英雄) 后按英雄聚合。
+     * pickRate/winningRate 由 Service 层按该队小局数计算。
+     */
+    @Select("""
+            <script>
+            SELECT expanded.source_team_id AS teamId,
+                   expanded.position AS position,
+                   expanded.source_champion_id AS sourceChampionId,
+                   COALESCE(c.internal_name, c.chinese_name) AS championName,
+                   c.chinese_name AS championChineseName,
+                   c.logo_url AS championLogo,
+                   COUNT(*) AS pickCount,
+                   SUM(CASE WHEN expanded.won THEN 1 ELSE 0 END) AS winningCount
+              FROM (
+                   SELECT source_team_id, source_match_id, game_number, 'TOP' AS position,
+                          top_champion_id AS source_champion_id, won
+                     FROM team_game_lineup_current
+                    WHERE (source_season_id, source_stage_id) IN
+                      <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                          (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                      </foreach>
+                   UNION ALL
+                   SELECT source_team_id, source_match_id, game_number, 'JUN',
+                          jungle_champion_id, won
+                     FROM team_game_lineup_current
+                    WHERE (source_season_id, source_stage_id) IN
+                      <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                          (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                      </foreach>
+                   UNION ALL
+                   SELECT source_team_id, source_match_id, game_number, 'MID',
+                          mid_champion_id, won
+                     FROM team_game_lineup_current
+                    WHERE (source_season_id, source_stage_id) IN
+                      <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                          (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                      </foreach>
+                   UNION ALL
+                   SELECT source_team_id, source_match_id, game_number, 'BOT',
+                          bot_champion_id, won
+                     FROM team_game_lineup_current
+                    WHERE (source_season_id, source_stage_id) IN
+                      <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                          (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                      </foreach>
+                   UNION ALL
+                   SELECT source_team_id, source_match_id, game_number, 'SUP',
+                          support_champion_id, won
+                     FROM team_game_lineup_current
+                    WHERE (source_season_id, source_stage_id) IN
+                      <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                          (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                      </foreach>
+              ) expanded
+              LEFT JOIN champion c ON c.source_champion_id = expanded.source_champion_id
+             WHERE expanded.source_team_id = #{teamId}
+             GROUP BY expanded.source_team_id, expanded.position, expanded.source_champion_id,
+                      c.internal_name, c.chinese_name, c.logo_url
+             ORDER BY FIELD(expanded.position, 'TOP', 'JUN', 'MID', 'BOT', 'SUP'),
+                      pickCount DESC, expanded.source_champion_id
+            </script>
+            """)
+    List<TeamLineupPreferenceRow> aggregateLineupPreferences(@Param("stages") List<StageKey> stages,
+                                                             @Param("teamId") long teamId);
+
+    /**
+     * 战队选手名单：从对局明细回填表按战队聚合出战选手。
+     * 对局明细未回填的赛段返回空列表，不影响战队核心指标展示。
+     */
+    @Select("""
+            <script>
+            SELECT p.source_player_id AS sourcePlayerId,
+                   (SELECT name FROM player WHERE source_player_id = p.source_player_id
+                     ORDER BY player_key LIMIT 1) AS playerName,
+                   (SELECT avatar_url FROM player WHERE source_player_id = p.source_player_id
+                     ORDER BY player_key LIMIT 1) AS playerAvatar,
+                   p.position AS position,
+                   COUNT(DISTINCT p.source_match_id) AS matchCount,
+                   COUNT(*) AS gameCount
+              FROM match_game_player_current p
+             WHERE p.source_team_id = #{teamId}
+               AND (p.source_season_id, p.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             GROUP BY p.source_player_id, p.position
+             ORDER BY gameCount DESC, p.source_player_id
+            </script>
+            """)
+    List<TeamPlayerUsageRow> aggregateTeamPlayers(@Param("stages") List<StageKey> stages,
+                                                  @Param("teamId") long teamId);
 }

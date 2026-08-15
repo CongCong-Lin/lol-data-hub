@@ -70,7 +70,7 @@ public class MatchGameStatisticsService {
         long total = mapper.countMatchGames(query.stages());
         List<MatchGameRecord> items = mapper.aggregateMatchGames(
                         query.stages(), orderBy(query), query.offset(), query.limit())
-                .stream().map(this::toGameRecord).toList();
+                .stream().map(MatchGameStatisticsService::toGameRecord).toList();
         MatchGamesResult result = new MatchGamesResult(dataVersion, total, query.offset(), query.limit(), items);
         writeCache(cacheKey, result);
         return result;
@@ -85,7 +85,7 @@ public class MatchGameStatisticsService {
             return cached;
         }
         List<MatchGameRecord> games = mapper.findMatchGamesByMatchId(stages, matchId)
-                .stream().map(this::toGameRecord).toList();
+                .stream().map(MatchGameStatisticsService::toGameRecord).toList();
         if (games.isEmpty()) {
             throw new MatchGameNotFoundException(matchId);
         }
@@ -137,7 +137,7 @@ public class MatchGameStatisticsService {
         };
     }
 
-    private MatchGameRecord toGameRecord(MatchGameRow row) {
+    static MatchGameRecord toGameRecord(MatchGameRow row) {
         return new MatchGameRecord(
                 row.sourceSeasonId(), row.sourceStageId(), row.sourceMatchId(), row.gameNumber(),
                 row.startTime(), row.teamAId(), row.teamAName(), row.teamALogo(),
