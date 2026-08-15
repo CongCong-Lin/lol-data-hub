@@ -289,7 +289,15 @@ function fmtTeamNames(teamNames: string[]): string {
 </template>
 
 <style scoped>
-.search-button { min-height: 36px; }
+.search-wrap { min-width: 560px; }
+.search-wrap input { flex: 1; width: auto; min-width: 0; min-height: 40px; padding: 8px 12px; }
+.search-button { height: 40px; min-height: 40px; padding: 0 24px; font-size: 14px; line-height: 1; }
+@media (max-width: 960px) {
+  .search-wrap { min-width: 400px; }
+}
+@media (max-width: 620px) {
+  .search-wrap { min-width: 100%; }
+}
 .selected-count { color: var(--muted); font-size: 12px; }
 .candidate-list { padding: 10px 20px; border-bottom: 1px solid var(--line); }
 .candidate-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
