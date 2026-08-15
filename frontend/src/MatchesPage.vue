@@ -5,6 +5,7 @@ import { useI18n } from './i18n'
 
 const props = defineProps<{
   stageKeys: string[]
+  submitted: boolean
   sortBy: 'startTime' | 'matchId'
   sortDirection: 'asc' | 'desc'
   offset: number
@@ -45,14 +46,14 @@ async function load() {
   }
 }
 
-/* 赛段变化：偏移归零后重新查询（偏移变化由 offset 监听触发，避免重复请求） */
-watch(() => props.stageKeys, () => {
-  if (props.offset !== 0) emit('update:offset', 0)
-  else void load()
+/* 查询提交后加载结果；未提交（赛段变化/切视图等由 App 重置）时清空结果 */
+watch(() => props.submitted, (value) => {
+  if (value) void load()
+  else result.value = null
 })
 
 watch([() => props.sortBy, () => props.sortDirection, () => props.offset], () => {
-  void load()
+  if (props.submitted) void load()
 })
 
 onMounted(async () => {
@@ -61,7 +62,7 @@ onMounted(async () => {
   } catch {
     /* 赛段名称仅用于展示，失败时回退到编号显示 */
   }
-  if (props.stageKeys.length) void load()
+  if (props.submitted) void load()
 })
 
 function fmtDateTime(value: string | null): string {
@@ -138,7 +139,7 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
     <p v-if="loading" class="message success">{{ t('matches.loading') }}</p>
 
     <template v-if="props.stageKeys.length">
-      <template v-if="result && result.items.length">
+      <template v-if="props.submitted && result && result.items.length">
         <div class="table-scroll" tabindex="0" aria-label="对局赛果表">
           <table class="match-table">
             <thead>
@@ -201,13 +202,13 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
           </div>
         </div>
       </template>
-      <div v-else-if="result" class="empty-state">
+      <div v-else-if="props.submitted && result" class="empty-state">
         <strong>暂无对局数据</strong>
         <p>{{ t('matches.empty') }}</p>
       </div>
       <div v-else class="empty-state">
-        <strong>选择赛段后查询</strong>
-        <p>对局明细需要先在采集流程中回填（见「采集状态」页）。</p>
+        <strong>选择赛段后点击查询</strong>
+        <p>点击上方「查询统计」按钮后展示对局列表；对局明细需要先在采集流程中回填（见「采集状态」页）。</p>
       </div>
     </template>
     <div v-else class="empty-state">

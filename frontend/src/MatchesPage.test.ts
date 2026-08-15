@@ -85,6 +85,7 @@ function mountPage(props: Partial<InstanceType<typeof MatchesPage>['$props']> = 
   return mount(MatchesPage, {
     props: {
       stageKeys: ['237:100'],
+      submitted: true,
       sortBy: 'startTime',
       sortDirection: 'desc',
       offset: 0,
@@ -95,7 +96,7 @@ function mountPage(props: Partial<InstanceType<typeof MatchesPage>['$props']> = 
 
 describe('MatchesPage', () => {
   it('未选择赛段时提示先选择赛段且不查询', async () => {
-    const wrapper = mountPage({ stageKeys: [] })
+    const wrapper = mountPage({ stageKeys: [], submitted: false })
     await flushPromises()
 
     expect(wrapper.text()).toContain('请先在上方选择要查询的赛段')
@@ -103,8 +104,21 @@ describe('MatchesPage', () => {
     wrapper.unmount()
   })
 
-  it('挂载后按传入赛段与排序查询并渲染对局赛果', async () => {
-    const wrapper = mountPage()
+  it('已选赛段但未提交查询时展示提示且不查询', async () => {
+    const wrapper = mountPage({ submitted: false })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('选择赛段后点击查询')
+    expect(api.matchGames).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('提交查询后按传入赛段与排序加载并渲染对局赛果', async () => {
+    const wrapper = mountPage({ submitted: false })
+    await flushPromises()
+    expect(api.matchGames).not.toHaveBeenCalled()
+
+    await wrapper.setProps({ submitted: true })
     await flushPromises()
     await flushPromises()
 
@@ -190,22 +204,37 @@ describe('MatchesPage', () => {
     wrapper.unmount()
   })
 
-  it('赛段变化时重置偏移并重新查询', async () => {
-    const wrapper = mountPage({ offset: 50 })
+  it('未提交时赛段变化不查询；重新提交后按新赛段查询', async () => {
+    const wrapper = mountPage({ submitted: false })
     await flushPromises()
-    await flushPromises()
+    expect(api.matchGames).not.toHaveBeenCalled()
 
+    // 赛段变化时父组件（App）会重置 submitted，结果清空且不查询
     await wrapper.setProps({ stageKeys: ['237:100', '237:101'] })
     await flushPromises()
+    expect(api.matchGames).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('选择赛段后点击查询')
 
-    // 组件发出偏移归零事件，由父组件（App）响应后更新 offset
-    expect(wrapper.emitted('update:offset')).toEqual([[0]])
-    await wrapper.setProps({ offset: 0 })
+    await wrapper.setProps({ submitted: true })
     await flushPromises()
 
     expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(
       ['237:100', '237:101'], 'startTime', 'desc', 0, 50,
     )
+    wrapper.unmount()
+  })
+
+  it('提交后取消提交时清空结果', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    await flushPromises()
+    expect(wrapper.find('.match-table').exists()).toBe(true)
+
+    await wrapper.setProps({ submitted: false })
+    await flushPromises()
+
+    expect(wrapper.find('.match-table').exists()).toBe(false)
+    expect(wrapper.text()).toContain('选择赛段后点击查询')
     wrapper.unmount()
   })
 

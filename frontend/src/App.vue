@@ -142,6 +142,8 @@ const matchesSortDirection = ref<'asc' | 'desc'>('desc')
 const matchesOffset = ref(0)
 const comparePositionFilter = ref('')
 const compareMinimumMatchCount = ref(5)
+/** 对局赛果查询是否已提交（点击"查询统计"后为 true，赛段变化/切视图时重置） */
+const submittedMatchesQuery = ref(false)
 const search = ref('')
 const teamSearch = ref('')
 const playerSearch = ref('')
@@ -633,6 +635,7 @@ function clearStatisticsResults() {
   playerResult.value = null
   combinationResult.value = null
   submittedPlayerQuery.value = null
+  submittedMatchesQuery.value = false
 }
 
 function clearActiveResult(view: ActiveView) {
@@ -647,6 +650,7 @@ function invalidateQueryResults() {
   busy.value = false
   sorting.value = false
   currentPage.value = 1
+  matchesOffset.value = 0
   clearStatisticsResults()
   notice.value = ''
   error.value = ''
@@ -739,8 +743,16 @@ async function loadAvailability() {
 
 async function query(preserveCurrentResult = false) {
   const view = activeView.value
-  /* 对局赛果/选手对比/采集状态由各自面板自行查询，不参与统计查询 */
-  if (view === 'matches' || view === 'compare' || view === 'collections') return
+  /* 对局赛果：提交查询标记，实际加载由对局赛果面板执行 */
+  if (view === 'matches') {
+    if (!selectedStageKeys.value.size) return
+    submittedMatchesQuery.value = true
+    error.value = ''
+    notice.value = ''
+    return
+  }
+  /* 选手对比/采集状态由各自面板自行查询，不参与统计查询 */
+  if (view === 'compare' || view === 'collections') return
   if (!activeMinimumValid.value) {
     error.value = '最低样本数必须是 0 到 10000 之间的整数'
     return
@@ -1044,7 +1056,7 @@ onMounted(async () => {
         <input id="minimumMatch" v-model.number="minimumMatchCount" type="number" min="0" max="10000" step="1" />
         <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
-      <div v-if="STATISTIC_VIEWS.has(activeView)" class="actions">
+      <div v-if="STATISTIC_VIEWS.has(activeView) || activeView === 'matches'" class="actions">
         <button class="primary" :disabled="!canQuery" @click="query()">{{ busy ? '处理中…' : '查询统计' }}</button>
       </div>
 
@@ -1591,6 +1603,7 @@ onMounted(async () => {
     <section v-if="activeView === 'matches'" class="panel table-panel">
       <MatchesPage
         :stage-keys="[...selectedStageKeys]"
+        :submitted="submittedMatchesQuery"
         v-model:sort-by="matchesSortBy"
         v-model:sort-direction="matchesSortDirection"
         v-model:offset="matchesOffset"

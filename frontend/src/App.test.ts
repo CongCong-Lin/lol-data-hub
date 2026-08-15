@@ -856,8 +856,16 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     expect(window.location.search).toContain('view=matches')
     expect(window.location.search).toContain('matchesSortBy=startTime')
 
-    // 选择赛段后对局面板自动查询
+    // matches 视图下显示「查询统计」按钮；选择赛段后不会自动查询
+    const queryButton = wrapper.findAll('button.primary').find((button) => button.text() === '查询统计')
+    expect(queryButton).toBeDefined()
     await wrapper.get('button.stage-chip').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(vi.mocked(api.matchGames)).not.toHaveBeenCalled()
+
+    // 点击查询统计后列表才出现结果
+    await wrapper.get('button.primary').trigger('click')
     await flushPromises()
     await flushPromises()
     expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'startTime', 'desc', 0, 50)
@@ -913,6 +921,12 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     await wrapper.get('button.stage-chip').trigger('click')
     await flushPromises()
     await flushPromises()
+
+    // 提交查询后点击排序按钮触发重新查询并更新 URL
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'startTime', 'desc', 0, 50)
 
     await wrapper.findAll('button.pos-chip').find((button) => button.text()!.includes('系列赛'))!.trigger('click')
     await flushPromises()
