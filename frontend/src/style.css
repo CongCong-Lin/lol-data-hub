@@ -272,9 +272,9 @@ tbody tr:hover { background: var(--hover-bg); }
 .champion-table tbody tr:hover .champion-name-column,
 .player-table tbody tr:hover .player-name-column { background: var(--hover-bg); }
 .champion-cell { display: flex; align-items: center; gap: 8px; width: 148px; min-width: 148px; }
-.champion-detail-link, .team-detail-link { display: inline-block; color: inherit; text-decoration: none; }
-.champion-detail-link:hover .champion-cell strong, .team-detail-link:hover .team-cell strong { color: var(--accent); }
-.champion-detail-link:hover .champion-cell small, .team-detail-link:hover .team-cell small { color: var(--accent-dark); }
+.champion-detail-link, .team-detail-link, .player-detail-link { display: inline-block; color: inherit; text-decoration: none; }
+.champion-detail-link:hover .champion-cell strong, .team-detail-link:hover .team-cell strong, .player-detail-link:hover .player-cell strong { color: var(--accent); }
+.champion-detail-link:hover .champion-cell small, .team-detail-link:hover .team-cell small, .player-detail-link:hover .player-cell small { color: var(--accent-dark); }
 .champion-cell > div { min-width: 0; max-width: 108px; }
 .champion-cell img, .champion-placeholder { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--placeholder-bg); }
 .champion-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; }
@@ -297,8 +297,7 @@ tbody tr:hover { background: var(--hover-bg); }
 .player-cell { display: flex; align-items: center; gap: 8px; width: 148px; min-width: 148px; }
 .player-cell > div { min-width: 0; max-width: 108px; }
 .player-avatar, .player-placeholder { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--placeholder-bg); }
-.player-avatar-link { display: inline-flex; flex: 0 0 auto; }
-.player-avatar-link:hover .player-avatar, .player-avatar-link:hover .player-placeholder { box-shadow: 0 0 0 2px var(--accent); }
+.player-detail-link:hover .player-avatar, .player-detail-link:hover .player-placeholder { box-shadow: 0 0 0 2px var(--accent); }
 .player-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 13px; }
 .player-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-cell small { display: block; margin-top: 1px; overflow: hidden; color: var(--text-4); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

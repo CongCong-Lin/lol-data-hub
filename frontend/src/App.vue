@@ -1411,20 +1411,24 @@ onMounted(async () => {
           <tbody>
             <tr v-for="item in paginatedPlayerItems" :key="item.playerKey">
               <td v-if="isColumnVisible(playerVisibleColumns, 'player')" class="player-name-column">
-                <div class="player-cell">
-                  <a
-                    v-if="playerDetailHref(item)"
-                    :href="playerDetailHref(item)"
-                    class="player-avatar-link"
-                    :title="`查看 ${item.playerName} 的选手详情`"
-                  >
+                <a
+                  v-if="playerDetailHref(item)"
+                  :href="playerDetailHref(item)"
+                  class="player-detail-link"
+                  :title="`查看 ${item.playerName} 的选手详情`"
+                >
+                  <div class="player-cell">
                     <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
                     <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
-                  </a>
-                  <template v-else>
-                    <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
-                    <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
-                  </template>
+                    <div>
+                      <strong>{{ item.playerName }}</strong>
+                      <small>{{ fmtTeamNames(item.teamNames) }}</small>
+                    </div>
+                  </div>
+                </a>
+                <div v-else class="player-cell">
+                  <img v-if="item.playerAvatar" :src="item.playerAvatar" :alt="item.playerName" class="player-avatar" />
+                  <span class="player-placeholder" v-else>{{ item.playerName.slice(0, 1) }}</span>
                   <div>
                     <strong>{{ item.playerName }}</strong>
                     <small>{{ fmtTeamNames(item.teamNames) }}</small>

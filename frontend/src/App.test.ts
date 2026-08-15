@@ -321,7 +321,7 @@ describe('查询状态', () => {
     wrapper.unmount()
   })
 
-  it('提交选手查询后头像包裹当前页面打开的详情链接', async () => {
+  it('提交选手查询后选手信息区域包裹当前页面打开的详情链接', async () => {
     const wrapper = mount(App)
     await flushPromises()
 
@@ -332,7 +332,7 @@ describe('查询状态', () => {
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
-    const link = wrapper.get('.player-avatar-link')
+    const link = wrapper.get('.player-detail-link')
     expect(link.attributes('target')).toBeUndefined()
     expect(link.attributes('rel')).toBeUndefined()
     const href = link.attributes('href') ?? ''
@@ -342,6 +342,8 @@ describe('查询状态', () => {
     expect(href).toContain('minimumMatchCount=5')
     expect(href).toContain('returnTo=%2F%3Fview%3Dplayer')
     expect(decodeURIComponent(href)).toContain('playerSortBy=kda')
+    expect(link.text()).toContain('TopPlayer')
+    expect(link.find('.player-cell strong').text()).toBe('TopPlayer')
     wrapper.unmount()
   })
 
@@ -386,7 +388,7 @@ describe('查询状态', () => {
     await jungleChip!.trigger('click')
     await flushPromises()
 
-    const href = wrapper.get('.player-avatar-link').attributes('href') ?? ''
+    const href = wrapper.get('.player-detail-link').attributes('href') ?? ''
     expect(href).toContain('position=JUG')
     wrapper.unmount()
   })
@@ -401,11 +403,11 @@ describe('查询状态', () => {
     await flushPromises()
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
-    expect(wrapper.find('.player-avatar-link').exists()).toBe(true)
+    expect(wrapper.find('.player-detail-link').exists()).toBe(true)
 
     await wrapper.get('#minimumMatch').setValue('6')
 
-    expect(wrapper.find('.player-avatar-link').exists()).toBe(false)
+    expect(wrapper.find('.player-detail-link').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -723,6 +725,7 @@ describe('详情链接与 URL 状态同步', () => {
 
     expect(wrapper.find('.champion-detail-link').exists()).toBe(false)
     expect(wrapper.find('.team-detail-link').exists()).toBe(false)
+    expect(wrapper.find('.player-detail-link').exists()).toBe(false)
     wrapper.unmount()
   })
 
