@@ -689,6 +689,10 @@ describe('详情链接与 URL 状态同步', () => {
     expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenLastCalledWith(
       ['237:100'], 'TOP_JUNGLE', 3, 'pickCount', 'desc',
     )
+    // 上野组合口径下列名应为「上单英雄 / 打野英雄」
+    const comboHeaders = wrapper.findAll('th').map((th) => th.text())
+    expect(comboHeaders.some((text) => text.includes('上单英雄'))).toBe(true)
+    expect(comboHeaders.some((text) => text.includes('打野英雄'))).toBe(true)
     wrapper.unmount()
   })
 

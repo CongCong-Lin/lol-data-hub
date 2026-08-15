@@ -33,6 +33,7 @@ beforeEach(() => {
     row(),
     row({ id: 2, collectionType: 'HERO', status: 'FAILED', errorMessage: '上游接口超时' }),
     row({ id: 3, collectionType: 'TEAM', status: 'RUNNING', finishedAt: null, changedRecords: 0 }),
+    row({ id: 4, collectionType: 'PLAYER', status: 'NO_CHANGE', changedRecords: 0 }),
   ])
 })
 
@@ -46,7 +47,7 @@ describe('CollectionsPage', () => {
     expect(table.text()).toContain('对局明细')
     expect(table.text()).toContain('英雄数据')
     expect(table.text()).toContain('战队数据')
-    expect(table.findAll('tbody tr')).toHaveLength(3)
+    expect(table.findAll('tbody tr')).toHaveLength(4)
     wrapper.unmount()
   })
 
@@ -60,6 +61,7 @@ describe('CollectionsPage', () => {
     expect(wrapper.findAll('.status-badge')[1].text()).toContain('失败')
     expect(wrapper.findAll('.status-badge')[2].classes()).toContain('status-running')
     expect(wrapper.findAll('.status-badge')[2].text()).toContain('进行中')
+    expect(wrapper.findAll('.status-badge')[3].text()).toContain('未变更')
     wrapper.unmount()
   })
 

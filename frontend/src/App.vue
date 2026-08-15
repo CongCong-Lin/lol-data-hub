@@ -175,6 +175,14 @@ const CHAMPION_POSITION_VALUES = new Set(CHAMPION_POSITION_OPTIONS.map((option) 
 const COMBINATION_TYPE_VALUES = new Set<TeamCombinationType>([
   'MID_JUNGLE', 'BOT_SUPPORT', 'TOP_JUNGLE', 'TOP_MID', 'MID_BOT',
 ])
+/** 各组合口径下的英雄列标签（第一个英雄/第二个英雄）。 */
+const COMBINATION_POSITION_LABELS: Record<TeamCombinationType, [string, string]> = {
+  MID_JUNGLE: ['打野英雄', '中单英雄'],
+  BOT_SUPPORT: ['AD 英雄', '辅助英雄'],
+  TOP_JUNGLE: ['上单英雄', '打野英雄'],
+  TOP_MID: ['上单英雄', '中单英雄'],
+  MID_BOT: ['中单英雄', '下路英雄'],
+}
 
 function parsePositiveInteger(value: string | null): number | null {
   if (!value || !/^\d+$/.test(value)) return null
@@ -1452,8 +1460,8 @@ onMounted(async () => {
           <thead>
             <tr>
               <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'team')" label="战队" field="teamName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
-              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'firstChampion')" :label="combinationType === 'MID_JUNGLE' ? '打野英雄' : 'AD 英雄'" field="firstChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
-              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'secondChampion')" :label="combinationType === 'MID_JUNGLE' ? '中单英雄' : '辅助英雄'" field="secondChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'firstChampion')" :label="COMBINATION_POSITION_LABELS[combinationType][0]" field="firstChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
+              <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'secondChampion')" :label="COMBINATION_POSITION_LABELS[combinationType][1]" field="secondChampionName" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
               <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'pickCount')" label="选取次数" field="pickCount" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
               <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'validGameCount')" label="有效小局" field="validGameCount" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
               <SortableHeader v-if="isColumnVisible(combinationVisibleColumns, 'pickRate')" label="选取率" field="pickRate" :sort-by="combinationSortBy" :sort-direction="combinationSortDirection" @sort="changeSort('combo', $event)" />
