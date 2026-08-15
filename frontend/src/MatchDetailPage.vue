@@ -181,7 +181,7 @@ const backPath = computed(() => {
             <div class="score-side">
               <img v-if="gameOf(group.gameNumber)?.teamALogo" :src="gameOf(group.gameNumber)?.teamALogo ?? undefined" :alt="gameOf(group.gameNumber)?.teamAName" class="team-logo" />
               <strong>{{ gameOf(group.gameNumber)?.teamAName }}</strong>
-              <span v-if="gameOf(group.gameNumber)?.teamAFirstBlood" class="fb-tag">FB</span>
+              <span v-if="gameOf(group.gameNumber)?.teamAFirstBlood" class="fb-tag" title="一血">First Blood</span>
             </div>
             <div class="score-mid">
               <strong>{{ gameOf(group.gameNumber)?.teamAKills }} : {{ gameOf(group.gameNumber)?.teamBKills }}</strong>
@@ -192,7 +192,7 @@ const backPath = computed(() => {
             <div class="score-side">
               <img v-if="gameOf(group.gameNumber)?.teamBLogo" :src="gameOf(group.gameNumber)?.teamBLogo ?? undefined" :alt="gameOf(group.gameNumber)?.teamBName" class="team-logo" />
               <strong>{{ gameOf(group.gameNumber)?.teamBName }}</strong>
-              <span v-if="gameOf(group.gameNumber)?.teamBFirstBlood" class="fb-tag">FB</span>
+              <span v-if="gameOf(group.gameNumber)?.teamBFirstBlood" class="fb-tag" title="一血">First Blood</span>
             </div>
           </div>
         </div>

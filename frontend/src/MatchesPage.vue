@@ -171,7 +171,7 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
                     <img v-if="game.teamALogo" :src="game.teamALogo" :alt="game.teamAName" class="team-logo" />
                     <span class="team-placeholder team-logo" v-else>{{ game.teamAName.slice(0, 1) }}</span>
                     <strong>{{ game.teamAName }}</strong>
-                    <span v-if="game.teamAFirstBlood" class="fb-tag" title="一血">FB</span>
+                    <span v-if="game.teamAFirstBlood" class="fb-tag" title="一血">First Blood</span>
                   </div>
                 </td>
                 <td class="score-col">{{ game.teamAKills }} : {{ game.teamBKills }}</td>
@@ -180,7 +180,7 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
                     <img v-if="game.teamBLogo" :src="game.teamBLogo" :alt="game.teamBName" class="team-logo" />
                     <span class="team-placeholder team-logo" v-else>{{ game.teamBName.slice(0, 1) }}</span>
                     <strong>{{ game.teamBName }}</strong>
-                    <span v-if="game.teamBFirstBlood" class="fb-tag" title="一血">FB</span>
+                    <span v-if="game.teamBFirstBlood" class="fb-tag" title="一血">First Blood</span>
                   </div>
                 </td>
                 <td>

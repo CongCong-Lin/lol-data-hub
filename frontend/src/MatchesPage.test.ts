@@ -161,7 +161,7 @@ describe('MatchesPage', () => {
 
     const firstRow = wrapper.get('.match-table tbody tr')
     expect(firstRow.get('.result-badge.won-a').text()).toContain('TES')
-    expect(firstRow.get('.fb-tag').text()).toBe('FB')
+    expect(firstRow.get('.fb-tag').text()).toBe('First Blood')
     wrapper.unmount()
   })
 
