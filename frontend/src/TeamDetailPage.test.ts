@@ -171,7 +171,7 @@ describe('TeamDetailPage', () => {
     const recentText = wrapper.get('.recent-table').text()
     expect(recentText).toContain('BLG')
     expect(recentText).toContain('15')
-    expect(wrapper.get('.recent-table .result-badge.won').exists()).toBe(true)
+    expect(wrapper.find('.recent-table .result-badge.won').exists()).toBe(true)
     const href = wrapper.get('.recent-table a.view-link').attributes('href') ?? ''
     expect(href).toContain('/matches/9001?')
     expect(href).toContain('stageKeys=237%3A100')

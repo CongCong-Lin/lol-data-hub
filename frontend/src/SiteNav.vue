@@ -8,10 +8,10 @@ const props = defineProps<{ stageKeys: string[] }>()
 
 const { t, locale } = useI18n()
 
-const theme = ref<Theme>(() => {
-  if (typeof document === 'undefined') return 'light'
-  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
-})
+const theme = ref<Theme>('light')
+if (typeof document !== 'undefined') {
+  theme.value = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
 
 function toggleTheme() {
   const next: Theme = theme.value === 'dark' ? 'light' : 'dark'

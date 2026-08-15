@@ -21,11 +21,11 @@ function xAt(index: number): number {
 }
 
 function yCount(value: number): number {
-  return PAD.top + (1 - value / maxCount.value) * plotHeight.value
+  return PAD.top + (1 - value / maxCount.value) * plotHeight
 }
 
 function yRate(rate: number): number {
-  return PAD.top + (1 - rate) * plotHeight.value
+  return PAD.top + (1 - rate) * plotHeight
 }
 
 const GRID_LEVELS = [0.25, 0.5, 0.75, 1]

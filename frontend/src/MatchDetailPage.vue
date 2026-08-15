@@ -179,7 +179,7 @@ const backPath = computed(() => {
           </div>
           <div class="score-board">
             <div class="score-side">
-              <img v-if="gameOf(group.gameNumber)?.teamALogo" :src="gameOf(group.gameNumber)?.teamALogo" :alt="gameOf(group.gameNumber)?.teamAName" class="team-logo" />
+              <img v-if="gameOf(group.gameNumber)?.teamALogo" :src="gameOf(group.gameNumber)?.teamALogo ?? undefined" :alt="gameOf(group.gameNumber)?.teamAName" class="team-logo" />
               <strong>{{ gameOf(group.gameNumber)?.teamAName }}</strong>
               <span v-if="gameOf(group.gameNumber)?.teamAFirstBlood" class="fb-tag">FB</span>
             </div>
@@ -190,7 +190,7 @@ const backPath = computed(() => {
               </span>
             </div>
             <div class="score-side">
-              <img v-if="gameOf(group.gameNumber)?.teamBLogo" :src="gameOf(group.gameNumber)?.teamBLogo" :alt="gameOf(group.gameNumber)?.teamBName" class="team-logo" />
+              <img v-if="gameOf(group.gameNumber)?.teamBLogo" :src="gameOf(group.gameNumber)?.teamBLogo ?? undefined" :alt="gameOf(group.gameNumber)?.teamBName" class="team-logo" />
               <strong>{{ gameOf(group.gameNumber)?.teamBName }}</strong>
               <span v-if="gameOf(group.gameNumber)?.teamBFirstBlood" class="fb-tag">FB</span>
             </div>
@@ -221,8 +221,7 @@ const backPath = computed(() => {
                   <td><span class="pos-badge">{{ positionLabel(player.position) }}</span></td>
                   <td>
                     <a class="player-link" :href="playerHref(player)">
-                      <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar" />
-                      <span class="player-placeholder player-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
+                      <span class="player-placeholder player-avatar">{{ player.playerName.slice(0, 1) }}</span>
                       <strong>{{ player.playerName }}</strong>
                     </a>
                   </td>

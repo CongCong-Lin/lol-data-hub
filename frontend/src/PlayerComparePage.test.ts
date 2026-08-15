@@ -165,7 +165,6 @@ describe('PlayerComparePage', () => {
     await wrapper.findAll('.candidate-item')[0].get('.add-button').trigger('click')
 
     const table = wrapper.get('table.compare-table')
-    expect(table.exists()).toBe(true)
     const metricRows = wrapper.findAll('.compare-table .metric-label')
     expect(metricRows.length).toBeGreaterThanOrEqual(12)
     expect(wrapper.findAll('.compare-table .best-value').length).toBeGreaterThan(0)

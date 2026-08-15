@@ -111,7 +111,7 @@ function toggleStage(compositeKey: string) {
   if (newSet.has(compositeKey)) newSet.delete(compositeKey)
   else {
     if (newSet.size >= MAX_STAGE_SELECTION) {
-      searchError = `最多选择 ${MAX_STAGE_SELECTION} 个赛段`
+      searchError.value = `最多选择 ${MAX_STAGE_SELECTION} 个赛段`
       return
     }
     newSet.add(compositeKey)
