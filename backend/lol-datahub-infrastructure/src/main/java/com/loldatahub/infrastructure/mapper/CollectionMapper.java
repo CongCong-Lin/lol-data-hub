@@ -29,6 +29,30 @@ public interface CollectionMapper {
     List<String> findMatchDetailResponses(@Param("seasonId") long seasonId,
                                           @Param("stageId") long stageId);
 
+    /**
+     * 返回指定赛段每个 matchId 最近一次保存的 matchDetail 响应（含 matchId 与响应 ID），
+     * 供对局明细回填使用。
+     */
+    @Select("""
+            SELECT r.id AS id,
+                   CAST(JSON_UNQUOTE(JSON_EXTRACT(r.request_parameters, '$.matchId')) AS UNSIGNED) AS matchId,
+                   r.response_body AS body
+            FROM source_raw_response r
+            JOIN (
+                SELECT JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.matchId')) AS match_id,
+                       MAX(id) AS latest_id
+                FROM source_raw_response
+                WHERE endpoint = '/compound/matchDetail'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.seasonId')) = CAST(#{seasonId} AS CHAR)
+                  AND JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.stageIds')) = CAST(#{stageId} AS CHAR)
+                GROUP BY JSON_UNQUOTE(JSON_EXTRACT(request_parameters, '$.matchId'))
+            ) latest ON latest.latest_id = r.id
+            ORDER BY r.id
+            """)
+    List<com.loldatahub.infrastructure.model.MatchDetailSourceRow> findLatestMatchDetails(
+            @Param("seasonId") long seasonId,
+            @Param("stageId") long stageId);
+
     /** 返回指定赛段和选手最近一次保存的逐局英雄记录。 */
     @Select("""
             SELECT response_body

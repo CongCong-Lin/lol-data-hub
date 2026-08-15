@@ -4,7 +4,10 @@ import java.util.Locale;
 
 public enum TeamCombinationType {
     MID_JUNGLE("JUN", "MID"),
-    BOT_SUPPORT("BOT", "SUP");
+    BOT_SUPPORT("BOT", "SUP"),
+    TOP_JUNGLE("TOP", "JUN"),
+    TOP_MID("TOP", "MID"),
+    MID_BOT("MID", "BOT");
 
     private final String firstPosition;
     private final String secondPosition;
