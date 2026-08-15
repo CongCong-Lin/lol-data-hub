@@ -79,7 +79,7 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 
-.shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; padding: 34px 0 64px; }
+.shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; padding: 22px 0 64px; }
 .hero {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end;
   column-gap: 32px; row-gap: 10px; margin-bottom: 24px;
@@ -93,11 +93,11 @@ h1 .title-tail { white-space: nowrap; }
   scrollbar-width: thin;
 }
 .status-card {
-  min-width: 220px; padding: 14px 16px; border: 1px solid var(--line);
+  min-width: 250px; padding: 16px 20px; border: 1px solid var(--line);
   border-radius: 6px; background: var(--panel);
 }
-.status-card span, .status-card small { display: block; color: var(--muted); font-size: 12px; }
-.status-card strong { display: block; margin: 4px 0; color: var(--text-strong); font-size: 24px; line-height: 1.2; }
+.status-card span, .status-card small { display: block; color: var(--muted); font-size: 14px; }
+.status-card strong { display: block; margin: 4px 0; color: var(--text-strong); font-size: 32px; line-height: 1.2; }
 
 .view-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .tab-btn {

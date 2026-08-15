@@ -981,7 +981,6 @@ onMounted(async () => {
   <main class="shell">
     <header class="hero">
       <div>
-        <p class="eyebrow">LOL DATA HUB</p>
         <h1>赛事数据</h1>
       </div>
       <div class="status-card">
