@@ -119,6 +119,19 @@ public interface CollectionMapper {
             """)
     int recoverStaleRunningRuns();
 
+    @Select("""
+            SELECT id, collection_type AS collectionType,
+                   source_season_id AS sourceSeasonId,
+                   CAST(requested_stage_ids AS CHAR) AS requestedStageIds,
+                   status, started_at AS startedAt, finished_at AS finishedAt,
+                   changed_records AS changedRecords, error_message AS errorMessage
+              FROM collection_run
+             ORDER BY id DESC
+             LIMIT #{limit}
+            """)
+    List<com.loldatahub.infrastructure.model.CollectionStatusRow> findRecentRuns(
+            @Param("limit") int limit);
+
     final class GeneratedId {
         private Long id;
 
