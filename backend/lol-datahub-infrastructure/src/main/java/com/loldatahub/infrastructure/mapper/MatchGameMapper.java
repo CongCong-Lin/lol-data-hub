@@ -116,6 +116,56 @@ public interface MatchGameMapper {
 
     @Select("""
             <script>
+            SELECT g.source_season_id AS sourceSeasonId,
+                   g.source_stage_id AS sourceStageId,
+                   g.source_match_id AS sourceMatchId,
+                   g.game_number AS gameNumber,
+                   g.start_time AS startTime,
+                   g.team_a_id AS teamAId,
+                   COALESCE(ta.name, CONCAT('战队 #', g.team_a_id)) AS teamAName,
+                   ta.logo_url AS teamALogo,
+                   g.team_a_kills AS teamAKills, g.team_a_assists AS teamAAssists,
+                   g.team_a_damage AS teamADamage, g.team_a_gold AS teamAGold,
+                   g.team_a_wards_placed AS teamAWardsPlaced,
+                   g.team_a_wards_killed AS teamAWardsKilled,
+                   g.team_a_minion_kills AS teamAMinionKills,
+                   g.team_a_dragons AS teamADragons, g.team_a_barons AS teamABarons,
+                   g.team_a_turrets AS teamATurrets, g.team_a_first_blood AS teamAFirstBlood,
+                   g.team_b_id AS teamBId,
+                   COALESCE(tb.name, CONCAT('战队 #', g.team_b_id)) AS teamBName,
+                   tb.logo_url AS teamBLogo,
+                   g.team_b_kills AS teamBKills, g.team_b_assists AS teamBAssists,
+                   g.team_b_damage AS teamBDamage, g.team_b_gold AS teamBGold,
+                   g.team_b_wards_placed AS teamBWardsPlaced,
+                   g.team_b_wards_killed AS teamBWardsKilled,
+                   g.team_b_minion_kills AS teamBMinionKills,
+                   g.team_b_dragons AS teamBDragons, g.team_b_barons AS teamBBarons,
+                   g.team_b_turrets AS teamBTurrets, g.team_b_first_blood AS teamBFirstBlood,
+                   g.win_team_id AS winnerTeamId,
+                   g.game_duration_seconds AS gameDurationSeconds
+              FROM match_game_current g
+              LEFT JOIN team ta ON ta.source_team_id = g.team_a_id
+              LEFT JOIN team tb ON tb.source_team_id = g.team_b_id
+             WHERE g.source_match_id = #{matchId}
+               AND (g.source_season_id, g.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             ORDER BY g.game_number
+            </script>
+            """)
+    List<MatchGameRow> findMatchGamesByMatchId(@Param("stages") List<StageKey> stages,
+                                               @Param("matchId") long matchId);
+
+    @Select("""
+            SELECT name FROM player
+            WHERE source_player_id = #{playerId}
+            ORDER BY player_key LIMIT 1
+            """)
+    String findPlayerName(@Param("playerId") long playerId);
+
+    @Select("""
+            <script>
             SELECT p.source_season_id AS sourceSeasonId,
                    p.source_stage_id AS sourceStageId,
                    st.name AS stageName,

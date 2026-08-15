@@ -2,6 +2,7 @@ package com.loldatahub.api;
 
 import com.loldatahub.collector.CollectionResult;
 import com.loldatahub.collector.HeroCollectionService;
+import com.loldatahub.collector.MatchGameBackfillService;
 import com.loldatahub.collector.PlayerCollectionService;
 import com.loldatahub.collector.TeamCollectionService;
 import jakarta.validation.Valid;
@@ -22,13 +23,16 @@ public class CollectionController {
     private final HeroCollectionService heroCollectionService;
     private final TeamCollectionService teamCollectionService;
     private final PlayerCollectionService playerCollectionService;
+    private final MatchGameBackfillService matchGameBackfillService;
 
     public CollectionController(HeroCollectionService heroCollectionService,
                                 TeamCollectionService teamCollectionService,
-                                PlayerCollectionService playerCollectionService) {
+                                PlayerCollectionService playerCollectionService,
+                                MatchGameBackfillService matchGameBackfillService) {
         this.heroCollectionService = heroCollectionService;
         this.teamCollectionService = teamCollectionService;
         this.playerCollectionService = playerCollectionService;
+        this.matchGameBackfillService = matchGameBackfillService;
     }
 
     @PostMapping("/heroes")
@@ -44,6 +48,11 @@ public class CollectionController {
     @PostMapping("/players")
     ApiResponse<CollectionResult> collectPlayers(@Valid @RequestBody CollectionRequest request) {
         return ApiResponse.success(playerCollectionService.collect(request.seasonId(), request.stageIds()));
+    }
+
+    @PostMapping("/match-games")
+    ApiResponse<CollectionResult> backfillMatchGames(@Valid @RequestBody CollectionRequest request) {
+        return ApiResponse.success(matchGameBackfillService.collect(request.seasonId(), request.stageIds()));
     }
 
     public record CollectionRequest(
