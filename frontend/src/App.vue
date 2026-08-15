@@ -363,6 +363,8 @@ function buildQueryString(): string {
   } else if (activeView.value === 'compare') {
     if (comparePositionFilter.value) params.set('comparePosition', comparePositionFilter.value)
     params.set('compareMinimumMatchCount', String(compareMinimumMatchCount.value))
+  } else if (activeView.value === 'collections') {
+    /* 采集状态视图无专属统计参数 */
   } else {
     params.set('combinationType', combinationType.value)
     params.set('minimumCombinationPickCount', String(minimumCombinationPickCount.value))
