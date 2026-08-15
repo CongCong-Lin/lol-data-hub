@@ -218,7 +218,8 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
 </template>
 
 <style scoped>
-.sort-row { display: flex; gap: 5px; }
+.sort-row { display: flex; gap: 8px; }
+.sort-row .pos-chip { padding: 7px 14px; font-size: 13px; }
 .total-games { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .match-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .match-table th, .match-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
