@@ -49,7 +49,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void mapsPlayerDetailNotFoundToNotFoundWithMessage() {
-        var response = handler.playerDetailNotFound(
+        var response = handler.detailNotFound(
                 new PlayerDetailNotFoundException("选手 99 不存在"));
 
         assertThat(response.getStatusCode().value()).isEqualTo(404);

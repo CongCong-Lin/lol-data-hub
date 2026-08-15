@@ -41,7 +41,7 @@ class TeamCombinationStatisticsControllerTest {
     @Test
     void rejectsUnsupportedCombinationType() {
         assertThatThrownBy(() -> controller.combinations(
-                "237:102", null, null, "TOP_MID", 3, "pickCount", "desc"))
+                "237:102", null, null, "TOP_BOT", 3, "pickCount", "desc"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不支持的组合类型");
     }

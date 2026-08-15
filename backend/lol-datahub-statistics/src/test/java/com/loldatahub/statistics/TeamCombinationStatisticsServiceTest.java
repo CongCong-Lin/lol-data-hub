@@ -47,7 +47,7 @@ class TeamCombinationStatisticsServiceTest {
         List<StageKey> stages = List.of(new StageKey(237, 102), new StageKey(239, 28));
         when(mapper.findCollectedStageKeys(stages)).thenReturn(stages);
         when(stateMapper.currentDataVersion()).thenReturn(12L);
-        when(mapper.aggregate(stages, "MID_JUNGLE", 2)).thenReturn(List.of(
+        when(mapper.aggregate(stages, "JUN", "MID", 2)).thenReturn(List.of(
                 row(1, "TES", 62, "孙悟空", 84, "阿卡丽", 4, 10, 3),
                 row(1, "TES", 5, "赵信", 61, "奥莉安娜", 2, 10, 2)
         ));
@@ -61,7 +61,7 @@ class TeamCombinationStatisticsServiceTest {
         assertThat(result.items().getFirst().winningRate()).isEqualByComparingTo("1.000000");
         assertThat(result.items().get(1).pickRate()).isEqualByComparingTo("0.400000");
         assertThat(result.items().get(1).winningRate()).isEqualByComparingTo("0.750000");
-        verify(mapper).aggregate(stages, "MID_JUNGLE", 2);
+        verify(mapper).aggregate(stages, "JUN", "MID", 2);
     }
 
     @Test
