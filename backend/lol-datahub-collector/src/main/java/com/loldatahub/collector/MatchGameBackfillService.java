@@ -63,7 +63,8 @@ public class MatchGameBackfillService {
     }
 
     /** 单场比赛的解析结果：按局号分组的两队指标与十人指标。 */
-    private record ParsedMatch(long matchId, LocalDateTime startTime,
+    private record ParsedMatch(long matchId, Map<Integer, LocalDateTime> startTimesByBo,
+                               LocalDateTime fallbackStartTime,
                                Map<Long, List<MatchTeamMetricSourceRecord>> teamsByGame,
                                Map<Long, List<MatchPlayerMetricSourceRecord>> playersByGame,
                                Map<Long, List<MatchPlayerGameSourceRecord>> gamesByGame) {
@@ -136,7 +137,8 @@ public class MatchGameBackfillService {
         List<MatchPlayerGameSourceRecord> games = parser.parseMatchPlayerGames(rawJson, matchId);
         List<MatchPlayerMetricSourceRecord> metrics = parser.parseMatchPlayerMetrics(rawJson, matchId);
         List<MatchTeamMetricSourceRecord> teams = parser.parseMatchTeamMetrics(rawJson, matchId);
-        LocalDateTime startTime = extractStartTime(rawJson);
+        Map<Integer, LocalDateTime> startTimesByBo = extractStartTimes(rawJson);
+        LocalDateTime fallbackStartTime = extractTopLevelStartTime(rawJson);
         Map<Long, List<MatchTeamMetricSourceRecord>> teamsByGame = new TreeMap<>();
         Map<Long, List<MatchPlayerMetricSourceRecord>> playersByGame = new TreeMap<>();
         Map<Long, List<MatchPlayerGameSourceRecord>> gamesByGame = new TreeMap<>();
@@ -149,15 +151,41 @@ public class MatchGameBackfillService {
         for (MatchPlayerGameSourceRecord player : games) {
             gamesByGame.computeIfAbsent(player.bo(), ignored -> new ArrayList<>()).add(player);
         }
-        return new ParsedMatch(matchId, startTime, teamsByGame, playersByGame, gamesByGame);
+        return new ParsedMatch(matchId, startTimesByBo, fallbackStartTime, teamsByGame, playersByGame, gamesByGame);
     }
 
-    /** 防御式提取比赛开始时间：matchDetail 不同版本字段名可能不同，提取失败不影响对局落库。 */
-    private LocalDateTime extractStartTime(String rawJson) {
+    /** 按局提取比赛开始时间：官网在 data.matchInfos[bo].matchStartTime 提供每局开始时间。 */
+    private Map<Integer, LocalDateTime> extractStartTimes(String rawJson) {
+        Map<Integer, LocalDateTime> result = new HashMap<>();
         try {
             JsonNode data = objectMapper.readTree(rawJson).path("data");
             if (data.isObject()) {
-                for (String field : new String[]{"matchStartTime", "startTime", "beginTime"}) {
+                JsonNode matchInfos = data.get("matchInfos");
+                if (matchInfos != null && matchInfos.isArray()) {
+                    for (JsonNode info : matchInfos) {
+                        int bo = info.path("bo").asInt(0);
+                        if (bo <= 0) {
+                            continue;
+                        }
+                        LocalDateTime parsed = tryParseTime(info.get("matchStartTime"));
+                        if (parsed != null) {
+                            result.put(bo, parsed);
+                        }
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // 原始响应无法解析为 JSON 时由后续严格解析兜底
+        }
+        return result;
+    }
+
+    /** 回退提取整场比赛时间：个别版本的 matchDetail 只在 data.matchTime 提供时间。 */
+    private LocalDateTime extractTopLevelStartTime(String rawJson) {
+        try {
+            JsonNode data = objectMapper.readTree(rawJson).path("data");
+            if (data.isObject()) {
+                for (String field : new String[]{"matchStartTime", "startTime", "beginTime", "matchTime"}) {
                     LocalDateTime parsed = tryParseTime(data.get(field));
                     if (parsed != null) {
                         return parsed;
@@ -256,9 +284,10 @@ public class MatchGameBackfillService {
                 for (MatchPlayerMetricSourceRecord metric : playerMetrics) {
                     teamKillsByTeam.putIfAbsent(metric.teamId(), metric.teamKills());
                 }
+                LocalDateTime startTime = parsed.startTimesByBo().getOrDefault((int) bo, parsed.fallbackStartTime());
 
                 games.add(new MatchGameWrite(
-                        runId, seasonId, stageId, parsed.matchId(), (int) bo, parsed.startTime(),
+                        runId, seasonId, stageId, parsed.matchId(), (int) bo, startTime,
                         teamA.teamId(), teamB.teamId(), winTeamId, duration,
                         teamKillsByTeam.getOrDefault(teamA.teamId(), 0L),
                         teamA.totalAssists(), teamA.heroDamage(), teamA.gold(),
@@ -277,7 +306,7 @@ public class MatchGameBackfillService {
                 for (MatchPlayerGameSourceRecord player : entry.getValue()) {
                     MatchPlayerMetricSourceRecord metric = metricsByPlayer.get(player.playerId());
                     players.add(new MatchGamePlayerWrite(
-                            runId, seasonId, stageId, parsed.matchId(), (int) bo, parsed.startTime(),
+                            runId, seasonId, stageId, parsed.matchId(), (int) bo, startTime,
                             player.playerId(), player.teamId(), player.heroId(), player.position(),
                             player.teamId() == winTeamId,
                             player.kill(), player.death(), player.assist(),
