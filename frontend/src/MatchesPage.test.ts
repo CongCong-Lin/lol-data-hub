@@ -131,6 +131,29 @@ describe('MatchesPage', () => {
     wrapper.unmount()
   })
 
+  it('查询成功后向父组件发出 loaded 事件', async () => {
+    const wrapper = mountPage({ submitted: false })
+    await flushPromises()
+    expect(wrapper.emitted('loaded')).toBeUndefined()
+
+    await wrapper.setProps({ submitted: true })
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.emitted('loaded')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('查询失败时不发出 loaded 事件', async () => {
+    vi.mocked(api.matchGames).mockRejectedValue(new Error('对局数据加载失败'))
+    const wrapper = mountPage()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.emitted('loaded')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('为胜方渲染结果徽章与一血标记', async () => {
     const wrapper = mountPage()
     await flushPromises()

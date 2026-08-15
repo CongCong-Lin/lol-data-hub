@@ -15,6 +15,7 @@ const emit = defineEmits<{
   'update:sortBy': [value: 'startTime' | 'matchId']
   'update:sortDirection': [value: 'asc' | 'desc']
   'update:offset': [value: number]
+  loaded: []
 }>()
 
 const { t } = useI18n()
@@ -38,7 +39,10 @@ async function load() {
   error.value = ''
   try {
     const data = await api.matchGames(keys, props.sortBy, props.sortDirection, props.offset, PAGE_SIZE)
-    if (seq === querySeq) result.value = data
+    if (seq === querySeq) {
+      result.value = data
+      emit('loaded')
+    }
   } catch (reason) {
     if (seq === querySeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {

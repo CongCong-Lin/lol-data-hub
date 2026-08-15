@@ -864,12 +864,13 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     await flushPromises()
     expect(vi.mocked(api.matchGames)).not.toHaveBeenCalled()
 
-    // 点击查询统计后列表才出现结果
+    // 点击查询统计后列表才出现结果，并显示查询完成的绿色提示条
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
     await flushPromises()
     expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'startTime', 'desc', 0, 50)
     expect(wrapper.text()).toContain('TES')
+    expect(wrapper.get('.message.success').text()).toContain('查询完成')
     wrapper.unmount()
   })
 
@@ -910,6 +911,8 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     expect(wrapper.find('.matches-panel').exists()).toBe(true)
     expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'matchId', 'asc', 50, 50)
     expect(window.location.search).toContain('matchesSortBy=matchId')
+    // URL 恢复的自动查询同样显示查询完成的绿色提示条
+    expect(wrapper.get('.message.success').text()).toContain('查询完成')
     wrapper.unmount()
   })
 

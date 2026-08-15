@@ -814,6 +814,11 @@ async function query(preserveCurrentResult = false) {
   }
 }
 
+/** 对局赛果加载完成：与统计视图一致，显示查询完成的绿色提示条。 */
+function matchesLoaded() {
+  if (activeView.value === 'matches') notice.value = '查询完成'
+}
+
 function playerDetailHref(item: PlayerStatistics): string | undefined {
   const snapshot = submittedPlayerQuery.value
   if (!snapshot || item.sourcePlayerId == null) return undefined
@@ -1607,6 +1612,7 @@ onMounted(async () => {
         v-model:sort-by="matchesSortBy"
         v-model:sort-direction="matchesSortDirection"
         v-model:offset="matchesOffset"
+        @loaded="matchesLoaded"
       />
     </section>
 
