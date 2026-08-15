@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   api,
+  type ChampionStatistics,
   type ChampionStatisticsResult,
   type PlayerStatistics,
   type PlayerStatisticsResult,
@@ -10,11 +11,13 @@ import {
   type StatisticType,
   type TeamCombinationStatisticsResult,
   type TeamCombinationType,
+  type TeamStatistics,
   type TeamStatisticsResult,
 } from './api'
 import PaginationControls from './PaginationControls.vue'
 import ColumnVisibilityMenu, { type ColumnOption } from './ColumnVisibilityMenu.vue'
 import SortableHeader from './SortableHeader.vue'
+import SiteNav from './SiteNav.vue'
 import { formatPercent } from './formatters'
 
 type ActiveView = 'champion' | 'team' | 'player' | 'combo'
@@ -151,18 +154,52 @@ const PLAYER_SORT_FIELDS = new Set([
 const PLAYER_POSITION_VALUES = new Set(PLAYER_POSITION_OPTIONS.map((option) => option.value))
 const PAGE_SIZE_VALUES = new Set([10, 20, 50, 100])
 
+const CHAMPION_SORT_FIELDS = new Set([
+  'championName',
+  'positions',
+  ...CHAMPION_COLUMNS.map((column) => column.key).filter((key) => key !== 'champion' && key !== 'positions'),
+])
+const TEAM_SORT_FIELDS = new Set([
+  'teamName',
+  ...TEAM_COLUMNS.map((column) => column.key).filter((key) => key !== 'team'),
+])
+const COMBINATION_SORT_FIELDS = new Set([
+  'teamName',
+  'firstChampionName',
+  'secondChampionName',
+  ...COMBINATION_COLUMNS.map((column) => column.key).filter(
+    (key) => key !== 'team' && key !== 'firstChampion' && key !== 'secondChampion',
+  ),
+])
+const CHAMPION_POSITION_VALUES = new Set(CHAMPION_POSITION_OPTIONS.map((option) => option.value))
+const COMBINATION_TYPE_VALUES = new Set<TeamCombinationType>([
+  'MID_JUNGLE', 'BOT_SUPPORT', 'TOP_JUNGLE', 'TOP_MID', 'MID_BOT',
+])
+
 function parsePositiveInteger(value: string | null): number | null {
   if (!value || !/^\d+$/.test(value)) return null
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function restorePlayerQueryFromLocation(): boolean {
+function restoreRestorableColumns(params: URLSearchParams, name: string, definitions: ColumnOption[]) {
+  const restored = (params.get(name) ?? '')
+    .split(',')
+    .filter((key) => definitions.some((column) => column.key === key))
+  if (restored.length > 0) return [...new Set(restored)]
+  return definitions.map((column) => column.key)
+}
+
+/** 从 URL 恢复各 tab 的查询状态；返回是否有已选赛段。 */
+function restoreQueryFromLocation(): boolean {
   if (typeof window === 'undefined') return false
   const params = new URLSearchParams(window.location.search)
-  if (params.get('view') !== 'player') return false
-
-  activeView.value = 'player'
+  const view = params.get('view')
+  if (view === 'champion' || view === 'team' || view === 'player' || view === 'combo') {
+    activeView.value = view
+  } else if (view !== null) {
+    return false
+  }
 
   const seasonId = parsePositiveInteger(params.get('season'))
   if (seasonId != null) browsedSeasonId.value = seasonId
@@ -174,29 +211,121 @@ function restorePlayerQueryFromLocation(): boolean {
     .slice(0, MAX_STAGE_SELECTION)
   selectedStageKeys.value = new Set(restoredStageKeys)
 
-  const minimum = Number(params.get('minimumMatchCount'))
-  if (Number.isInteger(minimum) && minimum >= 0 && minimum <= 10_000) minimumMatchCount.value = minimum
+  const minimumRaw = params.get('minimumMatchCount')
+  if (minimumRaw !== null) {
+    const minimum = Number(minimumRaw)
+    if (Number.isInteger(minimum) && minimum >= 0 && minimum <= 10_000) minimumMatchCount.value = minimum
+  }
+  const minimumPickRaw = params.get('minimumPickCount')
+  if (minimumPickRaw !== null) {
+    const minimumPick = Number(minimumPickRaw)
+    if (Number.isInteger(minimumPick) && minimumPick >= 0 && minimumPick <= 10_000) minimumPickCount.value = minimumPick
+  }
+  const minimumComboRaw = params.get('minimumCombinationPickCount')
+  if (minimumComboRaw !== null) {
+    const minimumCombo = Number(minimumComboRaw)
+    if (Number.isInteger(minimumCombo) && minimumCombo >= 0 && minimumCombo <= 10_000) {
+      minimumCombinationPickCount.value = minimumCombo
+    }
+  }
 
-  const position = params.get('playerPosition') ?? ''
-  if (PLAYER_POSITION_VALUES.has(position)) playerPositionFilter.value = position
+  const position = params.get('position') ?? ''
+  if (CHAMPION_POSITION_VALUES.has(position)) positionFilter.value = position
+  const playerPosition = params.get('playerPosition') ?? ''
+  if (PLAYER_POSITION_VALUES.has(playerPosition)) playerPositionFilter.value = playerPosition
+
+  const comboType = params.get('combinationType') ?? ''
+  if (COMBINATION_TYPE_VALUES.has(comboType as TeamCombinationType)) {
+    combinationType.value = comboType as TeamCombinationType
+  }
+
+  const restoredChampionSort = params.get('championSortBy') ?? ''
+  if (CHAMPION_SORT_FIELDS.has(restoredChampionSort)) sortBy.value = restoredChampionSort
+  const restoredChampionDirection = params.get('championSortDirection')
+  if (restoredChampionDirection === 'asc' || restoredChampionDirection === 'desc') {
+    championSortDirection.value = restoredChampionDirection
+  }
+  const restoredTeamSort = params.get('teamSortBy') ?? ''
+  if (TEAM_SORT_FIELDS.has(restoredTeamSort)) teamSortBy.value = restoredTeamSort
+  const restoredTeamDirection = params.get('teamSortDirection')
+  if (restoredTeamDirection === 'asc' || restoredTeamDirection === 'desc') {
+    teamSortDirection.value = restoredTeamDirection
+  }
+  const restoredPlayerSort = params.get('playerSortBy') ?? ''
+  if (PLAYER_SORT_FIELDS.has(restoredPlayerSort)) playerSortBy.value = restoredPlayerSort
+  const restoredPlayerDirection = params.get('playerSortDirection')
+  if (restoredPlayerDirection === 'asc' || restoredPlayerDirection === 'desc') {
+    playerSortDirection.value = restoredPlayerDirection
+  }
+  const restoredCombinationSort = params.get('combinationSortBy') ?? ''
+  if (COMBINATION_SORT_FIELDS.has(restoredCombinationSort)) combinationSortBy.value = restoredCombinationSort
+  const restoredCombinationDirection = params.get('combinationSortDirection')
+  if (restoredCombinationDirection === 'asc' || restoredCombinationDirection === 'desc') {
+    combinationSortDirection.value = restoredCombinationDirection
+  }
+
+  search.value = params.get('championSearch') ?? ''
+  teamSearch.value = params.get('teamSearch') ?? ''
   playerSearch.value = params.get('playerSearch') ?? ''
+  combinationSearch.value = params.get('combinationSearch') ?? ''
 
-  const restoredSortBy = params.get('playerSortBy') ?? ''
-  if (PLAYER_SORT_FIELDS.has(restoredSortBy)) playerSortBy.value = restoredSortBy
-  const restoredDirection = params.get('playerSortDirection')
-  if (restoredDirection === 'asc' || restoredDirection === 'desc') playerSortDirection.value = restoredDirection
+  championVisibleColumns.value = restoreRestorableColumns(params, 'championColumns', CHAMPION_COLUMNS)
+  teamVisibleColumns.value = restoreRestorableColumns(params, 'teamColumns', TEAM_COLUMNS)
+  playerVisibleColumns.value = restoreRestorableColumns(params, 'playerColumns', PLAYER_COLUMNS)
+  combinationVisibleColumns.value = restoreRestorableColumns(params, 'combinationColumns', COMBINATION_COLUMNS)
 
   const page = parsePositiveInteger(params.get('page'))
   if (page != null) currentPage.value = page
   const restoredPageSize = Number(params.get('pageSize'))
   if (PAGE_SIZE_VALUES.has(restoredPageSize)) pageSize.value = restoredPageSize
 
-  const restoredColumns = (params.get('playerColumns') ?? '')
-    .split(',')
-    .filter((key) => PLAYER_COLUMNS.some((column) => column.key === key))
-  if (restoredColumns.length > 0) playerVisibleColumns.value = [...new Set(restoredColumns)]
-
   return restoredStageKeys.length > 0
+}
+
+/** 序列化当前查询状态为 URL query；供 URL 同步与详情页 returnTo 使用。 */
+function buildQueryString(): string {
+  const params = new URLSearchParams()
+  params.set('view', activeView.value)
+  params.set('season', String(browsedSeasonId.value))
+  if (selectedStageKeys.value.size) params.set('stageKeys', [...selectedStageKeys.value].join(','))
+  params.set('page', String(currentPage.value))
+  params.set('pageSize', String(pageSize.value))
+  if (activeView.value === 'champion') {
+    params.set('minimumPickCount', String(minimumPickCount.value))
+    if (positionFilter.value) params.set('position', positionFilter.value)
+    params.set('championSortBy', sortBy.value)
+    params.set('championSortDirection', championSortDirection.value)
+    params.set('championColumns', championVisibleColumns.value.join(','))
+    if (search.value) params.set('championSearch', search.value)
+  } else if (activeView.value === 'team') {
+    params.set('minimumMatchCount', String(minimumMatchCount.value))
+    params.set('teamSortBy', teamSortBy.value)
+    params.set('teamSortDirection', teamSortDirection.value)
+    params.set('teamColumns', teamVisibleColumns.value.join(','))
+    if (teamSearch.value) params.set('teamSearch', teamSearch.value)
+  } else if (activeView.value === 'player') {
+    params.set('minimumMatchCount', String(minimumMatchCount.value))
+    if (playerPositionFilter.value) params.set('playerPosition', playerPositionFilter.value)
+    params.set('playerSortBy', playerSortBy.value)
+    params.set('playerSortDirection', playerSortDirection.value)
+    params.set('playerColumns', playerVisibleColumns.value.join(','))
+    if (playerSearch.value) params.set('playerSearch', playerSearch.value)
+  } else {
+    params.set('combinationType', combinationType.value)
+    params.set('minimumCombinationPickCount', String(minimumCombinationPickCount.value))
+    params.set('combinationSortBy', combinationSortBy.value)
+    params.set('combinationSortDirection', combinationSortDirection.value)
+    params.set('combinationColumns', combinationVisibleColumns.value.join(','))
+    if (combinationSearch.value) params.set('combinationSearch', combinationSearch.value)
+  }
+  return params.toString()
+}
+
+/** 将查询状态写入地址栏（replaceState，不产生历史记录），刷新与分享链接可恢复。 */
+function syncQueryToUrl() {
+  if (typeof window === 'undefined') return
+  if (window.location.pathname !== '/') return
+  window.history.replaceState(null, '', `?${buildQueryString()}`)
 }
 
 function isColumnVisible(visibleColumns: string[], key: string): boolean {
@@ -489,6 +618,19 @@ watch(pageSize, () => {
   currentPage.value = 1
 }, { flush: 'sync' })
 
+/* 查询状态写入地址栏：刷新与分享链接可恢复当前 tab 的全部条件 */
+watch(
+  [activeView, browsedSeasonId, selectedStageKeys, minimumPickCount, minimumMatchCount, minimumCombinationPickCount,
+   positionFilter, playerPositionFilter, combinationType,
+   sortBy, championSortDirection, teamSortBy, teamSortDirection,
+   playerSortBy, playerSortDirection, combinationSortBy, combinationSortDirection,
+   search, teamSearch, playerSearch, combinationSearch,
+   currentPage, pageSize,
+   championVisibleColumns, teamVisibleColumns, playerVisibleColumns, combinationVisibleColumns],
+  syncQueryToUrl,
+  { flush: 'sync' },
+)
+
 /* ---- methods ---- */
 
 async function loadSeasons() {
@@ -604,26 +746,36 @@ function playerDetailHref(item: PlayerStatistics): string | undefined {
   if (!snapshot || item.sourcePlayerId == null) return undefined
   const position = snapshot.position || item.positions[0] || ''
   if (!position) return undefined
-  const returnParams = new URLSearchParams({
-    view: 'player',
-    season: String(browsedSeasonId.value),
-    stageKeys: snapshot.stageKeys.join(','),
-    minimumMatchCount: String(snapshot.minimumMatchCount),
-    playerPosition: playerPositionFilter.value,
-    playerSearch: playerSearch.value,
-    playerSortBy: playerSortBy.value,
-    playerSortDirection: playerSortDirection.value,
-    page: String(currentPage.value),
-    pageSize: String(pageSize.value),
-    playerColumns: playerVisibleColumns.value.join(','),
-  })
   const params = new URLSearchParams({
     stageKeys: snapshot.stageKeys.join(','),
     position,
     minimumMatchCount: String(snapshot.minimumMatchCount),
-    returnTo: `/?${returnParams.toString()}`,
+    returnTo: `/?${buildQueryString()}`,
   })
   return `/players/${item.sourcePlayerId}?${params.toString()}`
+}
+
+function championDetailHref(item: ChampionStatistics): string | undefined {
+  const keys = [...selectedStageKeys.value]
+  if (!keys.length) return undefined
+  const params = new URLSearchParams({
+    stageKeys: keys.join(','),
+    minimumPickCount: String(minimumPickCount.value),
+    returnTo: `/?${buildQueryString()}`,
+  })
+  if (positionFilter.value) params.set('position', positionFilter.value)
+  return `/champions/${item.championId}?${params.toString()}`
+}
+
+function teamDetailHref(item: TeamStatistics): string | undefined {
+  const keys = [...selectedStageKeys.value]
+  if (!keys.length) return undefined
+  const params = new URLSearchParams({
+    stageKeys: keys.join(','),
+    minimumMatchCount: String(minimumMatchCount.value),
+    returnTo: `/?${buildQueryString()}`,
+  })
+  return `/teams/${item.teamId}?${params.toString()}`
 }
 
 function changeSort(view: ActiveView, field: string) {
@@ -727,7 +879,7 @@ function fmtTeamNames(teamNames: string[]) {
 }
 
 onMounted(async () => {
-  const restoredQuery = restorePlayerQueryFromLocation()
+  const restoredQuery = restoreQueryFromLocation()
   try {
     await loadSeasons()
     if (seasons.value.length > 0 && browsedSeasonId.value === 0) {
@@ -742,6 +894,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <SiteNav :stage-keys="[...selectedStageKeys]" />
   <main class="shell">
     <header class="hero">
       <div>
@@ -953,7 +1106,19 @@ onMounted(async () => {
           <tbody>
             <tr v-for="item in paginatedChampionItems" :key="item.championId">
               <td v-if="isColumnVisible(championVisibleColumns, 'champion')" class="champion-name-column">
-                <div class="champion-cell">
+                <a
+                  v-if="championDetailHref(item)"
+                  :href="championDetailHref(item)"
+                  class="champion-detail-link"
+                  :title="`查看 ${item.championName} 的英雄详情`"
+                >
+                  <div class="champion-cell">
+                    <img v-if="item.championLogo" :src="item.championLogo" :alt="item.championName" />
+                    <span class="champion-placeholder" v-else>{{ item.championName.slice(0, 1) }}</span>
+                    <div><strong>{{ item.championName }}</strong><small>{{ item.championTitle }}</small></div>
+                  </div>
+                </a>
+                <div v-else class="champion-cell">
                   <img v-if="item.championLogo" :src="item.championLogo" :alt="item.championName" />
                   <span class="champion-placeholder" v-else>{{ item.championName.slice(0, 1) }}</span>
                   <div><strong>{{ item.championName }}</strong><small>{{ item.championTitle }}</small></div>
@@ -1048,7 +1213,19 @@ onMounted(async () => {
           <tbody>
             <tr v-for="item in paginatedTeamItems" :key="item.teamId">
               <td v-if="isColumnVisible(teamVisibleColumns, 'team')">
-                <div class="team-cell">
+                <a
+                  v-if="teamDetailHref(item)"
+                  :href="teamDetailHref(item)"
+                  class="team-detail-link"
+                  :title="`查看 ${item.teamName} 的战队详情`"
+                >
+                  <div class="team-cell">
+                    <img v-if="item.teamLogo" :src="item.teamLogo" :alt="item.teamName" class="team-logo" />
+                    <span class="team-placeholder" v-else>{{ item.teamName.slice(0, 1) }}</span>
+                    <strong>{{ item.teamName }}</strong>
+                  </div>
+                </a>
+                <div v-else class="team-cell">
                   <img v-if="item.teamLogo" :src="item.teamLogo" :alt="item.teamName" class="team-logo" />
                   <span class="team-placeholder" v-else>{{ item.teamName.slice(0, 1) }}</span>
                   <strong>{{ item.teamName }}</strong>
@@ -1235,6 +1412,24 @@ onMounted(async () => {
                 :aria-pressed="combinationType === 'BOT_SUPPORT'"
                 @click="combinationType = 'BOT_SUPPORT'"
               >AD 辅助组合</button>
+              <button
+                class="pos-chip"
+                :class="{ active: combinationType === 'TOP_JUNGLE' }"
+                :aria-pressed="combinationType === 'TOP_JUNGLE'"
+                @click="combinationType = 'TOP_JUNGLE'"
+              >上野组合</button>
+              <button
+                class="pos-chip"
+                :class="{ active: combinationType === 'TOP_MID' }"
+                :aria-pressed="combinationType === 'TOP_MID'"
+                @click="combinationType = 'TOP_MID'"
+              >上中组合</button>
+              <button
+                class="pos-chip"
+                :class="{ active: combinationType === 'MID_BOT' }"
+                :aria-pressed="combinationType === 'MID_BOT'"
+                @click="combinationType = 'MID_BOT'"
+              >中下组合</button>
             </div>
             <ColumnVisibilityMenu v-model="combinationVisibleColumns" :columns="COMBINATION_COLUMNS" />
             <button class="export-button" type="button" :disabled="exporting || !filteredCombinationItems.length" @click="exportExcel">

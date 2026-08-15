@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, type PlayerDetailStatisticsResult } from './api'
+import { api, type PlayerDetailStatisticsResult, type PlayerGamesResult } from './api'
 import PlayerRadarChart from './PlayerRadarChart.vue'
 import ScoreggAverageContrast from './ScoreggAverageContrast.vue'
 
@@ -13,6 +13,9 @@ const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 const result = ref<PlayerDetailStatisticsResult | null>(null)
+const gameRecords = ref<PlayerGamesResult | null>(null)
+const gameRecordsLoading = ref(false)
+const gameRecordsError = ref('')
 
 const PLAYER_POSITION_LABELS: Record<string, string> = {
   TOP: '上单', JUG: '打野', MID: '中路', AD: '下路', SUP: '辅助',
@@ -34,6 +37,8 @@ const playerIdNumber = computed(() => Number(props.playerId))
 async function load() {
   const { stageKeys, position, minimumMatchCount } = queryParams.value
   result.value = null
+  gameRecords.value = null
+  gameRecordsError.value = ''
   if (!Number.isInteger(playerIdNumber.value) || playerIdNumber.value <= 0) {
     error.value = '无效的选手 ID'
     return
@@ -48,6 +53,7 @@ async function load() {
   try {
     const data = await api.playerDetail(playerIdNumber.value, stageKeys, position, minimumMatchCount)
     if (seq === loadSeq) result.value = data
+    if (seq === loadSeq) void loadGameRecords(seq)
   } catch (reason) {
     if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
@@ -55,6 +61,20 @@ async function load() {
   }
 }
 let loadSeq = 0
+
+async function loadGameRecords(seq: number) {
+  const { stageKeys } = queryParams.value
+  gameRecordsLoading.value = true
+  gameRecordsError.value = ''
+  try {
+    const data = await api.playerGames(playerIdNumber.value, stageKeys, 50)
+    if (seq === loadSeq) gameRecords.value = data
+  } catch (reason) {
+    if (seq === loadSeq) gameRecordsError.value = reason instanceof Error ? reason.message : String(reason)
+  } finally {
+    if (seq === loadSeq) gameRecordsLoading.value = false
+  }
+}
 
 watch(queryParams, load, { immediate: true, deep: true })
 
@@ -71,7 +91,8 @@ function fmtDecimal(value: number): string {
   return Number(value).toFixed(2)
 }
 
-function fmtPercent(rate: number): string {
+function fmtPercent(rate: number | null | undefined): string {
+  if (rate == null) return '-'
   return `${(Number(rate) * 100).toFixed(1)}%`
 }
 
@@ -110,6 +131,19 @@ function heroSortIndicator(key: HeroSortKey): string {
 }
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
+
+function matchHref(record: { sourceMatchId: number }): string {
+  const params = new URLSearchParams({ stageKeys: queryParams.value.stageKeys.join(',') })
+  return `/matches/${record.sourceMatchId}?${params.toString()}`
+}
+
+function fmtDateTimeShort(value: string | null): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 10)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
 
 const returnPath = computed(() => {
   const candidate = String(route.query.returnTo ?? '')
@@ -248,6 +282,71 @@ const returnPath = computed(() => {
       </section>
 
       <section class="detail-card">
+        <h2 class="detail-heading">单局战绩</h2>
+        <p class="detail-subheading">
+          最近 {{ gameRecords?.items.length ?? 0 }} 局单场数据（按开始时间倒序），来自已回填的逐局明细；
+          点击「查看对局」可进入该系列赛完整赛果。
+        </p>
+        <template v-if="gameRecordsLoading">
+          <p class="detail-notice-inline">加载中…</p>
+        </template>
+        <template v-else-if="gameRecordsError">
+          <p class="detail-notice-inline">单局战绩暂不可用：{{ gameRecordsError }}</p>
+        </template>
+        <template v-else-if="gameRecords && gameRecords.items.length">
+          <div class="table-scroll game-record-scroll">
+            <table class="detail-table game-record-table">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>赛段</th>
+                  <th>对手</th>
+                  <th>英雄</th>
+                  <th>结果</th>
+                  <th>KDA</th>
+                  <th>击杀</th>
+                  <th>死亡</th>
+                  <th>助攻</th>
+                  <th>伤害</th>
+                  <th>伤害占比</th>
+                  <th>参团率</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in gameRecords.items" :key="`${record.sourceMatchId}:${record.gameNumber}`">
+                  <td>{{ fmtDateTimeShort(record.startTime) }}</td>
+                  <td>{{ record.stageName }}</td>
+                  <td>{{ record.opponentTeamName }}</td>
+                  <td>
+                    <div class="hero-cell">
+                      <img v-if="record.championLogo" :src="record.championLogo" :alt="record.championChineseName" class="hero-logo" />
+                      <span class="hero-logo hero-placeholder" v-else>{{ record.championChineseName.slice(0, 1) }}</span>
+                      <strong>{{ record.championChineseName }}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="record-result" :class="record.won ? 'won' : 'lost'">{{ record.won ? '胜' : '负' }}</span>
+                  </td>
+                  <td class="accent">{{ fmtDecimal(record.kda) }}</td>
+                  <td>{{ record.kills }}</td>
+                  <td>{{ record.deaths }}</td>
+                  <td>{{ record.assists }}</td>
+                  <td>{{ fmtDecimal(record.heroDamage) }}</td>
+                  <td>{{ fmtPercent(record.damagePercent) }}</td>
+                  <td>{{ fmtPercent(record.killParticipantPercent) }}</td>
+                  <td>
+                    <a class="view-match-link" :href="matchHref(record)">查看对局</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+        <p v-else class="detail-notice-inline">暂无单局战绩：所选赛段尚未回填逐局明细数据。</p>
+      </section>
+
+      <section class="detail-card">
         <h2 class="detail-heading">统计口径说明</h2>
         <ul class="caliber-list">
           <li>数据范围继承产生本详情的查询条件：赛段 {{ stageKeysLabel }}、位置 {{ positionLabel(result.position) }}、最低样本 {{ result.minimumMatchCount }} 场。</li>
@@ -325,5 +424,16 @@ const returnPath = computed(() => {
 .hero-logo { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #edf0f2; }
 .hero-cell strong { display: block; }
 .hero-cell small { display: block; color: #8b949e; font-size: 11px; }
+.game-record-scroll { max-height: 480px; overflow: auto; }
+.game-record-table { min-width: 960px; }
+.hero-placeholder {
+  display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 12px;
+  background: #edf0f2; flex: 0 0 auto;
+}
+.record-result { display: inline-block; min-width: 28px; padding: 1px 8px; border-radius: 999px; text-align: center; font-size: 12px; font-weight: 700; }
+.record-result.won { color: #246b47; background: #eef8f2; }
+.record-result.lost { color: #c2414b; background: #fff5f5; }
+.view-match-link { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.view-match-link:hover { text-decoration: underline; }
 .caliber-list { margin: 0; padding-left: 20px; color: #57606a; font-size: 13px; line-height: 1.75; }
 </style>

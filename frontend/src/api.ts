@@ -14,7 +14,7 @@ export interface Season {
 
 export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER' | 'COMBO'
 
-export type TeamCombinationType = 'MID_JUNGLE' | 'BOT_SUPPORT'
+export type TeamCombinationType = 'MID_JUNGLE' | 'BOT_SUPPORT' | 'TOP_JUNGLE' | 'TOP_MID' | 'MID_BOT'
 
 export interface Stage {
   sourceSeasonId: number
@@ -250,6 +250,236 @@ export interface TeamCombinationStatisticsResult {
   items: TeamCombinationStatistics[]
 }
 
+export interface RankedTeamMetric {
+  key: string
+  label: string
+  value: number | null
+  formattedValue: string
+  rank: number
+  cohortSize: number
+  higherIsBetter: boolean
+}
+
+export interface TeamLineupPreference {
+  position: string
+  sourceChampionId: number
+  championName: string
+  championChineseName: string
+  championLogo: string | null
+  pickCount: number
+  pickRate: number
+  winningCount: number
+  winningRate: number
+}
+
+export interface TeamPlayerUsage {
+  sourcePlayerId: number
+  playerName: string
+  playerAvatar: string | null
+  position: string
+  matchCount: number
+  gameCount: number
+}
+
+export interface TeamDetailProfile {
+  sourceTeamId: number
+  teamName: string
+  teamLogo: string | null
+  matchCount: number
+  gameCount: number
+  matchWinCount: number
+}
+
+export interface TeamDetailStatisticsResult {
+  dataVersion: number
+  minimumMatchCount: number
+  cohortSize: number
+  team: TeamDetailProfile
+  coreMetrics: RankedTeamMetric[]
+  lineupPreferences: TeamLineupPreference[]
+  players: TeamPlayerUsage[]
+  recentGames: MatchGameRecord[]
+  latestCollectedAt: string | null
+}
+
+export interface ChampionPositionStat {
+  position: string
+  pickCount: number
+  winningCount: number
+  pickRate: number
+  winningRate: number
+  kda: number
+}
+
+export interface ChampionPlayerUsage {
+  sourcePlayerId: number
+  playerName: string
+  playerAvatar: string | null
+  position: string
+  pickCount: number
+  winningCount: number
+  winningRate: number
+  kda: number
+}
+
+export interface ChampionTrendPoint {
+  sourceSeasonId: number
+  sourceStageId: number
+  stageName: string
+  pickCount: number
+  banCount: number
+  winningCount: number
+  pickRate: number
+  banRate: number
+  winningRate: number
+}
+
+export interface ChampionDetailProfile {
+  sourceChampionId: number
+  championName: string
+  championChineseName: string
+  championTitle: string | null
+  championLogo: string | null
+  positions: string[]
+}
+
+export interface ChampionDetailStatisticsResult {
+  dataVersion: number
+  minimumPickCount: number
+  position: string | null
+  champion: ChampionDetailProfile
+  overall: ChampionStatistics
+  positionStats: ChampionPositionStat[]
+  topPlayers: ChampionPlayerUsage[]
+  trends: ChampionTrendPoint[]
+  latestCollectedAt: string | null
+}
+
+export interface MatchGameRecord {
+  sourceSeasonId: number
+  sourceStageId: number
+  sourceMatchId: number
+  gameNumber: number
+  startTime: string | null
+  teamAId: number
+  teamAName: string
+  teamALogo: string | null
+  teamAKills: number
+  teamAAssists: number
+  teamADamage: number
+  teamAGold: number
+  teamAWardsPlaced: number
+  teamAWardsKilled: number
+  teamAMinionKills: number
+  teamADragons: number
+  teamABarons: number
+  teamATurrets: number
+  teamAFirstBlood: boolean
+  teamBId: number
+  teamBName: string
+  teamBLogo: string | null
+  teamBKills: number
+  teamBAssists: number
+  teamBDamage: number
+  teamBGold: number
+  teamBWardsPlaced: number
+  teamBWardsKilled: number
+  teamBMinionKills: number
+  teamBDragons: number
+  teamBBarons: number
+  teamBTurrets: number
+  teamBFirstBlood: boolean
+  winnerTeamId: number
+  gameDurationSeconds: number
+}
+
+export interface MatchGamesResult {
+  dataVersion: number
+  total: number
+  offset: number
+  limit: number
+  items: MatchGameRecord[]
+}
+
+export interface MatchGamePlayerRecord {
+  sourceSeasonId: number
+  sourceStageId: number
+  sourceMatchId: number
+  gameNumber: number
+  startTime: string | null
+  sourcePlayerId: number
+  playerName: string
+  sourceTeamId: number
+  teamName: string
+  sourceChampionId: number
+  championName: string
+  championChineseName: string
+  championTitle: string | null
+  championLogo: string | null
+  position: string
+  won: boolean
+  kills: number
+  deaths: number
+  assists: number
+  heroDamage: number
+  playerGold: number
+  teamKills: number
+  teamDamage: number
+  teamGold: number
+  killParticipantPercent: number | null
+  damagePercent: number | null
+  goldPercent: number | null
+}
+
+export interface MatchGameDetailResult {
+  dataVersion: number
+  sourceMatchId: number
+  games: MatchGameRecord[]
+  players: MatchGamePlayerRecord[]
+}
+
+export interface PlayerGameRecord {
+  sourceSeasonId: number
+  sourceStageId: number
+  stageName: string
+  sourceMatchId: number
+  gameNumber: number
+  startTime: string | null
+  opponentTeamName: string
+  sourceChampionId: number
+  championName: string
+  championChineseName: string
+  championLogo: string | null
+  position: string
+  won: boolean
+  kills: number
+  deaths: number
+  assists: number
+  kda: number
+  heroDamage: number
+  killParticipantPercent: number | null
+  damagePercent: number | null
+}
+
+export interface PlayerGamesResult {
+  dataVersion: number
+  sourcePlayerId: number
+  playerName: string
+  items: PlayerGameRecord[]
+}
+
+export interface CollectionStatusRow {
+  id: number
+  collectionType: string
+  sourceSeasonId: number | null
+  requestedStageIds: string | null
+  status: string
+  startedAt: string
+  finishedAt: string | null
+  changedRecords: number
+  errorMessage: string | null
+}
+
 const REQUEST_TIMEOUT_MS = 12_000
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -429,4 +659,52 @@ export const api = {
       `/api/v1/statistics/players/${sourcePlayerId}/detail?${params}`,
     )
   },
+  teamDetail: (sourceTeamId: number, stageKeys: string[], minimumMatchCount: number) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      minimumMatchCount: String(minimumMatchCount),
+    })
+    return request<TeamDetailStatisticsResult>(`/api/v1/statistics/teams/${sourceTeamId}/detail?${params}`)
+  },
+  championDetail: (
+    sourceChampionId: number,
+    stageKeys: string[],
+    minimumPickCount: number,
+    position: string,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      minimumPickCount: String(minimumPickCount),
+    })
+    if (position) params.set('position', position)
+    return request<ChampionDetailStatisticsResult>(
+      `/api/v1/statistics/champions/${sourceChampionId}/detail?${params}`,
+    )
+  },
+  matchGames: (
+    stageKeys: string[],
+    sortBy: string,
+    sortDirection: string,
+    offset: number,
+    limit: number,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      sortBy,
+      sortDirection,
+      offset: String(offset),
+      limit: String(limit),
+    })
+    return request<MatchGamesResult>(`/api/v1/statistics/matches?${params}`)
+  },
+  matchDetail: (matchId: number, stageKeys: string[]) => {
+    const params = new URLSearchParams({ stageKeys: stageKeys.join(',') })
+    return request<MatchGameDetailResult>(`/api/v1/statistics/matches/${matchId}?${params}`)
+  },
+  playerGames: (sourcePlayerId: number, stageKeys: string[], limit = 50) => {
+    const params = new URLSearchParams({ stageKeys: stageKeys.join(','), limit: String(limit) })
+    return request<PlayerGamesResult>(`/api/v1/statistics/players/${sourcePlayerId}/games?${params}`)
+  },
+  collectionStatus: (limit = 20) =>
+    request<CollectionStatusRow[]>(`/api/v1/collections/status?limit=${limit}`),
 }
