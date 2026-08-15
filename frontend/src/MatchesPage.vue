@@ -102,6 +102,15 @@ function detailHref(game: MatchGameRecord): string {
 const totalPages = computed(() => Math.max(1, Math.ceil((result.value?.total ?? 0) / PAGE_SIZE)))
 const currentPage = computed(() => Math.floor(props.offset / PAGE_SIZE) + 1)
 
+/* 页码窗口：最多 5 个数字，以当前页为中心 */
+const pageNumbers = computed(() => {
+  const visibleCount = Math.min(5, totalPages.value)
+  let start = Math.max(1, currentPage.value - 2)
+  let end = Math.min(totalPages.value, start + visibleCount - 1)
+  start = Math.max(1, end - visibleCount + 1)
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+})
+
 function gotoPage(page: number) {
   if (page < 1 || page > totalPages.value) return
   emit('update:offset', (page - 1) * PAGE_SIZE)
@@ -202,6 +211,16 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
           </div>
           <div class="pagination-buttons">
             <button type="button" :disabled="currentPage <= 1" @click="gotoPage(currentPage - 1)">上一页</button>
+            <button
+              v-for="page in pageNumbers"
+              :key="page"
+              type="button"
+              class="pagination-page"
+              :class="{ active: page === currentPage }"
+              :aria-current="page === currentPage ? 'page' : undefined"
+              :aria-label="`第 ${page} 页`"
+              @click="gotoPage(page)"
+            >{{ page }}</button>
             <button type="button" :disabled="currentPage >= totalPages" @click="gotoPage(currentPage + 1)">下一页</button>
           </div>
         </div>

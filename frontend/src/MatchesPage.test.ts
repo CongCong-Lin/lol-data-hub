@@ -217,6 +217,33 @@ describe('MatchesPage', () => {
     wrapper.unmount()
   })
 
+  it('多页时渲染页码按钮且当前页高亮', async () => {
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120 }))
+    const wrapper = mountPage()
+    await flushPromises()
+    await flushPromises()
+
+    const pageButtons = wrapper.findAll('button.pagination-page')
+    expect(pageButtons.map((button) => button.text())).toEqual(['1', '2', '3'])
+    expect(pageButtons[0].classes()).toContain('active')
+    expect(pageButtons[0].attributes('aria-current')).toBe('page')
+    wrapper.unmount()
+  })
+
+  it('点击页码按钮跳转到对应页', async () => {
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120 }))
+    const wrapper = mountPage()
+    await flushPromises()
+    await flushPromises()
+
+    const pageButtons = wrapper.findAll('button.pagination-page')
+    await pageButtons[1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:offset')).toEqual([[50]])
+    wrapper.unmount()
+  })
+
   it('offset 变化时重新查询', async () => {
     vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120, offset: 50 }))
     const wrapper = mountPage({ offset: 50 })
