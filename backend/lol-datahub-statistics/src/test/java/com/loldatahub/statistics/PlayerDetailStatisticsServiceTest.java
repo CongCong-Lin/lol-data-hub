@@ -92,6 +92,16 @@ class PlayerDetailStatisticsServiceTest {
                 true);
     }
 
+    private static PlayerStatistics playerWithoutDamage(long sourcePlayerId, String name, BigDecimal kda,
+                                                        BigDecimal killPerGame, BigDecimal deathPerGame) {
+        return new PlayerStatistics("key-" + sourcePlayerId, sourcePlayerId, name, null,
+                List.of("TES"), List.of("TOP"), 10L, 20L, 1L, BigDecimal.ONE,
+                40L, 30L, 20L, kda, killPerGame, bd("3"), deathPerGame,
+                bd("12000"), bd("200"), bd("5"), bd("2"), bd("0.6"), bd("100"),
+                null, bd("0.25"), bd("0.22"),
+                true);
+    }
+
     private static BigDecimal bd(String value) {
         return new BigDecimal(value);
     }
@@ -124,6 +134,32 @@ class PlayerDetailStatisticsServiceTest {
         assertThat(kda.rank()).isEqualTo(3);
         assertThat(kda.cohortSize()).isEqualTo(3);
         assertThat(kda.higherIsBetter()).isTrue();
+    }
+
+    @Test
+    void hidesDamageCoreMetricWhenDamageDataUnavailable() {
+        mockCohort(List.of(playerWithoutDamage(11L, "Bin", bd("4"), bd("3"), bd("1"))));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        assertThat(result.coreMetrics()).extracting(RankedPlayerMetric::key)
+                .doesNotContain("damagePerGame");
+        assertThat(result.coreMetrics()).hasSize(15);
+    }
+
+    @Test
+    void ranksDamageOnlyAmongPlayersWithDamageData() {
+        mockCohort(List.of(
+                player(11L, "Bin", bd("4"), bd("3"), bd("1")),
+                playerWithoutDamage(12L, "Zeus", bd("6"), bd("5"), bd("2"))));
+
+        PlayerDetailStatisticsResult result = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+
+        RankedPlayerMetric damage = metric(result, "damagePerGame");
+        assertThat(damage.rank()).isEqualTo(1);
+        assertThat(damage.cohortSize()).isEqualTo(1);
     }
 
     @Test

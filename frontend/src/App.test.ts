@@ -257,7 +257,6 @@ describe('查询状态', () => {
     const topPosition = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上单')
     expect(topPosition).toBeDefined()
     await topPosition!.trigger('click')
-    await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenCalledWith(
@@ -329,7 +328,6 @@ describe('查询状态', () => {
     const jungleChip = wrapper.findAll('button.pos-chip').find((button) => button.text() === '打野')
     expect(jungleChip).toBeDefined()
     await jungleChip!.trigger('click')
-    await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
     const href = wrapper.get('.player-avatar-link').attributes('href') ?? ''
@@ -349,8 +347,7 @@ describe('查询状态', () => {
     await flushPromises()
     expect(wrapper.find('.player-avatar-link').exists()).toBe(true)
 
-    const jungleChip = wrapper.findAll('button.pos-chip').find((button) => button.text() === '打野')
-    await jungleChip!.trigger('click')
+    await wrapper.get('#minimumMatch').setValue('6')
 
     expect(wrapper.find('.player-avatar-link').exists()).toBe(false)
     wrapper.unmount()
@@ -364,13 +361,56 @@ describe('查询状态', () => {
     const topPosition = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上单')
     expect(topPosition).toBeDefined()
     await topPosition!.trigger('click')
-    await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(
       ['237:100'], 10, 'TOP', 'bpRate', 'desc',
     )
     expect(wrapper.text()).toContain('出场、胜负与 KDA 按实际分路独立统计')
+    wrapper.unmount()
+  })
+
+  it('点击位置筛选后自动重新查询，无需再次点击查询按钮', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('安妮')
+
+    const topPosition = wrapper.findAll('button.pos-chip').find((button) => button.text() === '上单')
+    expect(topPosition).toBeDefined()
+    await topPosition!.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 10, 'TOP', 'bpRate', 'desc',
+    )
+    expect(wrapper.text()).toContain('安妮')
+    wrapper.unmount()
+  })
+
+  it('切换组合类型后自动重新查询', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const comboTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '英雄组合')
+    await comboTab!.trigger('click')
+    await flushPromises()
+    await selectFirstStage(wrapper)
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('孙悟空')
+
+    const supportCombo = wrapper.findAll('button.pos-chip').find((button) => button.text() === 'AD 辅助组合')
+    expect(supportCombo).toBeDefined()
+    await supportCombo!.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.teamCombinationStatisticsByKeys)).toHaveBeenLastCalledWith(
+      ['237:100'], 'BOT_SUPPORT', 3, 'pickCount', 'desc',
+    )
     wrapper.unmount()
   })
 

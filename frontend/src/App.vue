@@ -269,10 +269,9 @@ const filteredTeamItems = computed(() => {
 })
 
 const filteredPlayerItems = computed(() => {
+  // 位置已作为查询条件由后端过滤（playerStatisticsByKeys 携带 position），
+  // 前端不再重复过滤，避免切换位置时旧结果被同步清空导致表格闪现空状态。
   let items = playerResult.value?.items ?? []
-  if (playerPositionFilter.value) {
-    items = items.filter((item) => item.positions.includes(playerPositionFilter.value))
-  }
   const keyword = playerSearch.value.trim().toLowerCase()
   if (keyword) {
     items = items.filter((item) =>
@@ -469,11 +468,18 @@ function invalidateQueryResults() {
 }
 
 watch(
-  [minimumPickCount, minimumMatchCount, minimumCombinationPickCount,
-    positionFilter, playerPositionFilter, combinationType],
+  [minimumPickCount, minimumMatchCount, minimumCombinationPickCount],
   invalidateQueryResults,
   { flush: 'sync' },
 )
+
+/* 位置/组合类型筛选：点击后立即重新查询，无需再次点击查询按钮 */
+watch([positionFilter, playerPositionFilter, combinationType], () => {
+  sorting.value = true
+  void query(true).finally(() => {
+    sorting.value = false
+  })
+}, { flush: 'sync' })
 
 watch([search, teamSearch, playerSearch, combinationSearch], () => {
   currentPage.value = 1

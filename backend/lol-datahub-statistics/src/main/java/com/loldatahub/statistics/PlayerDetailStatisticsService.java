@@ -68,6 +68,7 @@ public class PlayerDetailStatisticsService {
             new MetricDefinition("wardKilledPerGame", "场均排眼", true, PlayerStatistics::wardKilledPerGame, false),
             new MetricDefinition("killParticipantPercent", "参团率", true, PlayerStatistics::killParticipantPercent, false),
             new MetricDefinition("goldGapPerGame", "场均经济差", true, PlayerStatistics::goldGapPerGame, false),
+            new MetricDefinition("damagePerGame", "伤害", true, PlayerStatistics::damagePerGame, false),
             new MetricDefinition("damagePercent", "伤害占比", true, PlayerStatistics::damagePercent, false),
             new MetricDefinition("goldPercent", "经济占比", true, PlayerStatistics::goldPercent, false)
     );
@@ -224,13 +225,18 @@ public class PlayerDetailStatisticsService {
     }
 
     private List<RankedPlayerMetric> coreMetrics(PlayerStatistics target, List<PlayerStatistics> cohort) {
+        // 逐局类指标（如伤害）在未回采的赛段为 null：当前选手缺失时整项隐藏；部分选手缺失时只在可比样本中排名
         return CORE_METRICS.stream()
+                .filter(definition -> definition.value().apply(target) != null)
                 .map(definition -> {
+                    List<PlayerStatistics> comparablePlayers = cohort.stream()
+                            .filter(player -> definition.value().apply(player) != null)
+                            .toList();
                     BigDecimal value = definition.value().apply(target);
-                    int rank = rank(value, definition.higherIsBetter(), definition.value(), cohort);
+                    int rank = rank(value, definition.higherIsBetter(), definition.value(), comparablePlayers);
                     String formatted = formatMetricValue(definition, value);
                     return new RankedPlayerMetric(definition.key(), definition.label(), value,
-                            formatted, rank, cohort.size(), definition.higherIsBetter());
+                            formatted, rank, comparablePlayers.size(), definition.higherIsBetter());
                 })
                 .toList();
     }
