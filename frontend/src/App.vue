@@ -22,6 +22,7 @@ import MatchesPage from './MatchesPage.vue'
 import PlayerComparePage from './PlayerComparePage.vue'
 import CollectionsPage from './CollectionsPage.vue'
 import LeaderboardsPage from './LeaderboardsPage.vue'
+import DraftPage from './DraftPage.vue'
 import { formatPercent } from './formatters'
 
 type ActiveView =
@@ -33,12 +34,13 @@ type ActiveView =
   | 'compare'
   | 'collections'
   | 'leaderboards'
+  | 'draft'
 
 const STATISTIC_VIEWS: ReadonlySet<ActiveView> = new Set([
   'champion', 'team', 'player', 'combo', 'leaderboards',
 ])
 const VIEW_VALUES: ReadonlySet<string> = new Set([
-  'champion', 'team', 'player', 'combo', 'matches', 'compare', 'collections', 'leaderboards',
+  'champion', 'team', 'player', 'combo', 'matches', 'compare', 'collections', 'leaderboards', 'draft',
 ])
 
 const CHAMPION_COLUMNS: ColumnOption[] = [
@@ -119,6 +121,7 @@ const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   /* 占位：collections 视图不使用赛段可用性（controls 区隐藏） */
   collections: 'HERO',
   leaderboards: 'PLAYER',
+  draft: 'HERO',
 }
 
 const MATCHES_SORT_FIELDS = new Set(['startTime', 'matchId'])
@@ -154,8 +157,14 @@ const matchesSortDirection = ref<'asc' | 'desc'>('desc')
 const matchesOffset = ref(0)
 const comparePositionFilter = ref('')
 const compareMinimumMatchCount = ref(5)
+/** 选手对比：搜索关键字与已选选手 id 持久化到 URL（compareKeyword/comparePlayers），返回对比页可恢复 */
+const compareSearchKeyword = ref('')
+const compareSelectedPlayerIds = ref<number[]>([])
 /** 排行榜手动刷新信号：主查询按钮在排行榜视图下触发一次重载 */
 const leaderboardsRefreshKey = ref(0)
+/** 排行榜面板加载状态与数据版本（由 LeaderboardsPage 上报，用于按钮反馈与数据版本展示） */
+const leaderboardsBusy = ref(false)
+const leaderboardsDataVersion = ref<number | null>(null)
 /** 对局赛果查询是否已提交（点击"查询统计"后为 true，赛段变化/切视图时重置） */
 const submittedMatchesQuery = ref(false)
 const search = ref('')
@@ -305,6 +314,14 @@ function restoreQueryFromLocation(): boolean {
       compareMinimumMatchCount.value = compareMinimum
     }
   }
+  const compareKeyword = params.get('compareKeyword') ?? ''
+  if (compareKeyword.length <= 200) compareSearchKeyword.value = compareKeyword
+  const comparePlayersRaw = (params.get('comparePlayers') ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => /^\d+$/.test(key))
+    .map(Number)
+  compareSelectedPlayerIds.value = [...new Set(comparePlayersRaw)].slice(0, 5)
 
   const restoredMatchesSort = params.get('matchesSortBy') ?? ''
   if (MATCHES_SORT_FIELDS.has(restoredMatchesSort)) matchesSortBy.value = restoredMatchesSort as 'startTime' | 'matchId'
@@ -398,10 +415,14 @@ function buildQueryString(): string {
   } else if (activeView.value === 'compare') {
     if (comparePositionFilter.value) params.set('comparePosition', comparePositionFilter.value)
     params.set('compareMinimumMatchCount', String(compareMinimumMatchCount.value))
+    if (compareSearchKeyword.value.trim()) params.set('compareKeyword', compareSearchKeyword.value.trim())
+    if (compareSelectedPlayerIds.value.length) params.set('comparePlayers', compareSelectedPlayerIds.value.join(','))
   } else if (activeView.value === 'leaderboards') {
     /* 排行榜无额外持久化参数 */
   } else if (activeView.value === 'collections') {
     /* 采集状态视图无专属统计参数 */
+  } else if (activeView.value === 'draft') {
+    /* BP 模拟器无需持久化参数 */
   } else {
     params.set('combinationType', combinationType.value)
     params.set('minimumCombinationPickCount', String(minimumCombinationPickCount.value))
@@ -546,6 +567,7 @@ const currentDataVersion = computed(() => {
   if (activeView.value === 'champion') return result.value?.dataVersion
   if (activeView.value === 'team') return teamResult.value?.dataVersion
   if (activeView.value === 'player') return playerResult.value?.dataVersion
+  if (activeView.value === 'leaderboards') return leaderboardsDataVersion.value
   return combinationResult.value?.dataVersion
 })
 
@@ -563,7 +585,7 @@ const activeMinimumValid = computed(() =>
 )
 
 const canQuery = computed(() => {
-  if (busy.value || availabilityLoading.value) return false
+  if (busy.value || leaderboardsBusy.value || availabilityLoading.value) return false
   return selectedStageKeys.value.size > 0 && activeMinimumValid.value
 })
 
@@ -671,6 +693,8 @@ function clearStatisticsResults() {
   combinationResult.value = null
   submittedPlayerQuery.value = null
   submittedMatchesQuery.value = false
+  leaderboardsDataVersion.value = null
+  leaderboardsBusy.value = false
 }
 
 function clearActiveResult(view: ActiveView) {
@@ -718,6 +742,7 @@ watch(
   [activeView, browsedSeasonId, selectedStageKeys, minimumPickCount, minimumMatchCount, minimumCombinationPickCount,
    positionFilter, playerPositionFilter, combinationType,
    matchesSortBy, matchesSortDirection, matchesOffset, comparePositionFilter, compareMinimumMatchCount,
+   compareSearchKeyword, compareSelectedPlayerIds,
    sortBy, championSortDirection, teamSortBy, teamSortDirection,
    playerSortBy, playerSortDirection, combinationSortBy, combinationSortDirection,
    search, teamSearch, playerSearch, combinationSearch,
@@ -787,7 +812,7 @@ async function query(preserveCurrentResult = false) {
     return
   }
   /* 选手对比/采集状态由各自面板自行查询，不参与统计查询 */
-  if (view === 'compare' || view === 'collections') return
+  if (view === 'compare' || view === 'collections' || view === 'draft') return
   /* 排行榜：面板随赛段自动加载，主按钮触发一次手动刷新 */
   if (view === 'leaderboards') {
     if (!selectedStageKeys.value.size) return
@@ -1140,7 +1165,7 @@ onMounted(async () => {
         <small v-if="!minimumMatchCountValid" class="field-error">请输入 0 到 10000 之间的整数</small>
       </div>
       <div v-if="STATISTIC_VIEWS.has(activeView) || activeView === 'matches'" class="actions">
-        <button class="primary" :disabled="!canQuery" @click="query()">{{ busy ? '处理中…' : '查询统计' }}</button>
+        <button class="primary" :disabled="!canQuery" @click="query()">{{ busy || leaderboardsBusy ? '处理中…' : '查询统计' }}</button>
       </div>
 
       <!-- 赛段浏览器 -->
@@ -1680,6 +1705,8 @@ onMounted(async () => {
         :stage-keys="[...selectedStageKeys]"
         v-model:position-filter="comparePositionFilter"
         v-model:minimum-match-count="compareMinimumMatchCount"
+        v-model:search-keyword="compareSearchKeyword"
+        v-model:selected-player-ids="compareSelectedPlayerIds"
       />
     </section>
 
@@ -1688,12 +1715,19 @@ onMounted(async () => {
       <LeaderboardsPage
         :stage-keys="[...selectedStageKeys]"
         :refresh-key="leaderboardsRefreshKey"
+        @loading="leaderboardsBusy = $event"
+        @loaded="leaderboardsDataVersion = $event"
       />
     </section>
 
     <!-- 采集状态面板 -->
     <section v-if="activeView === 'collections'" class="panel table-panel">
       <CollectionsPage />
+    </section>
+
+    <!-- BP 模拟器面板 -->
+    <section v-if="activeView === 'draft'" class="panel table-panel">
+      <DraftPage :stage-keys="[...selectedStageKeys]" />
     </section>
   </main>
 </template>

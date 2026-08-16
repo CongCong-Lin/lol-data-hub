@@ -21,6 +21,8 @@ vi.mock('./api', () => ({
     matchGames: vi.fn(),
     collectionStatus: vi.fn(),
     playerDetail: vi.fn(),
+    eloRatings: vi.fn(),
+    championVersionCompare: vi.fn(),
   },
 }))
 
@@ -182,6 +184,22 @@ beforeEach(() => {
   vi.mocked(api.teamStatisticsByKeys).mockResolvedValue(teamResult)
   vi.mocked(api.playerStatisticsByKeys).mockResolvedValue(playerResult)
   vi.mocked(api.teamCombinationStatisticsByKeys).mockResolvedValue(combinationResult)
+  vi.mocked(api.eloRatings).mockResolvedValue({
+    totalGames: 12,
+    ratings: [{
+      teamId: 1,
+      teamName: 'TES',
+      teamLogo: null,
+      rating: 1612,
+      rank: 1,
+      games: 12,
+      wins: 7,
+      losses: 5,
+      seriesCount: 4,
+      ratingHistory: [1500, 1550, 1612],
+    }],
+  })
+  vi.mocked(api.championVersionCompare).mockResolvedValue({ fromDate: '2026-03-01', toDate: '2026-03-08', items: [] })
   vi.mocked(api.matchGames).mockResolvedValue({
     dataVersion: 17,
     total: 2,
@@ -236,6 +254,17 @@ beforeEach(() => {
     changedRecords: 120,
     errorMessage: null,
   }])
+  vi.mocked(api.eloRatings).mockResolvedValue({
+    totalGames: 12,
+    ratings: [
+      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1500, rank: 1, games: 12, wins: 7, losses: 5, seriesCount: 3, ratingHistory: [1500, 1510] },
+    ],
+  })
+  vi.mocked(api.championVersionCompare).mockResolvedValue({
+    fromDate: '2026-07-01',
+    toDate: '2026-08-01',
+    items: [],
+  })
 })
 
 afterEach(() => {
@@ -989,6 +1018,78 @@ describe('页内视图切换（对局赛果 / 选手对比 / 采集状态）', (
     expect(wrapper.find('.collections-panel').exists()).toBe(true)
     expect(vi.mocked(api.collectionStatus)).toHaveBeenCalledWith(50)
     expect(wrapper.text()).toContain('对局明细')
+    wrapper.unmount()
+  })
+
+  it('点击导航切换到 BP 模拟器并写入地址栏', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await clickNav(wrapper, 'BP 模拟器')
+
+    expect(wrapper.find('.draft-page').exists()).toBe(true)
+    expect(wrapper.find('.view-tabs').exists()).toBe(false)
+    expect(window.location.search).toContain('view=draft')
+    wrapper.unmount()
+  })
+
+  it('带 view=draft 参数进入时恢复 BP 模拟器并按赛段拉取英雄池', async () => {
+    window.history.replaceState({}, '', '/?view=draft&season=237&stageKeys=237%3A100')
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.draft-page').exists()).toBe(true)
+    expect(wrapper.find('.controls').exists()).toBe(true)
+    expect(wrapper.find('.view-tabs').exists()).toBe(false)
+    expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(['237:100'], 1, '', 'winningRate', 'desc')
+    wrapper.unmount()
+  })
+
+  it('排行榜加载完成后显示数据版本与按钮反馈', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    // 先选中一个赛段，排行榜才加载数据（与对局赛果一致）
+    await wrapper.get('button.stage-chip').trigger('click')
+    await flushPromises()
+
+    // 排行榜位于统计视图的页内标签，非站点导航
+    const leaderboardTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '排行榜')
+    expect(leaderboardTab).toBeDefined()
+    await leaderboardTab!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.leaderboard-card').exists()).toBe(true)
+    // 数据版本来自排行榜 load 上抛的 playerResult.dataVersion（6）
+    expect(wrapper.text()).toContain('数据版本')
+    expect(wrapper.text()).toContain('6')
+    wrapper.unmount()
+  })
+
+  it('带 view=compare 参数进入时恢复搜索关键字与已选选手', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?view=compare&season=237&stageKeys=237%3A100&comparePosition=TOP&compareMinimumMatchCount=7&compareKeyword=Top&comparePlayers=1',
+    )
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.compare-panel').exists()).toBe(true)
+    expect((wrapper.get('.compare-panel input[type="search"]').element as HTMLInputElement).value).toBe('Top')
+    // 已选选手从列表重建并显示在已选篮中
+    const basketItems = wrapper.findAll('.selected-players .basket-item')
+    expect(basketItems).toHaveLength(1)
+    expect(basketItems[0].text()).toContain('TopPlayer')
+    expect(window.location.search).toContain('compareKeyword=Top')
+    expect(window.location.search).toContain('comparePlayers=1')
     wrapper.unmount()
   })
 })
