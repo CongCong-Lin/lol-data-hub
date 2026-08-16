@@ -73,8 +73,11 @@ done
 log "backend 已使用新凭据重启并就绪"
 
 # 3) 同步官网赛季/赛段目录
-# 不传赛季时自动同步所有"进行中"赛季；再对数据库里最新的赛季带参同步一次，
-# 保证新赛季/新赛段开放后目录能自动跟上
+# 官网 openStatus 实测长期为 false（所有赛季含进行中的都返回 0），不能用于发现"进行中赛季"。
+# 无参调用仍会全量 upsert 赛季列表（sync 内部先写 season 表再按 openStatus 过滤赛段）。
+# 新赛季发现：对 season 表中"比已有赛段更新的赛季"逐个尝试同步赛段目录；
+# 官网目录里存在非正赛条目（其 stage 接口可能返回 seasonId=0 全局字典而被解析器拒绝），
+# 因此失败只告警不中止，避免异常条目阻断每日采集。
 query_db() {
   docker compose --env-file ../.env exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -B "$MYSQL_DATABASE" -e "$1" 2>/dev/null
 }
@@ -84,6 +87,20 @@ printf '%s' "$SYNC_RESP" | grep -q '"success":true' || fail "目录同步返回�
 SYNC_STAGES="$(printf '%s' "$SYNC_RESP" | grep -oE '"stageCount":[0-9]+' | head -n1 | cut -d: -f2)"
 log "目录同步完成（进行中赛季同步赛段数: ${SYNC_STAGES:-0}）"
 
+LATEST_STAGE_SEASON="$(query_db "SELECT MAX(source_season_id) FROM stage;")"
+for NEW_SEASON in $(query_db "SELECT source_season_id FROM season WHERE source_season_id > COALESCE($LATEST_STAGE_SEASON, 0) ORDER BY source_season_id;"); do
+  [ -n "$NEW_SEASON" ] || continue
+  log "发现尚未同步赛段的赛季 $NEW_SEASON，尝试同步其赛段目录"
+  if SYNC_NEW="$(curl -fsS --max-time 300 -X POST "$API_BASE/api/internal/catalog/sync?seasonId=$NEW_SEASON" -H "X-Internal-Token: $INTERNAL_API_TOKEN")" \
+     && printf '%s' "$SYNC_NEW" | grep -q '"success":true'; then
+    NEW_STAGES="$(printf '%s' "$SYNC_NEW" | grep -oE '"stageCount":[0-9]+' | head -n1 | cut -d: -f2)"
+    log "新赛季 $NEW_SEASON 目录同步完成（赛段数: ${NEW_STAGES:-0}）"
+  else
+    log "WARN: 赛季 $NEW_SEASON 赛段目录同步失败（可能是官网目录中的非正赛条目），本次跳过"
+  fi
+done
+
+# 刷新最新已知赛季的赛段目录（覆盖赛季进行中新增的赛段）
 LATEST_SEASON="$(query_db "SELECT MAX(source_season_id) FROM stage;")"
 if [ -n "$LATEST_SEASON" ]; then
   SYNC_LATEST="$(curl -fsS --max-time 300 -X POST "$API_BASE/api/internal/catalog/sync?seasonId=$LATEST_SEASON" -H "X-Internal-Token: $INTERNAL_API_TOKEN")" \

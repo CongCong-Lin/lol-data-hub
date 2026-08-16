@@ -209,6 +209,41 @@ class PlayerCollectionServiceTest {
         verify(collectionMapper).finishRun(eq(42L), eq("SUCCESS"), any(), eq(4), isNull());
     }
 
+    @Test
+    void enrichmentFallbackKeepsExistingTeamDetailMetrics() {
+        // heroRecord 拉取失败（mock 返回 null）触发精确指标回退
+        String json = validJson();
+        when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+        when(teamDetailMetricWriteMapper.countCurrentForStage(1L, 100L)).thenReturn(3);
+        executeTransactionsImmediately();
+
+        CollectionResult result = service.collect(1L, List.of(100L));
+
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        verify(teamDetailMetricWriteMapper, never()).deleteCurrentForStage(anyLong(), anyLong());
+        verify(teamDetailMetricWriteMapper, never()).upsertCurrent(any());
+        verify(teamDetailMetricWriteMapper, never()).insertSnapshot(any());
+        // 选手统计仍正常发布并递增版本
+        verify(writeMapper).deleteCurrentForStage(1L, 100L);
+        verify(writeMapper).upsertCurrent(any());
+        verify(systemStateMapper).incrementDataVersion();
+    }
+
+    @Test
+    void enrichmentFallbackWithoutExistingMetricsStillCleansCurrent() {
+        String json = validJson();
+        when(client.fetchPlayerStatistics(1L, 100L)).thenReturn(json);
+        when(statisticsMapper.findCurrentContentHash(1L, 100L)).thenReturn("different-hash");
+        when(teamDetailMetricWriteMapper.countCurrentForStage(1L, 100L)).thenReturn(0);
+        executeTransactionsImmediately();
+
+        service.collect(1L, List.of(100L));
+
+        verify(teamDetailMetricWriteMapper).deleteCurrentForStage(1L, 100L);
+        verify(teamDetailMetricWriteMapper, never()).upsertCurrent(any());
+    }
+
     private void executeTransactionsImmediately() {
         when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             org.springframework.transaction.support.TransactionCallback<?> callback = invocation.getArgument(0);

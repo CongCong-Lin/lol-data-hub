@@ -160,17 +160,25 @@ public class PlayerCollectionService {
                         writeMapper.upsertCurrent(stat);
                         writeMapper.insertSnapshot(stat);
                     }
-                    teamDetailMetricWriteMapper.deleteCurrentForStage(seasonId, stageId);
-                    for (TeamStageDetailMetric metric : candidate.exactData().teamMetrics()) {
-                        TeamStageDetailMetricWrite write = new TeamStageDetailMetricWrite(
-                                runId, seasonId, stageId, metric.teamId(), metric.gameCount(),
-                                metric.totalAssists(), metric.totalDamage(), metric.totalGameSeconds(), metric.totalGold(),
-                                metric.totalWardsPlaced(), metric.totalWardsKilled(), metric.totalMinionKills(),
-                                metric.totalDragons(), metric.totalDragonOpportunities(), metric.totalBarons(),
-                                metric.totalBaronOpportunities(), metric.totalTurrets(), metric.totalTurretsLost(),
-                                metric.firstBloodGames(), candidate.collectedAt());
-                        teamDetailMetricWriteMapper.upsertCurrent(write);
-                        teamDetailMetricWriteMapper.insertSnapshot(write);
+                    boolean keepExistingTeamMetrics = candidate.exactData().fallback()
+                            && teamDetailMetricWriteMapper.countCurrentForStage(seasonId, stageId) > 0;
+                    if (keepExistingTeamMetrics) {
+                        // 精确指标计算失败时不能用空集覆盖已发布的战队明细指标；
+                        // 选手精确比例已回退官网聚合值，战队指标保留上一次成功采集的结果。
+                        log.warn("PLAYER {}:{} 精确指标计算失败，保留上一次的战队明细指标", seasonId, stageId);
+                    } else {
+                        teamDetailMetricWriteMapper.deleteCurrentForStage(seasonId, stageId);
+                        for (TeamStageDetailMetric metric : candidate.exactData().teamMetrics()) {
+                            TeamStageDetailMetricWrite write = new TeamStageDetailMetricWrite(
+                                    runId, seasonId, stageId, metric.teamId(), metric.gameCount(),
+                                    metric.totalAssists(), metric.totalDamage(), metric.totalGameSeconds(), metric.totalGold(),
+                                    metric.totalWardsPlaced(), metric.totalWardsKilled(), metric.totalMinionKills(),
+                                    metric.totalDragons(), metric.totalDragonOpportunities(), metric.totalBarons(),
+                                    metric.totalBaronOpportunities(), metric.totalTurrets(), metric.totalTurretsLost(),
+                                    metric.firstBloodGames(), candidate.collectedAt());
+                            teamDetailMetricWriteMapper.upsertCurrent(write);
+                            teamDetailMetricWriteMapper.insertSnapshot(write);
+                        }
                     }
                 }
                 systemStateMapper.incrementDataVersion();
@@ -318,12 +326,13 @@ public class PlayerCollectionService {
             return new ExactStageData(
                     Map.copyOf(result),
                     aggregateTeamMetrics(metricsByGamePlayer.values(), teamMetricsByGame,
-                            extendedTeamMetricsAvailable));
+                            extendedTeamMetricsAvailable),
+                    false);
         } catch (RuntimeException exception) {
             log.warn("PLAYER {}:{} 无法从本地比赛详情计算精确指标，回退官网聚合比例: {}",
                     seasonId, stageId, exception.getMessage());
             appendHashMaterial(hashMaterial, "exact-rates", "fallback");
-            return new ExactStageData(Map.of(), List.of());
+            return new ExactStageData(Map.of(), List.of(), true);
         }
     }
 
@@ -580,7 +589,8 @@ public class PlayerCollectionService {
 
     private record ExactStageData(
             Map<Long, ExactPlayerRates> playerRates,
-            List<TeamStageDetailMetric> teamMetrics
+            List<TeamStageDetailMetric> teamMetrics,
+            boolean fallback
     ) {
     }
 

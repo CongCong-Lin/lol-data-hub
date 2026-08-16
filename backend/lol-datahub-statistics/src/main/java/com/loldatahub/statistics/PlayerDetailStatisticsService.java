@@ -279,14 +279,22 @@ public class PlayerDetailStatisticsService {
                 .toList();
     }
 
+    /**
+     * 职业场均对比。与核心指标口径一致：当前选手缺失某项数据时整项隐藏，
+     * 平均值/最值/排名只在拥有该项数据的同位置选手中计算，缺失数据不按 0 参与统计。
+     */
     private List<PlayerAverageContrastMetric> averageContrastMetrics(PlayerStatistics target,
                                                                       List<PlayerStatistics> cohort) {
         return AVERAGE_CONTRAST_METRICS.stream()
+                .filter(definition -> definition.value().apply(target) != null)
                 .map(definition -> {
-                    BigDecimal value = safeValue(definition, target);
-                    List<BigDecimal> values = cohort.stream()
-                            .map(player -> safeValue(definition, player))
+                    List<PlayerStatistics> comparablePlayers = cohort.stream()
+                            .filter(player -> definition.value().apply(player) != null)
                             .toList();
+                    List<BigDecimal> values = comparablePlayers.stream()
+                            .map(definition.value())
+                            .toList();
+                    BigDecimal value = definition.value().apply(target);
                     BigDecimal minValue = values.stream()
                             .min(BigDecimal::compareTo)
                             .orElse(BigDecimal.ZERO);
@@ -295,8 +303,9 @@ public class PlayerDetailStatisticsService {
                             .orElse(BigDecimal.ZERO);
                     return new PlayerAverageContrastMetric(
                             definition.key(), definition.label(), value, average(values), minValue, maxValue,
-                            rank(value, definition.higherIsBetter(), player -> safeValue(definition, player), cohort),
-                            cohort.size(), definition.higherIsBetter(), PERCENT_METRICS.contains(definition.key()));
+                            rank(value, definition.higherIsBetter(), definition.value(), comparablePlayers),
+                            comparablePlayers.size(), definition.higherIsBetter(),
+                            PERCENT_METRICS.contains(definition.key()));
                 })
                 .toList();
     }
@@ -331,11 +340,6 @@ public class PlayerDetailStatisticsService {
         BigDecimal fraction = index.subtract(BigDecimal.valueOf(lowerIndex));
         return sorted.get(lowerIndex).add(sorted.get(upperIndex).subtract(sorted.get(lowerIndex))
                 .multiply(fraction));
-    }
-
-    private BigDecimal safeValue(MetricDefinition definition, PlayerStatistics player) {
-        BigDecimal value = definition.value().apply(player);
-        return value == null ? BigDecimal.ZERO : value;
     }
 
     /** 竞赛排名：1 + 严格优于当前选手的人数，并列同名次。 */

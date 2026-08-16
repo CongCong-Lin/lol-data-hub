@@ -188,6 +188,32 @@ class PlayerDetailStatisticsServiceTest {
     }
 
     @Test
+    void hidesContrastRowWithoutDamageDataAndExcludesNullsFromStatistics() {
+        mockCohort(List.of(
+                player(11L, "Bin", bd("4"), bd("3"), bd("1")),
+                playerWithoutDamage(12L, "Zeus", bd("6"), bd("5"), bd("2"))));
+
+        PlayerDetailStatisticsResult withDamage = service.query(
+                new PlayerDetailQuery(11L, STAGES, "TOP", 5));
+        PlayerAverageContrastMetric damage = withDamage.averageContrastMetrics().stream()
+                .filter(metric -> metric.key().equals("damagePerGame"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(damage.averageValue()).isEqualByComparingTo("800");
+        assertThat(damage.minValue()).isEqualByComparingTo("800");
+        assertThat(damage.maxValue()).isEqualByComparingTo("800");
+        assertThat(damage.rank()).isEqualTo(1);
+        assertThat(damage.cohortSize()).isEqualTo(1);
+
+        PlayerDetailStatisticsResult withoutDamage = service.query(
+                new PlayerDetailQuery(12L, STAGES, "TOP", 5));
+        assertThat(withoutDamage.averageContrastMetrics())
+                .extracting(PlayerAverageContrastMetric::key)
+                .doesNotContain("damagePerGame");
+        assertThat(withoutDamage.averageContrastMetrics()).hasSize(6);
+    }
+
+    @Test
     void lowerDeathPerGameRanksFirst() {
         mockCohort(List.of(
                 player(11L, "Bin", bd("4"), bd("3"), bd("3")),

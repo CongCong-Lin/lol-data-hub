@@ -5,9 +5,16 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface TeamStageDetailMetricWriteMapper {
+    @Select("""
+            SELECT COUNT(*) FROM team_stage_detail_metric_current
+            WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
+            """)
+    int countCurrentForStage(@Param("seasonId") long seasonId, @Param("stageId") long stageId);
+
     @Delete("""
             DELETE FROM team_stage_detail_metric_current
             WHERE source_season_id = #{seasonId} AND source_stage_id = #{stageId}
