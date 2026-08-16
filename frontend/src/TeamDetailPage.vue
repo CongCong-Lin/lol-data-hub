@@ -16,6 +16,14 @@ const result = ref<TeamDetailStatisticsResult | null>(null)
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单', JUN: '打野', MID: '中路', BOT: '下路', SUP: '辅助',
 }
+const LINEUP_POSITION_OPTIONS = [
+  { value: 'TOP', label: '上单' },
+  { value: 'JUN', label: '打野' },
+  { value: 'MID', label: '中路' },
+  { value: 'BOT', label: '下路' },
+  { value: 'SUP', label: '辅助' },
+]
+const lineupPositionFilter = ref('')
 
 const queryParams = computed(() => {
   const stageKeys = String(route.query.stageKeys ?? '')
@@ -59,6 +67,12 @@ watch(queryParams, load, { immediate: true, deep: true })
 function positionLabel(position: string): string {
   return POSITION_LABELS[position] ?? position
 }
+
+const filteredLineupPreferences = computed(() => {
+  const list = result.value?.lineupPreferences ?? []
+  if (!lineupPositionFilter.value) return list
+  return list.filter((pref) => pref.position === lineupPositionFilter.value)
+})
 
 function fmtPercent(rate: number | null | undefined): string {
   if (rate == null) return '-'
@@ -186,7 +200,23 @@ function playerHref(sourcePlayerId: number, position: string): string {
       <section class="detail-card">
         <h2 class="detail-heading">{{ t('teamDetail.lineup') }}</h2>
         <p class="detail-subheading">{{ t('teamDetail.lineupNote') }}</p>
-        <template v-if="result.lineupPreferences.length">
+        <div class="position-filter" aria-label="阵容偏好分路筛选">
+          <button
+            class="pos-chip"
+            :class="{ active: lineupPositionFilter === '' }"
+            :aria-pressed="lineupPositionFilter === ''"
+            @click="lineupPositionFilter = ''"
+          >全部</button>
+          <button
+            v-for="opt in LINEUP_POSITION_OPTIONS"
+            :key="opt.value"
+            class="pos-chip"
+            :class="{ active: lineupPositionFilter === opt.value }"
+            :aria-pressed="lineupPositionFilter === opt.value"
+            @click="lineupPositionFilter = opt.value"
+          >{{ opt.label }}</button>
+        </div>
+        <template v-if="filteredLineupPreferences.length">
           <div class="table-scroll lineup-table">
             <table class="detail-table">
               <thead>
@@ -200,7 +230,7 @@ function playerHref(sourcePlayerId: number, position: string): string {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="pref in result.lineupPreferences" :key="`${pref.position}:${pref.sourceChampionId}`">
+                <tr v-for="pref in filteredLineupPreferences" :key="`${pref.position}:${pref.sourceChampionId}`">
                   <td>
                     <span class="pos-badge">{{ positionLabel(pref.position) }}</span>
                   </td>
@@ -223,6 +253,7 @@ function playerHref(sourcePlayerId: number, position: string): string {
             </table>
           </div>
         </template>
+        <p v-else-if="lineupPositionFilter" class="detail-notice-inline">{{ t('teamDetail.noLineupForPosition') }}</p>
         <p v-else class="detail-notice-inline">{{ t('teamDetail.noRecentGames') }}</p>
       </section>
 
@@ -356,6 +387,13 @@ function playerHref(sourcePlayerId: number, position: string): string {
 .detail-table thead th { color: var(--text-3); font-size: 12px; background: var(--th-bg); }
 .detail-table td.accent { color: var(--accent-dark); font-weight: 650; }
 .table-scroll { max-height: 460px; overflow: auto; }
+.position-filter { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 12px; }
+.pos-chip {
+  padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px;
+  color: var(--muted); background: var(--chip-bg); font-size: 12px; font-weight: 600;
+}
+.pos-chip:hover { border-color: var(--line-strong); color: var(--text-2); background: var(--panel); }
+.pos-chip.active { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
 .pos-badge {
   display: inline-block; padding: 2px 8px; border: 1px solid var(--accent-line); border-radius: 999px;
   color: var(--accent-dark); background: var(--accent-soft); font-size: 11px; font-weight: 650;

@@ -151,6 +151,52 @@ describe('TeamDetailPage', () => {
     wrapper.unmount()
   })
 
+  it('阵容偏好提供全部与五路筛选按钮，筛选无结果时提示', async () => {
+    const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
+    await flushPromises()
+
+    const chips = wrapper.findAll('button.pos-chip')
+    expect(chips.map((chip) => chip.text())).toEqual(['全部', '上单', '打野', '中路', '下路', '辅助'])
+    expect(wrapper.get('.lineup-table').text()).toContain('阿卡丽')
+
+    const jungle = chips.find((chip) => chip.text() === '打野')!
+    await jungle.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.lineup-table').exists()).toBe(false)
+    expect(wrapper.text()).toContain('该分路暂无已采集的英雄出场记录')
+
+    const all = wrapper.findAll('button.pos-chip').find((chip) => chip.text() === '全部')!
+    await all.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.lineup-table').text()).toContain('阿卡丽')
+    wrapper.unmount()
+  })
+
+  it('阵容偏好分路筛选只展示所选分路的英雄', async () => {
+    vi.mocked(api.teamDetail).mockResolvedValue(detailResult({
+      lineupPreferences: [
+        {
+          position: 'TOP', sourceChampionId: 150, championName: 'Gnar', championChineseName: '纳尔', championLogo: null,
+          pickCount: 3, pickRate: 0.3, winningCount: 2, winningRate: 0.67,
+        },
+        {
+          position: 'BOT', sourceChampionId: 202, championName: 'Jinx', championChineseName: '金克丝', championLogo: null,
+          pickCount: 5, pickRate: 0.5, winningCount: 4, winningRate: 0.8,
+        },
+      ],
+    }))
+    const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
+    await flushPromises()
+
+    const bottom = wrapper.findAll('button.pos-chip').find((chip) => chip.text() === '下路')!
+    await bottom.trigger('click')
+    await flushPromises()
+    const tableText = wrapper.get('.lineup-table').text()
+    expect(tableText).toContain('金克丝')
+    expect(tableText).not.toContain('纳尔')
+    wrapper.unmount()
+  })
+
   it('选手名单行链接到选手详情页并映射分路', async () => {
     const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
     await flushPromises()

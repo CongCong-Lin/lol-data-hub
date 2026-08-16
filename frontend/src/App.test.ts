@@ -719,6 +719,23 @@ describe('详情链接与 URL 状态同步', () => {
     wrapper.unmount()
   })
 
+  it('战队统计列表场均输出去掉两位小数显示为整数', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await selectFirstStage(wrapper)
+    const teamTab = wrapper.findAll('button.tab-btn').find((button) => button.text() === '战队统计')
+    await teamTab!.trigger('click')
+    await flushPromises()
+    await wrapper.get('button.primary').trigger('click')
+    await flushPromises()
+
+    const tableText = wrapper.get('.team-table').text()
+    expect(tableText).toContain('42181')
+    expect(tableText).not.toContain('42180.50')
+    wrapper.unmount()
+  })
+
   it('未选择赛段时英雄与战队不渲染详情链接', async () => {
     const wrapper = mount(App)
     await flushPromises()

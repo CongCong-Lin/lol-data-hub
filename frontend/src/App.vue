@@ -1142,35 +1142,31 @@ onMounted(async () => {
     <!-- 英雄统计面板 -->
     <section v-if="activeView === 'champion'" class="panel table-panel">
       <div class="table-toolbar">
-        <div>
-          <p class="eyebrow">CHAMPION STATISTICS</p>
-          <h2>英雄统计</h2>
-        </div>
-        <div class="toolbar-right">
-          <div class="toolbar-options-row">
-            <div class="position-filter">
-              <button
-                v-for="opt in CHAMPION_POSITION_OPTIONS"
-                :key="opt.value"
-                class="pos-chip"
-                :class="{ active: positionFilter === opt.value }"
-                :aria-pressed="positionFilter === opt.value"
-                @click="positionFilter = opt.value"
-              >
-                {{ opt.label }}
-              </button>
-            </div>
-            <ColumnVisibilityMenu v-model="championVisibleColumns" :columns="CHAMPION_COLUMNS" />
-            <button class="export-button" type="button" :disabled="exporting || !filteredChampionItems.length" @click="exportExcel">
-              {{ exporting ? '导出中…' : '导出 Excel' }}
+        <p class="eyebrow">CHAMPION STATISTICS</p>
+        <div class="toolbar-options-row">
+          <div class="position-filter">
+            <button
+              v-for="opt in CHAMPION_POSITION_OPTIONS"
+              :key="opt.value"
+              class="pos-chip"
+              :class="{ active: positionFilter === opt.value }"
+              :aria-pressed="positionFilter === opt.value"
+              @click="positionFilter = opt.value"
+            >
+              {{ opt.label }}
             </button>
           </div>
-          <div class="search-wrap">
-            <input v-model="search" type="search" placeholder="搜索英雄、称号" />
-            <span>{{ filteredChampionItems.length }} 项</span>
-          </div>
-          </div>
+          <ColumnVisibilityMenu v-model="championVisibleColumns" :columns="CHAMPION_COLUMNS" />
+          <button class="export-button" type="button" :disabled="exporting || !filteredChampionItems.length" @click="exportExcel">
+            {{ exporting ? '导出中…' : '导出 Excel' }}
+          </button>
         </div>
+        <h2>英雄统计</h2>
+        <div class="search-wrap">
+          <input v-model="search" type="search" placeholder="搜索英雄、称号" />
+          <span>{{ filteredChampionItems.length }} 项</span>
+        </div>
+      </div>
         <p v-if="positionFilter" class="position-note">
           出场、胜负与 KDA 按实际分路独立统计；英雄被禁用时没有实际分路，禁用指标按所选赛段整体计算，BP 率为该分路出场率与整体禁用率之和。
         </p>
@@ -1255,21 +1251,17 @@ onMounted(async () => {
     <!-- 战队统计面板 -->
     <section v-if="activeView === 'team'" class="panel table-panel">
       <div class="table-toolbar">
-        <div>
-          <p class="eyebrow">TEAM STATISTICS</p>
-          <h2>战队统计</h2>
+        <p class="eyebrow">TEAM STATISTICS</p>
+        <div class="toolbar-options-row">
+          <ColumnVisibilityMenu v-model="teamVisibleColumns" :columns="TEAM_COLUMNS" />
+          <button class="export-button" type="button" :disabled="exporting || !filteredTeamItems.length" @click="exportExcel">
+            {{ exporting ? '导出中…' : '导出 Excel' }}
+          </button>
         </div>
-        <div class="toolbar-right">
-          <div class="toolbar-options-row">
-            <ColumnVisibilityMenu v-model="teamVisibleColumns" :columns="TEAM_COLUMNS" />
-            <button class="export-button" type="button" :disabled="exporting || !filteredTeamItems.length" @click="exportExcel">
-              {{ exporting ? '导出中…' : '导出 Excel' }}
-            </button>
-          </div>
-          <div class="search-wrap">
-            <input v-model="teamSearch" type="search" placeholder="搜索战队" />
-            <span>{{ filteredTeamItems.length }} 项</span>
-          </div>
+        <h2>战队统计</h2>
+        <div class="search-wrap">
+          <input v-model="teamSearch" type="search" placeholder="搜索战队" />
+          <span>{{ filteredTeamItems.length }} 项</span>
         </div>
       </div>
 
@@ -1334,7 +1326,7 @@ onMounted(async () => {
               <td v-if="isColumnVisible(teamVisibleColumns, 'totalKills')">{{ item.totalKills }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'killPerGame')">{{ fmtDecimal(item.killPerGame) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'deathPerGame')">{{ fmtDecimal(item.deathPerGame) }}</td>
-              <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')">{{ fmtDecimal(item.damagePerGame) }}</td>
+              <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerGame')">{{ fmtDecimal(item.damagePerGame, 0) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'damagePerMinute')">{{ fmtDecimal(item.damagePerMinute) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'averageGameDurationSeconds')">{{ fmtDuration(item.averageGameDurationSeconds) }}</td>
               <td v-if="isColumnVisible(teamVisibleColumns, 'goldPerMinute')">{{ fmtDecimal(item.goldPerMinute) }}</td>
@@ -1371,32 +1363,28 @@ onMounted(async () => {
     <!-- 选手统计面板 -->
     <section v-if="activeView === 'player'" class="panel table-panel">
       <div class="table-toolbar">
-        <div>
-          <p class="eyebrow">PLAYER STATISTICS</p>
-          <h2>选手统计</h2>
-        </div>
-        <div class="toolbar-right">
-          <div class="toolbar-options-row">
-            <div class="position-filter">
-              <button
-                v-for="opt in PLAYER_POSITION_OPTIONS"
-                :key="opt.value"
-                class="pos-chip"
-                :class="{ active: playerPositionFilter === opt.value }"
-                @click="playerPositionFilter = opt.value"
-              >
-                {{ opt.label }}
-              </button>
-            </div>
-            <ColumnVisibilityMenu v-model="playerVisibleColumns" :columns="PLAYER_COLUMNS" />
-            <button class="export-button" type="button" :disabled="exporting || !filteredPlayerItems.length" @click="exportExcel">
-              {{ exporting ? '导出中…' : '导出 Excel' }}
+        <p class="eyebrow">PLAYER STATISTICS</p>
+        <div class="toolbar-options-row">
+          <div class="position-filter">
+            <button
+              v-for="opt in PLAYER_POSITION_OPTIONS"
+              :key="opt.value"
+              class="pos-chip"
+              :class="{ active: playerPositionFilter === opt.value }"
+              @click="playerPositionFilter = opt.value"
+            >
+              {{ opt.label }}
             </button>
           </div>
-          <div class="search-wrap">
-            <input v-model="playerSearch" type="search" placeholder="搜索选手、战队" />
-            <span>{{ filteredPlayerItems.length }} 项</span>
-          </div>
+          <ColumnVisibilityMenu v-model="playerVisibleColumns" :columns="PLAYER_COLUMNS" />
+          <button class="export-button" type="button" :disabled="exporting || !filteredPlayerItems.length" @click="exportExcel">
+            {{ exporting ? '导出中…' : '导出 Excel' }}
+          </button>
+        </div>
+        <h2>选手统计</h2>
+        <div class="search-wrap">
+          <input v-model="playerSearch" type="search" placeholder="搜索选手、战队" />
+          <span>{{ filteredPlayerItems.length }} 项</span>
         </div>
       </div>
 
