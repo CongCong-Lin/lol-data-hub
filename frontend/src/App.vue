@@ -196,6 +196,7 @@ const COMBINATION_SORT_FIELDS = new Set([
 const CHAMPION_POSITION_VALUES = new Set(CHAMPION_POSITION_OPTIONS.map((option) => option.value))
 const COMBINATION_TYPE_VALUES = new Set<TeamCombinationType>([
   'MID_JUNGLE', 'BOT_SUPPORT', 'TOP_JUNGLE', 'TOP_MID', 'MID_BOT',
+  'TOP_SUPPORT', 'JUNGLE_SUPPORT', 'JUNGLE_BOT', 'MID_SUPPORT', 'TOP_BOT',
 ])
 /** 各组合口径下的英雄列标签（第一个英雄/第二个英雄）。 */
 const COMBINATION_POSITION_LABELS: Record<TeamCombinationType, [string, string]> = {
@@ -204,7 +205,25 @@ const COMBINATION_POSITION_LABELS: Record<TeamCombinationType, [string, string]>
   TOP_JUNGLE: ['上单英雄', '打野英雄'],
   TOP_MID: ['上单英雄', '中单英雄'],
   MID_BOT: ['中单英雄', '下路英雄'],
+  TOP_SUPPORT: ['上单英雄', '辅助英雄'],
+  JUNGLE_SUPPORT: ['打野英雄', '辅助英雄'],
+  JUNGLE_BOT: ['打野英雄', '下路英雄'],
+  MID_SUPPORT: ['中单英雄', '辅助英雄'],
+  TOP_BOT: ['上单英雄', '下路英雄'],
 }
+/** 组合类型筛选按钮（十种两位置口径）。 */
+const COMBINATION_TYPE_OPTIONS: Array<{ value: TeamCombinationType; label: string }> = [
+  { value: 'MID_JUNGLE', label: '中野组合' },
+  { value: 'BOT_SUPPORT', label: 'AD 辅助组合' },
+  { value: 'TOP_JUNGLE', label: '上野组合' },
+  { value: 'TOP_MID', label: '上中组合' },
+  { value: 'MID_BOT', label: '中下组合' },
+  { value: 'TOP_SUPPORT', label: '上辅组合' },
+  { value: 'JUNGLE_SUPPORT', label: '野辅组合' },
+  { value: 'JUNGLE_BOT', label: '野下组合' },
+  { value: 'MID_SUPPORT', label: '中辅组合' },
+  { value: 'TOP_BOT', label: '上下组合' },
+]
 
 function parsePositiveInteger(value: string | null): number | null {
   if (!value || !/^\d+$/.test(value)) return null
@@ -1488,35 +1507,13 @@ onMounted(async () => {
           <div class="toolbar-options-row">
             <div class="position-filter" aria-label="组合类型">
               <button
+                v-for="option in COMBINATION_TYPE_OPTIONS"
+                :key="option.value"
                 class="pos-chip"
-                :class="{ active: combinationType === 'MID_JUNGLE' }"
-                :aria-pressed="combinationType === 'MID_JUNGLE'"
-                @click="combinationType = 'MID_JUNGLE'"
-              >中野组合</button>
-              <button
-                class="pos-chip"
-                :class="{ active: combinationType === 'BOT_SUPPORT' }"
-                :aria-pressed="combinationType === 'BOT_SUPPORT'"
-                @click="combinationType = 'BOT_SUPPORT'"
-              >AD 辅助组合</button>
-              <button
-                class="pos-chip"
-                :class="{ active: combinationType === 'TOP_JUNGLE' }"
-                :aria-pressed="combinationType === 'TOP_JUNGLE'"
-                @click="combinationType = 'TOP_JUNGLE'"
-              >上野组合</button>
-              <button
-                class="pos-chip"
-                :class="{ active: combinationType === 'TOP_MID' }"
-                :aria-pressed="combinationType === 'TOP_MID'"
-                @click="combinationType = 'TOP_MID'"
-              >上中组合</button>
-              <button
-                class="pos-chip"
-                :class="{ active: combinationType === 'MID_BOT' }"
-                :aria-pressed="combinationType === 'MID_BOT'"
-                @click="combinationType = 'MID_BOT'"
-              >中下组合</button>
+                :class="{ active: combinationType === option.value }"
+                :aria-pressed="combinationType === option.value"
+                @click="combinationType = option.value"
+              >{{ option.label }}</button>
             </div>
             <ColumnVisibilityMenu v-model="combinationVisibleColumns" :columns="COMBINATION_COLUMNS" />
             <button class="export-button" type="button" :disabled="exporting || !filteredCombinationItems.length" @click="exportExcel">

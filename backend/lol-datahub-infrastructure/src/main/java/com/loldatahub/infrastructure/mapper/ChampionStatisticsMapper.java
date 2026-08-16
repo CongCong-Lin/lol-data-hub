@@ -239,4 +239,108 @@ public interface ChampionStatisticsMapper {
             </script>
             """)
     LocalDateTime findLatestCollectedAt(@Param("stages") List<StageKey> stages);
+
+    /**
+     * 英雄对位克制：把每局双方五位置阵容展开后按指定分路自连接，
+     * 统计目标英雄对该分路对手英雄的场次与获胜场次。
+     */
+    @Select("""
+            <script>
+            WITH expanded AS (
+                SELECT source_season_id AS season_id, source_stage_id AS stage_id,
+                       source_team_id AS team_id, source_match_id AS match_id,
+                       game_number AS game_number, 'TOP' AS position,
+                       top_champion_id AS champion_id, won
+                  FROM team_game_lineup_current
+                 WHERE (source_season_id, source_stage_id) IN
+                   <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                       (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                   </foreach>
+                UNION ALL
+                SELECT source_season_id, source_stage_id, source_team_id, source_match_id,
+                       game_number, 'JUN', jungle_champion_id, won
+                  FROM team_game_lineup_current
+                 WHERE (source_season_id, source_stage_id) IN
+                   <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                       (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                   </foreach>
+                UNION ALL
+                SELECT source_season_id, source_stage_id, source_team_id, source_match_id,
+                       game_number, 'MID', mid_champion_id, won
+                  FROM team_game_lineup_current
+                 WHERE (source_season_id, source_stage_id) IN
+                   <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                       (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                   </foreach>
+                UNION ALL
+                SELECT source_season_id, source_stage_id, source_team_id, source_match_id,
+                       game_number, 'BOT', bot_champion_id, won
+                  FROM team_game_lineup_current
+                 WHERE (source_season_id, source_stage_id) IN
+                   <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                       (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                   </foreach>
+                UNION ALL
+                SELECT source_season_id, source_stage_id, source_team_id, source_match_id,
+                       game_number, 'SUP', support_champion_id, won
+                  FROM team_game_lineup_current
+                 WHERE (source_season_id, source_stage_id) IN
+                   <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                       (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+                   </foreach>
+            )
+            SELECT b.champion_id AS opponentChampionId,
+                   c.internal_name AS championName,
+                   c.chinese_name AS championChineseName,
+                   c.chinese_title AS championTitle,
+                   c.logo_url AS championLogo,
+                   COUNT(*) AS games,
+                   SUM(CASE WHEN a.won THEN 1 ELSE 0 END) AS wins
+              FROM expanded a
+              JOIN expanded b
+                ON b.season_id = a.season_id AND b.stage_id = a.stage_id
+               AND b.match_id = a.match_id AND b.game_number = a.game_number
+               AND b.team_id != a.team_id
+              JOIN champion c ON c.source_champion_id = b.champion_id
+             WHERE a.position = #{position} AND b.position = #{position}
+               AND a.champion_id = #{championId}
+             GROUP BY b.champion_id, c.internal_name, c.chinese_name, c.chinese_title, c.logo_url
+            HAVING COUNT(*) &gt;= #{minimumGames}
+             ORDER BY games DESC, b.champion_id
+            </script>
+            """)
+    List<com.loldatahub.infrastructure.model.ChampionCounterRow> aggregateChampionCounters(
+            @Param("stages") List<StageKey> stages,
+            @Param("championId") long championId,
+            @Param("position") String position,
+            @Param("minimumGames") int minimumGames);
+
+    /** 版本窗口对比：读取所选赛段的全部英雄统计快照精简行，窗口还原在 Service 层完成。 */
+    @Select("""
+            <script>
+            SELECT source_season_id AS sourceSeasonId,
+                   source_stage_id AS sourceStageId,
+                   source_champion_id AS sourceChampionId,
+                   pick_count AS pickCount,
+                   winning_count AS winningCount,
+                   collected_at AS collectedAt
+              FROM champion_stage_stat_snapshot
+             WHERE (source_season_id, source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+            </script>
+            """)
+    List<com.loldatahub.infrastructure.model.ChampionSnapshotRow> findChampionSnapshots(
+            @Param("stages") List<StageKey> stages);
+
+    /** 版本窗口对比的英雄名称目录。 */
+    @Select("""
+            SELECT source_champion_id AS sourceChampionId,
+                   internal_name AS internalName,
+                   chinese_name AS chineseName,
+                   logo_url AS logoUrl
+              FROM champion
+            """)
+    List<com.loldatahub.infrastructure.model.ChampionCatalogRow> findChampionCatalog();
 }

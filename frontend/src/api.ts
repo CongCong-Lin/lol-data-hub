@@ -14,7 +14,17 @@ export interface Season {
 
 export type StatisticType = 'HERO' | 'TEAM' | 'PLAYER' | 'COMBO'
 
-export type TeamCombinationType = 'MID_JUNGLE' | 'BOT_SUPPORT' | 'TOP_JUNGLE' | 'TOP_MID' | 'MID_BOT'
+export type TeamCombinationType =
+  | 'MID_JUNGLE'
+  | 'BOT_SUPPORT'
+  | 'TOP_JUNGLE'
+  | 'TOP_MID'
+  | 'MID_BOT'
+  | 'TOP_SUPPORT'
+  | 'JUNGLE_SUPPORT'
+  | 'JUNGLE_BOT'
+  | 'MID_SUPPORT'
+  | 'TOP_BOT'
 
 export interface Stage {
   sourceSeasonId: number

@@ -3,7 +3,9 @@ package com.loldatahub.infrastructure.mapper;
 import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.model.MatchGamePlayerRow;
 import com.loldatahub.infrastructure.model.MatchGameRow;
+import com.loldatahub.infrastructure.model.MatchTeamGameRow;
 import com.loldatahub.infrastructure.model.PlayerGameRow;
+import com.loldatahub.infrastructure.model.StageGameCountRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -73,6 +75,74 @@ public interface MatchGameMapper {
             </script>
             """)
     long countMatchGames(@Param("stages") List<StageKey> stages);
+
+    @Select("""
+            <script>
+            SELECT g.source_season_id AS sourceSeasonId,
+                   g.source_stage_id AS sourceStageId,
+                   g.source_match_id AS sourceMatchId,
+                   g.game_number AS gameNumber,
+                   g.start_time AS startTime,
+                   g.team_a_id AS teamAId,
+                   COALESCE(ta.name, CONCAT('战队 #', g.team_a_id)) AS teamAName,
+                   ta.logo_url AS teamALogo,
+                   g.team_b_id AS teamBId,
+                   COALESCE(tb.name, CONCAT('战队 #', g.team_b_id)) AS teamBName,
+                   tb.logo_url AS teamBLogo,
+                   g.win_team_id AS winnerTeamId
+              FROM match_game_current g
+              LEFT JOIN team ta ON ta.source_team_id = g.team_a_id
+              LEFT JOIN team tb ON tb.source_team_id = g.team_b_id
+             WHERE (g.source_season_id, g.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+               AND (g.team_a_id = #{teamId} OR g.team_b_id = #{teamId})
+             ORDER BY g.start_time, g.source_match_id, g.game_number
+            </script>
+            """)
+    List<MatchTeamGameRow> findTeamGames(@Param("stages") List<StageKey> stages,
+                                         @Param("teamId") long teamId);
+
+    @Select("""
+            <script>
+            SELECT g.source_season_id AS sourceSeasonId,
+                   g.source_stage_id AS sourceStageId,
+                   g.source_match_id AS sourceMatchId,
+                   g.game_number AS gameNumber,
+                   g.start_time AS startTime,
+                   g.team_a_id AS teamAId,
+                   COALESCE(ta.name, CONCAT('战队 #', g.team_a_id)) AS teamAName,
+                   ta.logo_url AS teamALogo,
+                   g.team_b_id AS teamBId,
+                   COALESCE(tb.name, CONCAT('战队 #', g.team_b_id)) AS teamBName,
+                   tb.logo_url AS teamBLogo,
+                   g.win_team_id AS winnerTeamId
+              FROM match_game_current g
+              LEFT JOIN team ta ON ta.source_team_id = g.team_a_id
+              LEFT JOIN team tb ON tb.source_team_id = g.team_b_id
+             WHERE (g.source_season_id, g.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             ORDER BY g.start_time, g.source_match_id, g.game_number
+            </script>
+            """)
+    List<MatchTeamGameRow> findAllGames(@Param("stages") List<StageKey> stages);
+
+    @Select("""
+            <script>
+            SELECT source_season_id AS sourceSeasonId, source_stage_id AS sourceStageId,
+                   COUNT(*) AS games
+              FROM match_game_current
+             WHERE (source_season_id, source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+             GROUP BY source_season_id, source_stage_id
+            </script>
+            """)
+    List<StageGameCountRow> countGamesByStage(@Param("stages") List<StageKey> stages);
 
     @Select("""
             <script>

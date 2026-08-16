@@ -2,6 +2,7 @@ package com.loldatahub.infrastructure.mapper;
 
 import com.loldatahub.domain.catalog.Season;
 import com.loldatahub.domain.catalog.Stage;
+import com.loldatahub.domain.statistics.StageKey;
 import com.loldatahub.infrastructure.model.CrossSeasonStageAvailabilityRow;
 import com.loldatahub.infrastructure.model.StageAvailabilityRow;
 import org.apache.ibatis.annotations.Insert;
@@ -233,4 +234,22 @@ public interface CatalogMapper {
             """)
     List<CrossSeasonStageAvailabilityRow> findAllCombinationStageAvailability(
             @Param("collectedOnly") boolean collectedOnly);
+
+    /** 采集覆盖矩阵：按赛段键查赛季/赛段名称。 */
+    @Select("""
+            <script>
+            SELECT s.source_season_id AS sourceSeasonId,
+                   s.source_stage_id AS sourceStageId,
+                   se.name AS seasonName,
+                   s.name AS stageName
+              FROM stage s
+              JOIN season se ON se.source_season_id = s.source_season_id
+             WHERE (s.source_season_id, s.source_stage_id) IN
+               <foreach collection="stages" item="sk" open="(" separator="," close=")">
+                   (#{sk.sourceSeasonId}, #{sk.sourceStageId})
+               </foreach>
+            </script>
+            """)
+    List<com.loldatahub.infrastructure.model.StageCatalogRow> findStageCatalogRows(
+            @Param("stages") List<StageKey> stages);
 }

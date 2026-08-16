@@ -7,7 +7,12 @@ public enum TeamCombinationType {
     BOT_SUPPORT("BOT", "SUP"),
     TOP_JUNGLE("TOP", "JUN"),
     TOP_MID("TOP", "MID"),
-    MID_BOT("MID", "BOT");
+    MID_BOT("MID", "BOT"),
+    TOP_SUPPORT("TOP", "SUP"),
+    JUNGLE_SUPPORT("JUN", "SUP"),
+    JUNGLE_BOT("JUN", "BOT"),
+    MID_SUPPORT("MID", "SUP"),
+    TOP_BOT("TOP", "BOT");
 
     private final String firstPosition;
     private final String secondPosition;
