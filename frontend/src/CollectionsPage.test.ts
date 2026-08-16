@@ -125,6 +125,27 @@ describe('CollectionsPage', () => {
     wrapper.unmount()
   })
 
+  it('缺口筛选下无缺口时展示完整空态', async () => {
+    vi.mocked(api.collectionCoverage).mockResolvedValue({
+      stages: [
+        { sourceSeasonId: 237, sourceStageId: 106, seasonName: '2026职业联赛', stageName: '第三赛段组内赛', heroCollected: true, teamCollected: true, playerCollected: true, matchGameCount: 36 },
+        { sourceSeasonId: 206, sourceStageId: 91, seasonName: '2024职业联赛', stageName: '第二赛段淘汰赛', heroCollected: true, teamCollected: true, playerCollected: true, matchGameCount: 12 },
+      ],
+    })
+    const wrapper = mount(CollectionsPage)
+    await flushPromises()
+
+    const gapButton = wrapper.findAll('.coverage-heading .pos-chip')
+      .find((button) => button.text().includes('存在缺口'))
+    await gapButton!.trigger('click')
+
+    const empty = wrapper.get('.coverage-empty')
+    expect(empty.text()).toContain('全部赛段数据完整，无缺口')
+    expect(empty.text()).toContain('2 个赛段')
+    expect(wrapper.findAll('.coverage-table tbody tr')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('覆盖矩阵加载失败时不影响采集记录展示', async () => {
     vi.mocked(api.collectionCoverage).mockRejectedValue(new Error('覆盖查询失败'))
     const wrapper = mount(CollectionsPage)

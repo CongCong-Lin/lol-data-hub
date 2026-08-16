@@ -195,13 +195,17 @@ function switchCoverageFilter(mode: 'all' | 'gaps') {
           </tbody>
         </table>
       </div>
+      <div v-else-if="!coverageLoading && coverage.length > 0 && coverageFilter === 'gaps'" class="coverage-empty">
+        <strong>全部赛段数据完整，无缺口</strong>
+        <p>当前筛选范围内 {{ coverage.length }} 个赛段的英雄 / 战队 / 选手 / 对局明细均已采集。</p>
+      </div>
       <p v-else-if="!coverageLoading" class="toolbar-note">没有满足筛选条件的赛段；矩阵只列出至少采集过一类数据的赛段。</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.toolbar-note { max-width: 420px; color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
+.toolbar-note { max-width: 420px; color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 0 14px; }
 .collection-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 980px; }
 .collection-table th, .collection-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .collection-table thead th { color: var(--text-3); font-size: 12px; background: var(--th-bg); }
@@ -217,7 +221,21 @@ function switchCoverageFilter(mode: 'all' | 'gaps') {
 .stages-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .error-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; color: var(--danger); }
 .coverage-section { margin-top: 26px; }
-.coverage-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-.coverage-heading h3 { margin: 0; font-size: 15px; }
+.coverage-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; padding-left: 14px; }
+.coverage-heading h3 { margin: 0; font-size: 16px; }
+.coverage-empty {
+  min-height: 140px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+.coverage-empty strong { color: var(--accent-dark); font-size: 14px; }
+.coverage-empty p { margin: 0; color: var(--text-4); font-size: 12.5px; }
 .coverage-table { min-width: 640px; }
 </style>
