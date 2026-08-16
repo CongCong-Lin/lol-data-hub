@@ -333,5 +333,6 @@ function sparklinePoints(history: number[]): string {
 .version-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
 .version-controls input[type='date'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
 .error-text { color: var(--danger, #c93c37); }
+.detail-notice-inline { color: var(--text-3); font-size: 13px; }
 .danger-text { color: var(--danger, #c93c37); font-weight: 650; }
 </style>
