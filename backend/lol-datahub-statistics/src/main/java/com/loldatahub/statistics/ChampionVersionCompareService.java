@@ -77,6 +77,11 @@ public class ChampionVersionCompareService {
             WindowTotals.StageTotals to = toTotals.totals().get(championId);
             long fromPick = from == null ? 0 : from.pickCount();
             long toPick = to == null ? 0 : to.pickCount();
+            long fromWins = from == null ? 0 : from.winningCount();
+            long toWins = to == null ? 0 : to.winningCount();
+            // 窗口期间胜/负场：结束快照减起始快照；快照口径修正导致负数时钳制为 0
+            long windowWins = Math.max(0, toWins - fromWins);
+            long windowLosses = Math.max(0, (toPick - fromPick) - windowWins);
             BigDecimal fromRate = from == null ? null : winRate(from);
             BigDecimal toRate = to == null ? null : winRate(to);
             ChampionCatalogRow meta = catalog.get(championId);
@@ -86,6 +91,7 @@ public class ChampionVersionCompareService {
                     meta == null ? null : meta.chineseName(),
                     meta == null ? null : meta.logoUrl(),
                     fromPick, toPick, toPick - fromPick,
+                    windowWins, windowLosses,
                     fromRate, toRate,
                     rateDelta(fromRate, toRate)));
         }

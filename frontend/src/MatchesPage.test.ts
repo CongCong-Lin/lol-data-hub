@@ -84,8 +84,8 @@ beforeEach(() => {
   vi.mocked(api.eloRatings).mockResolvedValue({
     totalGames: 2,
     ratings: [
-      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1520, rank: 1, games: 2, wins: 1, losses: 1, ratingHistory: [1516, 1512] },
-      { teamId: 2, teamName: 'BLG', teamLogo: null, rating: 1480, rank: 2, games: 2, wins: 1, losses: 1, ratingHistory: [1484, 1488] },
+      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1520, rank: 1, games: 2, seriesCount: 1, wins: 1, losses: 1, ratingHistory: [1516, 1512] },
+      { teamId: 2, teamName: 'BLG', teamLogo: null, rating: 1480, rank: 2, games: 2, seriesCount: 1, wins: 1, losses: 1, ratingHistory: [1484, 1488] },
     ],
   })
 })

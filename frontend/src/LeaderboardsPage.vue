@@ -13,6 +13,11 @@ const props = defineProps<{
   refreshKey: number
 }>()
 
+const emit = defineEmits<{
+  loading: [value: boolean]
+  loaded: [dataVersion: number | null]
+}>()
+
 type LeaderboardTab = 'kings' | 'mvp' | 'elo' | 'versions'
 
 const TAB_OPTIONS: Array<{ value: LeaderboardTab; label: string }> = [
@@ -31,10 +36,23 @@ const eloRatings = ref<EloTeamRating[]>([])
 const versionItems = ref<ChampionVersionCompareItem[]>([])
 const versionFrom = ref('')
 const versionTo = ref('')
-const versionDirection = ref<'rising' | 'falling'>('rising')
 let loadSeq = 0
 
 const hasStages = computed(() => props.stageKeys.length > 0)
+
+interface KingRow {
+  key: string
+  name: string
+  team: string
+  value: string
+}
+
+interface KingBoard {
+  key: string
+  label: string
+  type: 'player' | 'team'
+  top: KingRow[]
+}
 
 const KING_DEFINITIONS = [
   { key: 'kda', label: 'KDA 王', field: (p: PlayerStatistics) => p.kda, format: fmt2 },
@@ -49,24 +67,38 @@ const TEAM_KING_DEFINITIONS = [
   { key: 'firstBloodRate', label: '一血率王', field: (t: TeamStatistics) => t.firstBloodRate, format: fmtPercent },
 ] as const
 
-const kingBoards = computed(() => {
-  return KING_DEFINITIONS.map((definition) => ({
-    ...definition,
+const kingBoards = computed<KingBoard[]>(() => {
+  const playerBoards = KING_DEFINITIONS.map((definition) => ({
+    key: definition.key,
+    label: definition.label,
+    type: 'player' as const,
     top: [...players.value]
       .filter((player) => definition.field(player) != null)
       .sort((a, b) => Number(definition.field(b)) - Number(definition.field(a)))
-      .slice(0, 5),
+      .slice(0, 10)
+      .map((player) => ({
+        key: player.playerKey,
+        name: player.playerName,
+        team: fmtTeamNames(player.teamNames),
+        value: definition.format(definition.field(player)),
+      })),
   }))
-})
-
-const teamKingBoards = computed(() => {
-  return TEAM_KING_DEFINITIONS.map((definition) => ({
-    ...definition,
+  const teamBoards = TEAM_KING_DEFINITIONS.map((definition) => ({
+    key: definition.key,
+    label: definition.label,
+    type: 'team' as const,
     top: [...teams.value]
       .filter((team) => definition.field(team) != null)
       .sort((a, b) => Number(definition.field(b)) - Number(definition.field(a)))
-      .slice(0, 5),
+      .slice(0, 10)
+      .map((team) => ({
+        key: String(team.teamId),
+        name: team.teamName,
+        team: '',
+        value: definition.format(definition.field(team)),
+      })),
   }))
+  return [...playerBoards, ...teamBoards]
 })
 
 const mvpBoard = computed(() =>
@@ -78,13 +110,11 @@ const mvpBoard = computed(() =>
 
 const versionBoard = computed(() => {
   const items = versionItems.value.filter((item) => item.pickDelta !== 0 || item.winRateDelta !== 0)
-  return versionDirection.value === 'rising'
-    ? items.filter((item) => item.pickDelta > 0)
-    : items.filter((item) => item.pickDelta < 0)
+  return items.filter((item) => item.pickDelta > 0)
 })
 
 watch(
-  [() => props.stageKeys, () => props.refreshKey],
+  [() => props.stageKeys.join(','), () => props.refreshKey],
   () => {
     void load()
   },
@@ -97,10 +127,12 @@ async function load() {
     teams.value = []
     eloRatings.value = []
     versionItems.value = []
+    emit('loaded', null)
     return
   }
   const seq = ++loadSeq
   loading.value = true
+  emit('loading', true)
   error.value = ''
   try {
     const [playerResult, teamResult, eloResult] = await Promise.all([
@@ -112,10 +144,14 @@ async function load() {
     players.value = playerResult.items
     teams.value = teamResult.items
     eloRatings.value = eloResult.ratings
+    emit('loaded', playerResult.dataVersion ?? teamResult.dataVersion ?? null)
   } catch (reason) {
     if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (seq === loadSeq) {
+      loading.value = false
+      emit('loading', false)
+    }
   }
 }
 
@@ -126,6 +162,7 @@ async function loadVersions() {
   }
   const seq = ++loadSeq
   loading.value = true
+  emit('loading', true)
   error.value = ''
   try {
     const result = await api.championVersionCompare(props.stageKeys, versionFrom.value, versionTo.value)
@@ -134,7 +171,10 @@ async function loadVersions() {
   } catch (reason) {
     if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (seq === loadSeq) {
+      loading.value = false
+      emit('loading', false)
+    }
   }
 }
 
@@ -150,12 +190,34 @@ function fmtPercent(value: number | null): string {
   return value == null ? '-' : `${(value * 100).toFixed(1)}%`
 }
 
-function fmtDelta(value: number): string {
-  return value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2)
+/** 出场变化：整数场数带符号，如 +10场 / -3场。 */
+function fmtPickDelta(value: number): string {
+  return value > 0 ? `+${value}场` : `${value}场`
+}
+
+/** 胜率变化：百分点一位小数带符号，如 +1.5% / -0.3%。 */
+function fmtWinRateDelta(value: number): string {
+  const percent = value * 100
+  return `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`
 }
 
 function fmtWinRate(value: number | null): string {
   return value == null ? '-' : `${(value * 100).toFixed(1)}%`
+}
+
+function fmtTeamNames(teamNames: string[]): string {
+  return teamNames.join(' / ') || '—'
+}
+
+/** Elo 战队详情链接：携带赛段、最低场数与返回地址。 */
+function teamHref(team: EloTeamRating): string {
+  const keys = props.stageKeys.join(',')
+  const params = new URLSearchParams({
+    stageKeys: keys,
+    minimumMatchCount: '1',
+    returnTo: `/?view=leaderboards&stageKeys=${keys}`,
+  })
+  return `/teams/${team.teamId}?${params.toString()}`
 }
 
 function sparklinePoints(history: number[]): string {
@@ -205,22 +267,24 @@ function sparklinePoints(history: number[]): string {
     <div v-else-if="activeTab === 'kings'" class="leaderboard-grid">
       <article v-for="board in kingBoards" :key="board.key" class="leaderboard-card">
         <h3>{{ board.label }}</h3>
-        <ol class="king-list">
-          <li v-for="player in board.top" :key="player.playerKey">
-            <span class="king-rank">{{ player.playerName }}</span>
-            <span class="king-value">{{ board.format(board.field(player)) }}</span>
-          </li>
-        </ol>
-        <p v-if="!board.top.length" class="king-empty">暂无数据</p>
-      </article>
-      <article v-for="board in teamKingBoards" :key="board.key" class="leaderboard-card">
-        <h3>{{ board.label }}（战队）</h3>
-        <ol class="king-list">
-          <li v-for="team in board.top" :key="team.teamId">
-            <span class="king-rank">{{ team.teamName }}</span>
-            <span class="king-value">{{ board.format(board.field(team)) }}</span>
-          </li>
-        </ol>
+        <table class="king-table">
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>{{ board.type === 'team' ? '战队' : '选手' }}</th>
+              <th v-if="board.type === 'player'">战队</th>
+              <th>数值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in board.top" :key="row.key">
+              <td class="king-rank">{{ index + 1 }}</td>
+              <td>{{ row.name }}</td>
+              <td v-if="board.type === 'player'" class="king-team">{{ row.team }}</td>
+              <td class="king-value">{{ row.value }}</td>
+            </tr>
+          </tbody>
+        </table>
         <p v-if="!board.top.length" class="king-empty">暂无数据</p>
       </article>
     </div>
@@ -253,15 +317,16 @@ function sparklinePoints(history: number[]): string {
       <table class="team-table">
         <thead>
           <tr>
-            <th>排名</th><th>战队</th><th>Elo 评分</th><th>场次</th><th>胜-负</th><th>评分轨迹</th>
+            <th>排名</th><th>战队</th><th>Elo 评分</th><th>场次</th><th>大场</th><th>小局胜-负</th><th>评分轨迹</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="team in eloRatings" :key="team.teamId">
             <td class="accent">{{ team.rank }}</td>
-            <td>{{ team.teamName }}</td>
+            <td><a class="team-link" :href="teamHref(team)">{{ team.teamName }}</a></td>
             <td class="accent">{{ team.rating }}</td>
             <td>{{ team.games }}</td>
+            <td>{{ team.seriesCount }}</td>
             <td>{{ team.wins }}-{{ team.losses }}</td>
             <td>
               <svg v-if="team.ratingHistory.length > 1" class="elo-sparkline" viewBox="0 0 120 32" aria-hidden="true">
@@ -281,16 +346,12 @@ function sparklinePoints(history: number[]): string {
         <label>起始日期 <input v-model="versionFrom" type="date" /></label>
         <label>结束日期 <input v-model="versionTo" type="date" /></label>
         <button class="primary" type="button" @click="loadVersions">对比版本变化</button>
-        <div class="position-filter" aria-label="涨跌筛选">
-          <button class="pos-chip" :class="{ active: versionDirection === 'rising' }" @click="versionDirection = 'rising'">版本答案</button>
-          <button class="pos-chip" :class="{ active: versionDirection === 'falling' }" @click="versionDirection = 'falling'">跌出版本</button>
-        </div>
       </div>
       <div class="table-scroll">
         <table class="team-table">
           <thead>
             <tr>
-              <th>英雄</th><th>起始出场</th><th>结束出场</th><th>出场变化</th>
+              <th>英雄</th><th>起始出场</th><th>结束出场</th><th>期间胜-负</th><th>出场变化</th>
               <th>起始胜率</th><th>结束胜率</th><th>胜率变化</th>
             </tr>
           </thead>
@@ -299,15 +360,16 @@ function sparklinePoints(history: number[]): string {
               <td>{{ item.championChineseName || item.championName }}</td>
               <td>{{ item.fromPickCount }}</td>
               <td>{{ item.toPickCount }}</td>
-              <td :class="item.pickDelta > 0 ? 'accent' : 'danger-text'">{{ fmtDelta(item.pickDelta) }}</td>
+              <td class="accent">{{ item.windowWins }}-{{ item.windowLosses }}</td>
+              <td :class="item.pickDelta > 0 ? 'accent' : 'danger-text'">{{ fmtPickDelta(item.pickDelta) }}</td>
               <td>{{ fmtWinRate(item.fromWinRate) }}</td>
               <td>{{ fmtWinRate(item.toWinRate) }}</td>
-              <td :class="item.winRateDelta > 0 ? 'accent' : 'danger-text'">{{ fmtDelta(item.winRateDelta * 100) }}pp</td>
+              <td :class="item.winRateDelta > 0 ? 'accent' : 'danger-text'">{{ fmtWinRateDelta(item.winRateDelta) }}</td>
             </tr>
           </tbody>
         </table>
         <p v-if="!versionItems.length" class="detail-notice-inline">选择两个日期后点击对比，查看英雄出场与胜率的版本变化。</p>
-        <p v-else-if="!versionBoard.length" class="detail-notice-inline">该方向暂无变化英雄。</p>
+        <p v-else-if="!versionBoard.length" class="detail-notice-inline">该范围内暂无出场增加的英雄。</p>
       </div>
     </div>
   </section>
@@ -315,23 +377,34 @@ function sparklinePoints(history: number[]): string {
 
 <style scoped>
 .leaderboard-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px; padding: 4px 0 8px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px; padding: 4px 0 8px;
+}
+@media (max-width: 1200px) {
+  .leaderboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .leaderboard-grid { grid-template-columns: 1fr; }
 }
 .leaderboard-card {
-  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--panel-2);
 }
-.leaderboard-card h3 { margin: 0 0 8px; font-size: 13px; color: var(--text-2); }
-.king-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-.king-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
-.king-rank { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.king-value { color: var(--accent-dark); font-weight: 750; white-space: nowrap; }
-.king-empty { margin: 0; color: var(--text-4); font-size: 12px; }
+.leaderboard-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--text-2); }
+.king-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.king-table th, .king-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.king-table thead th { color: var(--text-3); font-size: 11.5px; font-weight: 650; background: var(--th-bg); }
+.king-table tbody tr:hover { background: var(--hover-bg); }
+.king-rank { color: var(--text-3); font-weight: 650; }
+.king-team { color: var(--text-4); font-size: 12px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.king-value { color: var(--accent-dark); font-weight: 750; text-align: right; }
+.king-empty { margin: 8px 0 0; color: var(--text-4); font-size: 12px; }
+.team-link { color: var(--text); text-decoration: none; font-weight: 600; }
+.team-link:hover { color: var(--accent); text-decoration: underline; }
 .elo-sparkline { width: 120px; height: 32px; }
 .elo-sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; }
-.version-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 0 12px; }
-.version-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
-.version-controls input[type='date'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.version-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 6px 0 12px; overflow-x: auto; }
+.version-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; flex: 0 0 auto; }
+.version-controls input[type='date'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; flex: 0 0 auto; }
 .error-text { color: var(--danger, #c93c37); }
 .detail-notice-inline { color: var(--text-3); font-size: 13px; }
 .danger-text { color: var(--danger, #c93c37); font-weight: 650; }

@@ -17,9 +17,11 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 战队 Elo 评分服务：无状态重放所选赛段的全部小局。
@@ -65,6 +67,8 @@ public class EloRatingService {
                     id -> new TeamState(id, game.teamAName(), game.teamALogo()));
             TeamState teamB = teams.computeIfAbsent(game.teamBId(),
                     id -> new TeamState(id, game.teamBName(), game.teamBLogo()));
+            teamA.recordMatch(game.sourceSeasonId(), game.sourceStageId(), game.sourceMatchId());
+            teamB.recordMatch(game.sourceSeasonId(), game.sourceStageId(), game.sourceMatchId());
             double expectedA = 1.0 / (1.0 + Math.pow(10.0, (teamB.rating - teamA.rating) / 400.0));
             double scoreA;
             if (game.winnerTeamId() == game.teamAId()) {
@@ -88,6 +92,7 @@ public class EloRatingService {
                         state.teamId, state.name, state.logo,
                         (int) Math.round(state.rating), 0,
                         state.games, state.wins, state.games - state.wins,
+                        state.seriesCount,
                         List.copyOf(state.history)))
                 .sorted(ordering)
                 .toList();
@@ -98,7 +103,8 @@ public class EloRatingService {
             EloRatingResult.TeamRating row = sorted.get(i);
             int rank = row.rating() == previousRating ? previousRank : i + 1;
             ranked.add(new EloRatingResult.TeamRating(row.teamId(), row.teamName(), row.teamLogo(),
-                    row.rating(), rank, row.games(), row.wins(), row.losses(), row.ratingHistory()));
+                    row.rating(), rank, row.games(), row.wins(), row.losses(),
+                    row.seriesCount(), row.ratingHistory()));
             previousRating = row.rating();
             previousRank = rank;
         }
@@ -115,12 +121,21 @@ public class EloRatingService {
         private double rating = INITIAL_RATING;
         private long games;
         private long wins;
+        private long seriesCount;
+        private final Set<String> matchKeys = new HashSet<>();
         private final List<Double> history = new ArrayList<>();
 
         private TeamState(long teamId, String name, String logo) {
             this.teamId = teamId;
             this.name = name;
             this.logo = logo;
+        }
+
+        /** 记录一场系列赛（同一 match 的多小局只计一次），返回是否首次出现。 */
+        private void recordMatch(long seasonId, long stageId, long matchId) {
+            if (matchKeys.add(seasonId + ":" + stageId + ":" + matchId)) {
+                seriesCount++;
+            }
         }
 
         private void apply(double delta, boolean won) {

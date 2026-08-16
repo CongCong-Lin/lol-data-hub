@@ -546,6 +546,7 @@ export interface EloTeamRating {
   games: number
   wins: number
   losses: number
+  seriesCount: number
   ratingHistory: number[]
 }
 
@@ -562,6 +563,8 @@ export interface ChampionVersionCompareItem {
   fromPickCount: number
   toPickCount: number
   pickDelta: number
+  windowWins: number
+  windowLosses: number
   fromWinRate: number | null
   toWinRate: number | null
   winRateDelta: number

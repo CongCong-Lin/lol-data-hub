@@ -236,7 +236,7 @@ function earliestDay(): string | null {
   return days.length ? days[days.length - 1].date : null
 }
 
-watch([() => props.stageKeys, () => props.submitted], () => {
+watch([() => props.stageKeys.join(','), () => props.submitted], () => {
   dayGames.value = []
   dayTotal.value = 0
   selectedDay.value = ''

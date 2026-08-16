@@ -106,7 +106,7 @@ beforeEach(() => {
   vi.mocked(api.eloRatings).mockResolvedValue({
     totalGames: 22,
     ratings: [
-      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1540, rank: 1, games: 22, wins: 15, losses: 7, ratingHistory: [1500, 1516, 1540] },
+      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1540, rank: 1, games: 22, wins: 15, losses: 7, seriesCount: 4, ratingHistory: [1500, 1516, 1540] },
     ],
   })
 })
@@ -126,14 +126,19 @@ describe('LeaderboardsPage', () => {
     wrapper.unmount()
   })
 
-  it('数据王标签渲染选手与战队卡片', async () => {
+  it('数据王标签渲染七张卡片并含排名与战队列', async () => {
     const wrapper = mountPage()
     await flushPromises()
 
     const cards = wrapper.findAll('.leaderboard-card')
-    expect(cards.length).toBeGreaterThanOrEqual(7)
-    expect(cards[0].text()).toContain('Knight')
-    expect(wrapper.text()).toContain('胜率王（战队）')
+    expect(cards).toHaveLength(7)
+    expect(cards[0].findAll('.king-table thead th').map((th) => th.text())).toContain('排名')
+    const firstRows = cards[0].findAll('.king-table tbody tr')
+    expect(firstRows).toHaveLength(2)
+    expect(firstRows[0].text()).toContain('Knight')
+    expect(firstRows[0].text()).toContain('TES')
+    expect(firstRows.length).toBeLessThanOrEqual(10)
+    expect(wrapper.text()).toContain('胜率王')
     wrapper.unmount()
   })
 
@@ -151,25 +156,29 @@ describe('LeaderboardsPage', () => {
     wrapper.unmount()
   })
 
-  it('Elo 标签展示评分与轨迹折线', async () => {
+  it('Elo 标签展示评分、大场列与轨迹折线', async () => {
     const wrapper = mountPage()
     await flushPromises()
 
     const eloTab = wrapper.findAll('.position-filter .pos-chip').find((button) => button.text() === 'Elo 评分')
     await eloTab!.trigger('click')
 
-    expect(wrapper.get('.team-table').text()).toContain('1540')
+    expect(wrapper.get('.team-table thead').text()).toContain('大场')
+    expect(wrapper.get('.team-table thead').text()).toContain('小局胜-负')
+    expect(wrapper.get('.team-table tbody').text()).toContain('1540')
+    expect(wrapper.get('.team-table tbody').text()).toContain('15-7')
+    expect(wrapper.get('.team-link').attributes('href')).toContain('/teams/1?stageKeys=')
     expect(wrapper.find('svg.elo-sparkline').exists()).toBe(true)
     wrapper.unmount()
   })
 
-  it('版本变迁标签按日期对比并筛选上升英雄', async () => {
+  it('版本变迁标签按日期对比并筛选出场上升英雄', async () => {
     vi.mocked(api.championVersionCompare).mockResolvedValue({
       fromDate: '2026-07-01',
       toDate: '2026-08-01',
       items: [
-        { championId: 1, championName: 'Ahri', championChineseName: '阿狸', championLogo: null, fromPickCount: 5, toPickCount: 18, pickDelta: 13, fromWinRate: 0.5, toWinRate: 0.61, winRateDelta: 0.11 },
-        { championId: 2, championName: 'Azir', championChineseName: '阿兹尔', championLogo: null, fromPickCount: 18, toPickCount: 4, pickDelta: -14, fromWinRate: 0.55, toWinRate: 0.4, winRateDelta: -0.15 },
+        { championId: 1, championName: 'Ahri', championChineseName: '阿狸', championLogo: null, fromPickCount: 5, toPickCount: 18, pickDelta: 13, windowWins: 7, windowLosses: 6, fromWinRate: 0.5, toWinRate: 0.61, winRateDelta: 0.11 },
+        { championId: 2, championName: 'Azir', championChineseName: '阿兹尔', championLogo: null, fromPickCount: 18, toPickCount: 4, pickDelta: -14, windowWins: 1, windowLosses: 0, fromWinRate: 0.55, toWinRate: 0.4, winRateDelta: -0.15 },
       ],
     })
     const wrapper = mountPage()
@@ -185,16 +194,25 @@ describe('LeaderboardsPage', () => {
     await flushPromises()
 
     expect(api.championVersionCompare).toHaveBeenCalledWith(['237:106'], '2026-07-01', '2026-08-01')
-    let rows = wrapper.findAll('.team-table tbody tr')
+    const rows = wrapper.findAll('.team-table tbody tr')
     expect(rows).toHaveLength(1)
     expect(rows[0].text()).toContain('阿狸')
+    expect(rows[0].text()).toContain('7-6')
+    expect(rows[0].text()).toContain('+13场')
+    expect(rows[0].text()).toContain('+11.0%')
+    // 出场下降的英雄被过滤；跌出版本按钮已移除
+    expect(rows[0].text()).not.toContain('阿兹尔')
+    expect(wrapper.text()).not.toContain('跌出版本')
+    wrapper.unmount()
+  })
 
-    const falling = wrapper.findAll('.version-controls .pos-chip')
-      .find((button) => button.text() === '跌出版本')
-    await falling!.trigger('click')
-    rows = wrapper.findAll('.team-table tbody tr')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('阿兹尔')
+  it('加载完成后上抛数据版本与加载状态', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.emitted('loaded')).toBeTruthy()
+    expect(wrapper.emitted('loaded')![0]).toEqual([130])
+    expect(wrapper.emitted('loading')).toBeTruthy()
     wrapper.unmount()
   })
 
