@@ -9,8 +9,7 @@ const messages: Record<Locale, Record<string, string>> = {
   'zh-CN': {
     'nav.statistics': '统计查询',
     'nav.matches': '对局赛果',
-  'nav.leaderboards': '排行榜',
-  'nav.draft': 'BP 模拟器',
+    'nav.draft': 'BP 模拟器',
     'nav.compare': '选手对比',
     'nav.collections': '采集状态',
     'search.placeholder': '搜索英雄、战队、选手…',
@@ -172,8 +171,7 @@ const messages: Record<Locale, Record<string, string>> = {
   'en-US': {
     'nav.statistics': 'Statistics',
     'nav.matches': 'Matches',
-  'nav.leaderboards': 'Leaderboards',
-  'nav.draft': 'Draft Lab',
+    'nav.draft': 'Draft Lab',
     'nav.compare': 'Compare',
     'nav.collections': 'Collections',
     'search.placeholder': 'Search champions, teams, players…',
