@@ -25,7 +25,8 @@ const CENTER_X = 260
 const CENTER_Y = 210
 const RADIUS = 128
 const GRID_LEVELS = [20, 40, 60, 80, 100]
-const OVERLAY_COLORS = ['#2f6fed', '#c94040', '#8a51c9', '#d98324', '#0f9b8e']
+/** 对比叠加调色板：浅色系 + 20% 透明填充，多位选手叠加时互不遮盖轮廓 */
+const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
 
 function angleAt(index: number): number {
   return (Math.PI * 2 * index) / Math.max(props.metrics.length, 1) - Math.PI / 2

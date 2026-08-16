@@ -92,4 +92,30 @@ describe('PlayerRadarChart', () => {
 
     expect(wrapper.find('svg').exists()).toBe(false)
   })
+
+  it('叠加模式下绘制多选手浅色多边形与图例', () => {
+    const wrapper = mount(PlayerRadarChart, {
+      props: {
+        metrics,
+        overlay: [
+          { name: 'Knight', scores: [80, 70, 65, 75, 60, 55, 85, 45] },
+          { name: 'Rookie', scores: [60, 80, 55, 65, 70, 75, 60, 55] },
+        ],
+      },
+    })
+
+    const polygons = wrapper.findAll('svg polygon')
+    const overlays = polygons.filter((polygon) => polygon.attributes('stroke') === '#7fb0f7' || polygon.attributes('stroke') === '#f0a3a3')
+    expect(overlays).toHaveLength(2)
+    expect(overlays[0].attributes('stroke')).toBe('#7fb0f7')
+    expect(overlays[1].attributes('stroke')).toBe('#f0a3a3')
+    expect(overlays[0].attributes('fill')).toBe('#7fb0f733')
+    expect(overlays[0].attributes('stroke-width')).toBe('2')
+    // 叠加模式下隐藏单人多边形与数值文字
+    expect(wrapper.find('polygon.radar-player').exists()).toBe(false)
+    expect(wrapper.find('text.radar-label-value').exists()).toBe(false)
+    // 图例展示选手名
+    const legend = wrapper.findAll('text.radar-legend-text').map((node) => node.text())
+    expect(legend).toEqual(['Knight', 'Rookie'])
+  })
 })
