@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { api, type CollectionStatusRow } from './api'
+import { api, type CollectionCoverageStage, type CollectionStatusRow } from './api'
 import { useI18n } from './i18n'
 
 const { t } = useI18n()
@@ -10,6 +10,10 @@ const LIMIT = 50
 const loading = ref(false)
 const error = ref('')
 const rows = ref<CollectionStatusRow[]>([])
+const coverageLoading = ref(false)
+const coverage = ref<CollectionCoverageStage[]>([])
+const coverageFilter = ref<'all' | 'gaps'>('all')
+let coverageSeq = 0
 
 const TYPE_LABELS: Record<string, string> = {
   MATCH_GAME: '对局明细',
@@ -57,7 +61,41 @@ let loadSeq = 0
 
 onMounted(() => {
   void load()
+  void loadCoverage()
 })
+
+const coverageRows = ref<CollectionCoverageStage[]>([])
+
+async function loadCoverage() {
+  const seq = ++coverageSeq
+  coverageLoading.value = true
+  try {
+    const data = await api.collectionCoverage()
+    if (seq === coverageSeq) {
+      coverage.value = data.stages
+      applyCoverageFilter()
+    }
+  } catch {
+    /* 覆盖矩阵失败不影响采集记录展示 */
+  } finally {
+    if (seq === coverageSeq) coverageLoading.value = false
+  }
+}
+
+function stageHasGap(stage: CollectionCoverageStage): boolean {
+  return !stage.heroCollected || !stage.teamCollected || !stage.playerCollected || stage.matchGameCount === 0
+}
+
+function applyCoverageFilter() {
+  coverageRows.value = coverageFilter.value === 'gaps'
+    ? coverage.value.filter(stageHasGap)
+    : coverage.value
+}
+
+function switchCoverageFilter(mode: 'all' | 'gaps') {
+  coverageFilter.value = mode
+  applyCoverageFilter()
+}
 </script>
 
 <template>
@@ -111,6 +149,54 @@ onMounted(() => {
         <strong>暂无采集记录</strong>
         <p>采集任务运行后这里会显示最近 {{ LIMIT }} 条执行记录。</p>
       </div>
+
+    <div class="coverage-section">
+      <div class="coverage-heading">
+        <h3>数据覆盖矩阵</h3>
+        <div class="position-filter" aria-label="覆盖筛选">
+          <button
+            class="pos-chip"
+            :class="{ active: coverageFilter === 'all' }"
+            @click="switchCoverageFilter('all')"
+          >全部赛段（{{ coverage.length }}）</button>
+          <button
+            class="pos-chip"
+            :class="{ active: coverageFilter === 'gaps' }"
+            @click="switchCoverageFilter('gaps')"
+          >存在缺口（{{ coverage.filter(stageHasGap).length }}）</button>
+        </div>
+      </div>
+      <p v-if="coverageLoading" class="message success">{{ t('common.loading') }}</p>
+      <div v-else-if="coverageRows.length" class="table-scroll" tabindex="0" aria-label="数据覆盖矩阵表">
+        <table class="collection-table coverage-table">
+          <thead>
+            <tr>
+              <th>赛事</th>
+              <th>赛段</th>
+              <th>英雄数据</th>
+              <th>战队数据</th>
+              <th>选手数据</th>
+              <th>对局明细</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="stage in coverageRows" :key="`${stage.sourceSeasonId}:${stage.sourceStageId}`">
+              <td>{{ stage.seasonName }}</td>
+              <td>{{ stage.stageName }}</td>
+              <td><span class="status-badge" :class="stage.heroCollected ? 'status-success' : 'status-failed'">{{ stage.heroCollected ? '✓' : '—' }}</span></td>
+              <td><span class="status-badge" :class="stage.teamCollected ? 'status-success' : 'status-failed'">{{ stage.teamCollected ? '✓' : '—' }}</span></td>
+              <td><span class="status-badge" :class="stage.playerCollected ? 'status-success' : 'status-failed'">{{ stage.playerCollected ? '✓' : '—' }}</span></td>
+              <td>
+                <span class="status-badge" :class="stage.matchGameCount > 0 ? 'status-success' : 'status-failed'">
+                  {{ stage.matchGameCount > 0 ? `${stage.matchGameCount} 局` : '未回填' }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else-if="!coverageLoading" class="toolbar-note">没有满足筛选条件的赛段；矩阵只列出至少采集过一类数据的赛段。</p>
+    </div>
   </div>
 </template>
 
@@ -130,4 +216,8 @@ onMounted(() => {
 .status-running { color: #b07d0e; background: #fdf3d7; }
 .stages-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .error-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; color: var(--danger); }
+.coverage-section { margin-top: 26px; }
+.coverage-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.coverage-heading h3 { margin: 0; font-size: 15px; }
+.coverage-table { min-width: 640px; }
 </style>

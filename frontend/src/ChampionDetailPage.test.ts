@@ -10,6 +10,7 @@ import { api, type ChampionDetailStatisticsResult, type ChampionStatistics } fro
 vi.mock('./api', () => ({
   api: {
     championDetail: vi.fn(),
+    championCounters: vi.fn(),
   },
 }))
 
@@ -174,6 +175,37 @@ describe('ChampionDetailPage', () => {
     await flushPromises()
 
     expect(vi.mocked(api.championDetail)).toHaveBeenCalledWith(84, ['237:100'], 5, 'TOP')
+    wrapper.unmount()
+  })
+
+  it('有分路时加载对位克制并展示克制/难对付两列', async () => {
+    vi.mocked(api.championCounters).mockResolvedValue({
+      championId: 84,
+      position: 'MID',
+      totalGames: 15,
+      opponents: [
+        { championId: 1, championName: 'Ahri', championChineseName: '阿狸', championTitle: null, championLogo: null, games: 10, wins: 7, winRate: 0.7 },
+        { championId: 2, championName: 'Syndra', championChineseName: '辛德拉', championTitle: null, championLogo: null, games: 5, wins: 1, winRate: 0.2 },
+      ],
+    })
+
+    const { wrapper } = await mountAt('/champions/84?stageKeys=237:100&position=MID')
+    await flushPromises()
+
+    expect(vi.mocked(api.championCounters)).toHaveBeenCalledWith(84, ['237:100'], 'MID')
+    const section = wrapper.findAll('.detail-card').find((card) => card.text().includes('对位克制'))
+    expect(section).toBeDefined()
+    expect(section!.text()).toContain('阿狸')
+    expect(section!.text()).toContain('辛德拉')
+    expect(section!.text()).toContain('15 局对位样本')
+    wrapper.unmount()
+  })
+
+  it('无分路时不请求对位克制', async () => {
+    const { wrapper } = await mountAt('/champions/84?stageKeys=237:100')
+    await flushPromises()
+
+    expect(vi.mocked(api.championCounters)).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

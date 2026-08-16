@@ -153,6 +153,11 @@ button.ghost { border: 1px solid var(--line-strong); color: var(--text-3); backg
   color: var(--danger); background: var(--panel); font-size: 12px; font-weight: 650;
 }
 .basket-clear:hover { background: var(--danger-soft); }
+.basket-quick {
+  padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 5px;
+  color: var(--text-3); background: var(--panel); font-size: 12px; font-weight: 650;
+}
+.basket-quick:hover { border-color: var(--accent-line); background: var(--accent-soft); }
 .basket-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .basket-item {
   display: inline-flex; align-items: center; gap: 8px; padding: 6px 9px;

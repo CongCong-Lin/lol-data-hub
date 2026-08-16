@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { api, type TeamDetailStatisticsResult } from './api'
+import { api, type TeamDetailStatisticsResult, type TeamHeadToHeadResult } from './api'
+import { downloadBlob, renderShareCard } from './shareCard'
 import { useI18n } from './i18n'
 
 const props = defineProps<{ teamId: string }>()
@@ -12,6 +13,7 @@ const { t } = useI18n()
 const loading = ref(false)
 const error = ref('')
 const result = ref<TeamDetailStatisticsResult | null>(null)
+const headToHead = ref<TeamHeadToHeadResult | null>(null)
 
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单', JUN: '打野', MID: '中路', BOT: '下路', SUP: '辅助',
@@ -40,6 +42,7 @@ const teamIdNumber = computed(() => Number(props.teamId))
 async function load() {
   const { stageKeys, minimumMatchCount } = queryParams.value
   result.value = null
+  headToHead.value = null
   if (!Number.isInteger(teamIdNumber.value) || teamIdNumber.value <= 0) {
     error.value = '无效的战队 ID'
     return
@@ -53,7 +56,14 @@ async function load() {
   error.value = ''
   try {
     const data = await api.teamDetail(teamIdNumber.value, stageKeys, minimumMatchCount)
-    if (seq === loadSeq) result.value = data
+    if (seq !== loadSeq) return
+    result.value = data
+    try {
+      const h2h = await api.teamHeadToHead(teamIdNumber.value, stageKeys)
+      if (seq === loadSeq) headToHead.value = h2h
+    } catch {
+      /* 交锋记录是对局明细的衍生数据，缺失或未回填时静默降级 */
+    }
   } catch (reason) {
     if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
@@ -92,6 +102,24 @@ function fmtDuration(seconds: number): string {
 }
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
+
+async function downloadShareCard() {
+  if (!result.value) return
+  try {
+    const blob = await renderShareCard({
+      title: result.value.team.teamName,
+      subtitle: `系列赛 ${result.value.team.matchCount} 场 · 胜 ${result.value.team.matchWinCount} · ${stageKeysLabel.value}`,
+      badge: result.value.team.teamName,
+      metrics: result.value.coreMetrics.slice(0, 8).map((metric) => ({
+        label: metric.label,
+        value: metric.formattedValue,
+      })),
+    })
+    downloadBlob(blob, `${result.value.team.teamName}-data-card.png`)
+  } catch (reason) {
+    error.value = reason instanceof Error ? `海报生成失败：${reason.message}` : '海报生成失败'
+  }
+}
 
 const returnPath = computed(() => {
   const candidate = String(route.query.returnTo ?? '')
@@ -162,7 +190,10 @@ function playerHref(sourcePlayerId: number, position: string): string {
         <img v-if="result.team.teamLogo" :src="result.team.teamLogo" :alt="result.team.teamName" class="profile-logo" />
         <span v-else class="profile-logo profile-placeholder">{{ result.team.teamName.slice(0, 1) }}</span>
         <div class="profile-info">
-          <h1 class="profile-name">{{ result.team.teamName }}</h1>
+          <h1 class="profile-name">
+            {{ result.team.teamName }}
+            <button class="share-card-btn" type="button" @click="downloadShareCard">生成数据海报</button>
+          </h1>
           <p class="profile-meta">
             {{ t('teamDetail.matches') }} {{ result.team.matchCount }} ·
             {{ t('teamDetail.games') }} {{ result.team.gameCount }} ·
@@ -334,6 +365,60 @@ function playerHref(sourcePlayerId: number, position: string): string {
         </template>
         <p v-else class="detail-notice-inline">{{ t('teamDetail.noRecentGames') }}</p>
       </section>
+
+      <section v-if="headToHead && headToHead.opponents.length" class="detail-card">
+        <h2 class="detail-heading">{{ t('teamDetail.headToHead') }}</h2>
+        <p class="detail-subheading">{{ t('teamDetail.headToHeadNote') }}</p>
+        <div class="table-scroll">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>{{ t('teamDetail.h2hOpponent') }}</th>
+                <th>{{ t('teamDetail.h2hSeries') }}</th>
+                <th>{{ t('teamDetail.h2hSeriesRecord') }}</th>
+                <th>{{ t('teamDetail.h2hGames') }}</th>
+                <th>{{ t('teamDetail.h2hGameRecord') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="opponent in headToHead.opponents" :key="opponent.opponentTeamId">
+                <td>
+                  <div class="team-cell">
+                    <img
+                      v-if="opponent.opponentTeamLogo"
+                      :src="opponent.opponentTeamLogo"
+                      :alt="opponent.opponentTeamName"
+                      class="team-logo"
+                    />
+                    <span v-else class="team-placeholder team-logo">{{ opponent.opponentTeamName.slice(0, 1) }}</span>
+                    <strong>{{ opponent.opponentTeamName }}</strong>
+                  </div>
+                </td>
+                <td>{{ opponent.matchCount }}</td>
+                <td :class="opponent.matchWins >= opponent.matchLosses ? 'accent' : ''">
+                  {{ opponent.matchWins }}{{ t('teamDetail.win') }} {{ opponent.matchLosses }}{{ t('teamDetail.loss') }}
+                </td>
+                <td>{{ opponent.gameCount }}</td>
+                <td>{{ opponent.gameWins }} : {{ opponent.gameLosses }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <template v-if="headToHead.recentMeetings.length">
+          <h3 class="detail-heading h2h-meetings-title">{{ t('teamDetail.recentMeetings') }}</h3>
+          <div class="h2h-meetings">
+            <span
+              v-for="meeting in headToHead.recentMeetings"
+              :key="meeting.matchId"
+              class="h2h-meeting"
+              :class="meeting.won ? 'won' : 'lost'"
+            >
+              {{ fmtDateTime(meeting.startTime) }} vs {{ meeting.opponentTeamName }}
+              {{ meeting.teamGameWins }}:{{ meeting.opponentGameWins }}
+            </span>
+          </div>
+        </template>
+      </section>
     </template>
   </div>
 </template>
@@ -355,7 +440,12 @@ function playerHref(sourcePlayerId: number, position: string): string {
 .profile-logo { width: 64px; height: 64px; border-radius: 12px; object-fit: contain; background: var(--placeholder-bg); }
 .profile-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 26px; }
 .profile-info { flex: 1 1 320px; min-width: 0; }
-.profile-name { margin: 0; font-size: 20px; }
+.profile-name { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.share-card-btn {
+  padding: 5px 11px; border: 1px solid var(--accent-line); border-radius: 6px;
+  color: var(--accent-dark); background: var(--accent-soft); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.share-card-btn:hover { border-color: var(--accent); }
 .profile-meta { margin: 4px 0 0; font-size: 13px; color: var(--text); }
 .profile-meta.muted { color: var(--text-4); font-size: 12px; }
 .core-metrics-card { width: 100%; box-sizing: border-box; }
@@ -412,4 +502,12 @@ function playerHref(sourcePlayerId: number, position: string): string {
 .result-badge.lost { color: var(--danger); background: var(--danger-soft); }
 .view-link { color: var(--accent); text-decoration: none; font-weight: 600; }
 .view-link:hover { text-decoration: underline; }
+.h2h-meetings-title { margin-top: 14px; font-size: 14px; }
+.h2h-meetings { display: flex; flex-wrap: wrap; gap: 6px; }
+.h2h-meeting {
+  display: inline-block; padding: 4px 9px; border-radius: 6px; font-size: 12px;
+  border: 1px solid var(--line); color: var(--text-2); background: var(--panel-2);
+}
+.h2h-meeting.won { color: var(--accent-dark); background: var(--accent-soft); border-color: var(--accent-line); }
+.h2h-meeting.lost { color: var(--danger); background: var(--danger-soft); }
 </style>

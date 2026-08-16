@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, type PlayerDetailStatisticsResult, type PlayerGamesResult } from './api'
 import PlayerRadarChart from './PlayerRadarChart.vue'
 import ScoreggAverageContrast from './ScoreggAverageContrast.vue'
+import { downloadBlob, renderShareCard } from './shareCard'
 
 const props = defineProps<{ playerId: string }>()
 
@@ -132,6 +133,26 @@ function heroSortIndicator(key: HeroSortKey): string {
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 
+async function downloadShareCard() {
+  if (!result.value) return
+  try {
+    const blob = await renderShareCard({
+      title: result.value.player.playerName,
+      subtitle: `${result.value.player.teamNames.join(' / ') || '未知战队'} · ${stageKeysLabel.value}`,
+      badge: result.value.player.playerName,
+      metrics: result.value.coreMetrics.slice(0, 8).map((metric) => ({
+        label: metric.label,
+        value: metric.formattedValue,
+      })),
+      radarScores: result.value.radarMetrics.map((metric) => Number(metric.playerScore)),
+      radarLabels: result.value.radarMetrics.map((metric) => metric.label),
+    })
+    downloadBlob(blob, `${result.value.player.playerName}-data-card.png`)
+  } catch (reason) {
+    error.value = reason instanceof Error ? `海报生成失败：${reason.message}` : '海报生成失败'
+  }
+}
+
 function matchHref(record: { sourceMatchId: number }): string {
   const params = new URLSearchParams({ stageKeys: queryParams.value.stageKeys.join(',') })
   return `/matches/${record.sourceMatchId}?${params.toString()}`
@@ -173,7 +194,10 @@ const returnPath = computed(() => {
         />
         <span v-else class="profile-avatar profile-placeholder">{{ result.player.playerName.slice(0, 1) }}</span>
         <div class="profile-info">
-          <h1 class="profile-name">{{ result.player.playerName }}</h1>
+          <h1 class="profile-name">
+            {{ result.player.playerName }}
+            <button class="share-card-btn" type="button" @click="downloadShareCard">生成数据海报</button>
+          </h1>
           <p class="profile-meta">
             {{ result.player.teamNames.join(' / ') || '未知战队' }}
             · 系列赛 {{ result.player.matchCount }} 场 · 对局 {{ result.player.gameCount }} 局
@@ -378,7 +402,12 @@ const returnPath = computed(() => {
 .profile-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #edf0f2; }
 .profile-placeholder { display: grid; place-items: center; color: var(--accent); font-weight: 750; font-size: 26px; }
 .profile-info { flex: 1 1 320px; min-width: 0; }
-.profile-name { margin: 0; font-size: 20px; }
+.profile-name { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.share-card-btn {
+  padding: 5px 11px; border: 1px solid var(--accent-line); border-radius: 6px;
+  color: var(--accent-dark); background: var(--accent-soft); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.share-card-btn:hover { border-color: var(--accent); }
 .profile-meta { margin: 4px 0 0; font-size: 13px; color: #24292f; }
 .profile-meta.muted { color: #8b949e; font-size: 12px; }
 .position-tabs { display: flex; gap: 6px; }

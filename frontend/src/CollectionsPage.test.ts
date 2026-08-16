@@ -9,6 +9,7 @@ import { api, type CollectionStatusRow } from './api'
 vi.mock('./api', () => ({
   api: {
     collectionStatus: vi.fn(),
+    collectionCoverage: vi.fn(),
   },
 }))
 
@@ -96,6 +97,41 @@ describe('CollectionsPage', () => {
     await flushPromises()
 
     expect(wrapper.get('.message.error').text()).toContain('网络错误')
+    wrapper.unmount()
+  })
+
+  it('渲染数据覆盖矩阵并支持缺口筛选', async () => {
+    vi.mocked(api.collectionCoverage).mockResolvedValue({
+      stages: [
+        { sourceSeasonId: 237, sourceStageId: 106, seasonName: '2026职业联赛', stageName: '第三赛段组内赛', heroCollected: true, teamCollected: true, playerCollected: true, matchGameCount: 36 },
+        { sourceSeasonId: 206, sourceStageId: 91, seasonName: '2024职业联赛', stageName: '第二赛段淘汰赛', heroCollected: true, teamCollected: true, playerCollected: true, matchGameCount: 0 },
+      ],
+    })
+    const wrapper = mount(CollectionsPage)
+    await flushPromises()
+
+    const matrix = wrapper.get('.coverage-section')
+    expect(matrix.text()).toContain('2026职业联赛')
+    expect(matrix.text()).toContain('36 局')
+    expect(matrix.text()).toContain('未回填')
+
+    const gapButton = wrapper.findAll('.coverage-heading .pos-chip')
+      .find((button) => button.text().includes('存在缺口'))
+    expect(gapButton).toBeDefined()
+    await gapButton!.trigger('click')
+    const rows = wrapper.findAll('.coverage-table tbody tr')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('2024职业联赛')
+    wrapper.unmount()
+  })
+
+  it('覆盖矩阵加载失败时不影响采集记录展示', async () => {
+    vi.mocked(api.collectionCoverage).mockRejectedValue(new Error('覆盖查询失败'))
+    const wrapper = mount(CollectionsPage)
+    await flushPromises()
+
+    expect(wrapper.get('table.collection-table').text()).toContain('对局明细')
+    expect(wrapper.find('.coverage-section table').exists()).toBe(false)
     wrapper.unmount()
   })
 })

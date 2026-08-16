@@ -490,6 +490,104 @@ export interface CollectionStatusRow {
   errorMessage: string | null
 }
 
+export interface TeamHeadToHeadOpponent {
+  opponentTeamId: number
+  opponentTeamName: string
+  opponentTeamLogo: string | null
+  matchCount: number
+  matchWins: number
+  matchLosses: number
+  gameCount: number
+  gameWins: number
+  gameLosses: number
+}
+
+export interface TeamHeadToHeadMeeting {
+  matchId: number
+  opponentTeamId: number
+  opponentTeamName: string
+  opponentTeamLogo: string | null
+  startTime: string | null
+  teamGameWins: number
+  opponentGameWins: number
+  won: boolean
+}
+
+export interface TeamHeadToHeadResult {
+  teamId: number
+  opponents: TeamHeadToHeadOpponent[]
+  recentMeetings: TeamHeadToHeadMeeting[]
+}
+
+export interface ChampionCounterOpponent {
+  championId: number
+  championName: string
+  championChineseName: string
+  championTitle: string | null
+  championLogo: string | null
+  games: number
+  wins: number
+  winRate: number
+}
+
+export interface ChampionCounterResult {
+  championId: number
+  position: string
+  totalGames: number
+  opponents: ChampionCounterOpponent[]
+}
+
+export interface EloTeamRating {
+  teamId: number
+  teamName: string
+  teamLogo: string | null
+  rating: number
+  rank: number
+  games: number
+  wins: number
+  losses: number
+  ratingHistory: number[]
+}
+
+export interface EloRatingResult {
+  totalGames: number
+  ratings: EloTeamRating[]
+}
+
+export interface ChampionVersionCompareItem {
+  championId: number
+  championName: string
+  championChineseName: string | null
+  championLogo: string | null
+  fromPickCount: number
+  toPickCount: number
+  pickDelta: number
+  fromWinRate: number | null
+  toWinRate: number | null
+  winRateDelta: number
+}
+
+export interface ChampionVersionCompareResult {
+  fromDate: string
+  toDate: string
+  items: ChampionVersionCompareItem[]
+}
+
+export interface CollectionCoverageStage {
+  sourceSeasonId: number
+  sourceStageId: number
+  seasonName: string
+  stageName: string
+  heroCollected: boolean
+  teamCollected: boolean
+  playerCollected: boolean
+  matchGameCount: number
+}
+
+export interface CollectionCoverageResult {
+  stages: CollectionCoverageStage[]
+}
+
 const REQUEST_TIMEOUT_MS = 12_000
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -717,4 +815,37 @@ export const api = {
   },
   collectionStatus: (limit = 20) =>
     request<CollectionStatusRow[]>(`/api/v1/collections/status?limit=${limit}`),
+  teamHeadToHead: (sourceTeamId: number, stageKeys: string[]) => {
+    const params = new URLSearchParams({ stageKeys: stageKeys.join(',') })
+    return request<TeamHeadToHeadResult>(
+      `/api/v1/statistics/teams/${sourceTeamId}/head-to-head?${params}`,
+    )
+  },
+  championCounters: (
+    sourceChampionId: number,
+    stageKeys: string[],
+    position: string,
+    minimumGames = 2,
+  ) => {
+    const params = new URLSearchParams({
+      stageKeys: stageKeys.join(','),
+      position,
+      minimumGames: String(minimumGames),
+    })
+    return request<ChampionCounterResult>(
+      `/api/v1/statistics/champions/${sourceChampionId}/counters?${params}`,
+    )
+  },
+  eloRatings: (stageKeys: string[]) => {
+    const params = new URLSearchParams({ stageKeys: stageKeys.join(',') })
+    return request<EloRatingResult>(`/api/v1/statistics/elo?${params}`)
+  },
+  championVersionCompare: (stageKeys: string[], fromDate: string, toDate: string) => {
+    const params = new URLSearchParams({ stageKeys: stageKeys.join(','), fromDate, toDate })
+    return request<ChampionVersionCompareResult>(
+      `/api/v1/statistics/champions/version-compare?${params}`,
+    )
+  },
+  collectionCoverage: () =>
+    request<CollectionCoverageResult>('/api/v1/collections/coverage'),
 }

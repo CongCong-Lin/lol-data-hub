@@ -10,6 +10,8 @@ vi.mock('./api', () => ({
   api: {
     availability: vi.fn(),
     matchGames: vi.fn(),
+    eloRatings: vi.fn(),
+    teamHeadToHead: vi.fn(),
   },
 }))
 
@@ -79,6 +81,13 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(api.availability).mockResolvedValue(stages)
   vi.mocked(api.matchGames).mockResolvedValue(gamesResult())
+  vi.mocked(api.eloRatings).mockResolvedValue({
+    totalGames: 2,
+    ratings: [
+      { teamId: 1, teamName: 'TES', teamLogo: null, rating: 1520, rank: 1, games: 2, wins: 1, losses: 1, ratingHistory: [1516, 1512] },
+      { teamId: 2, teamName: 'BLG', teamLogo: null, rating: 1480, rank: 2, games: 2, wins: 1, losses: 1, ratingHistory: [1484, 1488] },
+    ],
+  })
 })
 
 function mountPage(props: Partial<InstanceType<typeof MatchesPage>['$props']> = {}) {
@@ -295,6 +304,40 @@ describe('MatchesPage', () => {
     await flushPromises()
 
     expect(wrapper.get('.message.error').text()).toContain('对局数据加载失败')
+    wrapper.unmount()
+  })
+
+  it('比赛日视图按日期分组并展示 Elo 预测与交锋展开', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const matchdayButton = wrapper.findAll('.sort-row .pos-chip')
+      .find((button) => button.text() === '比赛日')
+    expect(matchdayButton).toBeDefined()
+    await matchdayButton!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(api.eloRatings).toHaveBeenCalledWith(['237:100'])
+    expect(wrapper.find('.day-chips').exists()).toBe(true)
+    expect(wrapper.text()).toContain('2026-03-01')
+    const card = wrapper.get('.day-match-card')
+    expect(card.text()).toContain('TES')
+    expect(card.text()).toContain('BLG')
+    expect(card.text()).toContain('Elo 预测')
+
+    vi.mocked(api.teamHeadToHead).mockResolvedValue({
+      teamId: 1,
+      opponents: [{
+        opponentTeamId: 2, opponentTeamName: 'BLG', opponentTeamLogo: null,
+        matchCount: 1, matchWins: 1, matchLosses: 0, gameCount: 2, gameWins: 1, gameLosses: 1,
+      }],
+      recentMeetings: [],
+    })
+    const h2hButton = card.findAll('button.h2h-toggle')[0]
+    await h2hButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.day-match-h2h').text()).toContain('1 胜 0 负')
     wrapper.unmount()
   })
 })

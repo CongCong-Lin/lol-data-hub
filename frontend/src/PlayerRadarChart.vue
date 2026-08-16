@@ -3,12 +3,29 @@ import { computed } from 'vue'
 import type { PlayerRadarMetric } from './api'
 import { formatPercent } from './formatters'
 
-const props = defineProps<{ metrics: PlayerRadarMetric[] }>()
+export interface RadarOverlaySeries {
+  name: string
+  /** 与 metrics 等长的 0-100 分值序列 */
+  scores: number[]
+  /** 可选颜色；缺省时按序取内置调色板 */
+  color?: string
+}
+
+interface OverlayWithPolygon extends RadarOverlaySeries {
+  polygon: string
+}
+
+const props = defineProps<{
+  metrics: PlayerRadarMetric[]
+  /** 可选：多选手叠加多边形（对比模式），scores 与 metrics 一一对应 */
+  overlay?: RadarOverlaySeries[]
+}>()
 
 const CENTER_X = 260
 const CENTER_Y = 210
 const RADIUS = 128
 const GRID_LEVELS = [20, 40, 60, 80, 100]
+const OVERLAY_COLORS = ['#2f6fed', '#c94040', '#8a51c9', '#d98324', '#0f9b8e']
 
 function angleAt(index: number): number {
   return (Math.PI * 2 * index) / Math.max(props.metrics.length, 1) - Math.PI / 2
@@ -32,6 +49,16 @@ const gridPolygons = computed(() => GRID_LEVELS.map((level) => polygonOf(props.m
 const playerPolygon = computed(() => polygonOf(props.metrics.map((metric) => Number(metric.playerScore))))
 const averagePolygon = computed(() => polygonOf(props.metrics.map((metric) => Number(metric.averageScore))))
 const playerPoints = computed(() => props.metrics.map((metric, index) => pointAt(index, Number(metric.playerScore))))
+
+const overlaySeries = computed<OverlayWithPolygon[]>(() =>
+  (props.overlay ?? []).map((series, index) => ({
+    ...series,
+    color: series.color || OVERLAY_COLORS[index % OVERLAY_COLORS.length],
+    polygon: polygonOf(series.scores),
+  })),
+)
+
+const showCorePolygons = computed(() => !(props.overlay && props.overlay.length))
 
 interface AxisLabel {
   label: string
@@ -87,21 +114,39 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number | null): str
       :y2="pointAt(index, 100).y"
       class="radar-axis"
     />
-    <polygon :points="averagePolygon" class="radar-average" />
-    <polygon :points="playerPolygon" class="radar-player" />
-    <circle
-      v-for="(point, index) in playerPoints"
-      :key="`point-${index}`"
-      :cx="point.x"
-      :cy="point.y"
-      r="3.2"
-      class="radar-point"
-    />
+    <template v-if="showCorePolygons">
+      <polygon :points="averagePolygon" class="radar-average" />
+      <polygon :points="playerPolygon" class="radar-player" />
+      <circle
+        v-for="(point, index) in playerPoints"
+        :key="`point-${index}`"
+        :cx="point.x"
+        :cy="point.y"
+        r="3.2"
+        class="radar-point"
+      />
+    </template>
+    <template v-else>
+      <polygon
+        v-for="(series, index) in overlaySeries"
+        :key="`overlay-${index}`"
+        :points="series.polygon"
+        :fill="`${series.color}33`"
+        :stroke="series.color"
+        stroke-width="2"
+      />
+    </template>
     <template v-for="(axis, index) in axisLabels" :key="`label-${index}`">
       <text :x="axis.x" :y="axis.y" :text-anchor="axis.anchor" class="radar-label">{{ axis.label }}</text>
-      <text :x="axis.x" :y="axis.y + 15" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
-      <text v-if="axis.rankText" :x="axis.x" :y="axis.y + 29" :text-anchor="axis.anchor" class="radar-label-rank">{{ axis.rankText }}</text>
+      <text v-if="showCorePolygons" :x="axis.x" :y="axis.y + 15" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
+      <text v-if="showCorePolygons && axis.rankText" :x="axis.x" :y="axis.y + 29" :text-anchor="axis.anchor" class="radar-label-rank">{{ axis.rankText }}</text>
     </template>
+    <g v-if="!showCorePolygons" class="radar-legend">
+      <template v-for="(series, index) in overlaySeries" :key="`legend-${index}`">
+        <rect :x="330" :y="20 + index * 20" width="10" height="10" :fill="series.color" rx="2" />
+        <text :x="346" :y="29 + index * 20" class="radar-legend-text">{{ series.name }}</text>
+      </template>
+    </g>
   </svg>
 </template>
 
@@ -115,4 +160,5 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number | null): str
 .radar-label { font-size: 13px; font-weight: 700; fill: #24292f; }
 .radar-label-value { font-size: 12px; font-weight: 600; fill: #57606a; }
 .radar-label-rank { font-size: 11px; font-weight: 700; fill: var(--accent); }
+.radar-legend-text { font-size: 12px; font-weight: 650; fill: #24292f; }
 </style>

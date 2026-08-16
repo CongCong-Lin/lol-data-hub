@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { api, type PlayerStatistics } from './api'
+import { api, type PlayerRadarMetric, type PlayerStatistics } from './api'
+import PlayerRadarChart from './PlayerRadarChart.vue'
 import { useI18n } from './i18n'
 
 const props = defineProps<{
@@ -141,6 +142,56 @@ function canCompare(): boolean {
   return selectedPlayers.value.length >= 2 && props.stageKeys.length > 0
 }
 
+/** 雷达叠加：八维指标在所选选手内部做 0-100 归一化（死亡按低值更强反向）。 */
+const RADAR_KEYS: Array<{ key: keyof PlayerStatistics; label: string; higherIsBetter: boolean }> = [
+  { key: 'kda', label: 'KDA', higherIsBetter: true },
+  { key: 'killParticipantPercent', label: '参团率', higherIsBetter: true },
+  { key: 'creepScorePerGame', label: '场均补刀', higherIsBetter: true },
+  { key: 'killPerGame', label: '场均击杀', higherIsBetter: true },
+  { key: 'damagePercent', label: '伤害占比', higherIsBetter: true },
+  { key: 'damagePerGame', label: '场均伤害', higherIsBetter: true },
+  { key: 'goldPerGame', label: '场均经济', higherIsBetter: true },
+  { key: 'deathPerGame', label: '场均死亡', higherIsBetter: false },
+]
+
+const radarOverlay = computed(() =>
+  selectedPlayers.value.map((player) => ({
+    name: player.playerName,
+    scores: RADAR_KEYS.map((definition) => radarScoreOf(player, definition)),
+  })),
+)
+
+function radarScoreOf(
+  player: PlayerStatistics,
+  definition: { key: keyof PlayerStatistics; higherIsBetter: boolean },
+): number {
+  const values = selectedPlayers.value
+    .map((candidate) => Number(candidate[definition.key]))
+    .filter((value) => Number.isFinite(value))
+  if (!values.length) return 0
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const value = Number(player[definition.key])
+  if (!Number.isFinite(value)) return 0
+  if (max === min) return 60
+  const ratio = (value - min) / (max - min)
+  return definition.higherIsBetter ? ratio * 100 : (1 - ratio) * 100
+}
+
+const radarFakeMetrics = computed<PlayerRadarMetric[]>(() =>
+  RADAR_KEYS.map((definition) => ({
+    key: String(definition.key),
+    label: definition.label,
+    value: null,
+    averageValue: 0,
+    playerScore: 0,
+    averageScore: 0,
+    rank: 0,
+    cohortSize: 0,
+    available: true,
+  })),
+)
+
 /** 返回首页选手对比视图的完整地址，供详情页返回。 */
 function returnToUrl(): string {
   const params = new URLSearchParams({ view: 'compare' })
@@ -243,6 +294,10 @@ function fmtTeamNames(teamNames: string[]): string {
         </div>
         <span class="highlight-note">{{ t('compare.bestHighlight') }}</span>
       </div>
+      <div class="compare-radar">
+        <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" />
+        <p class="radar-note">八维雷达在所选选手内部归一化（0-100），用于观察相对强弱而非绝对水平。</p>
+      </div>
       <div class="table-scroll">
         <table class="compare-table">
           <thead>
@@ -318,6 +373,8 @@ function fmtTeamNames(teamNames: string[]): string {
 .selected-name:hover { color: var(--accent); text-decoration: underline; }
 .highlight-note { color: var(--muted); font-size: 12px; }
 .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+.compare-radar { padding: 6px 0 10px; }
+.radar-note { margin: 4px 0 0; text-align: center; color: var(--text-4); font-size: 12px; }
 .compare-table th, .compare-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .compare-table thead th { color: var(--text-3); font-size: 12px; background: var(--th-bg); }
 .compare-table td { text-align: center; font-variant-numeric: tabular-nums; }

@@ -130,6 +130,158 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
   if (props.sortBy !== field) return ''
   return props.sortDirection === 'desc' ? ' ↓' : ' ↑'
 }
+
+/* ---- 比赛日视图：按日期分组的赛程卡片 + Elo 预测 + 可展开交锋记录 ---- */
+
+const viewMode = ref<'list' | 'matchday'>('list')
+const dayGames = ref<MatchGameRecord[]>([])
+const dayLoading = ref(false)
+const dayError = ref('')
+const selectedDay = ref('')
+const eloRatingsByTeam = ref<Map<number, number>>(new Map())
+const expandedMatchId = ref<number | null>(null)
+const h2hLoading = ref(false)
+const h2hSummary = ref<{ wins: number; losses: number; gameWins: number; gameLosses: number } | null>(null)
+let daySeq = 0
+let eloLoaded = false
+
+function switchViewMode(mode: 'list' | 'matchday') {
+  if (viewMode.value === mode) return
+  viewMode.value = mode
+  expandedMatchId.value = null
+  h2hSummary.value = null
+  if (mode === 'matchday') void loadMatchDays()
+}
+
+async function loadMatchDays() {
+  const keys = props.stageKeys
+  if (!keys.length || !props.submitted) return
+  const seq = ++daySeq
+  dayLoading.value = true
+  dayError.value = ''
+  try {
+    const [games, elo] = await Promise.all([
+      api.matchGames(keys, 'startTime', 'desc', 0, 200),
+      eloLoaded ? Promise.resolve(null) : api.eloRatings(keys),
+    ])
+    if (seq !== daySeq) return
+    dayGames.value = games.items
+    if (elo) {
+      const map = new Map<number, number>()
+      for (const rating of elo.ratings) map.set(rating.teamId, rating.rating)
+      eloRatingsByTeam.value = map
+      eloLoaded = true
+    }
+    const days = availableDays.value
+    if (days.length && !days.some((day) => day.date === selectedDay.value)) {
+      selectedDay.value = days[0].date
+    }
+  } catch (reason) {
+    if (seq === daySeq) dayError.value = reason instanceof Error ? reason.message : String(reason)
+  } finally {
+    if (seq === daySeq) dayLoading.value = false
+  }
+}
+
+watch([() => props.stageKeys, () => props.submitted], () => {
+  dayGames.value = []
+  selectedDay.value = ''
+  eloLoaded = false
+  eloRatingsByTeam.value = new Map()
+  expandedMatchId.value = null
+  h2hSummary.value = null
+  if (viewMode.value === 'matchday') void loadMatchDays()
+})
+
+function dayKeyOf(game: MatchGameRecord): string {
+  if (!game.startTime) return '未知日期'
+  return game.startTime.slice(0, 10)
+}
+
+const availableDays = computed(() => {
+  const counts = new Map<string, number>()
+  for (const game of dayGames.value) {
+    const key = dayKeyOf(game)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([date, games]) => ({ date, games }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+})
+
+interface DayMatch {
+  matchId: number
+  startTime: string | null
+  teamAId: number
+  teamAName: string
+  teamALogo: string | null
+  teamBId: number
+  teamBName: string
+  teamBLogo: string | null
+  teamAWins: number
+  teamBWins: number
+  lastGameKills: string
+}
+
+const dayMatches = computed<DayMatch[]>(() => {
+  const byMatch = new Map<number, MatchGameRecord[]>()
+  for (const game of dayGames.value) {
+    if (dayKeyOf(game) !== selectedDay.value) continue
+    const list = byMatch.get(game.sourceMatchId) ?? []
+    list.push(game)
+    byMatch.set(game.sourceMatchId, list)
+  }
+  return [...byMatch.entries()]
+    .map(([matchId, games]) => {
+      const first = games[0]
+      const last = games[games.length - 1]
+      return {
+        matchId,
+        startTime: first.startTime,
+        teamAId: first.teamAId,
+        teamAName: first.teamAName,
+        teamALogo: first.teamALogo,
+        teamBId: first.teamBId,
+        teamBName: first.teamBName,
+        teamBLogo: first.teamBLogo,
+        teamAWins: games.filter((g) => g.winnerTeamId === first.teamAId).length,
+        teamBWins: games.filter((g) => g.winnerTeamId === first.teamBId).length,
+        lastGameKills: `${last.teamAKills}:${last.teamBKills}`,
+      }
+    })
+    .sort((a, b) => ((a.startTime ?? '') < (b.startTime ?? '') ? 1 : -1))
+})
+
+function eloWinProbability(match: DayMatch): number | null {
+  const ratingA = eloRatingsByTeam.value.get(match.teamAId)
+  const ratingB = eloRatingsByTeam.value.get(match.teamBId)
+  if (ratingA == null || ratingB == null) return null
+  return 1 / (1 + 10 ** ((ratingB - ratingA) / 400))
+}
+
+async function toggleMatchH2H(match: DayMatch) {
+  if (expandedMatchId.value === match.matchId) {
+    expandedMatchId.value = null
+    h2hSummary.value = null
+    return
+  }
+  expandedMatchId.value = match.matchId
+  h2hSummary.value = null
+  const seq = ++daySeq
+  h2hLoading.value = true
+  try {
+    const h2h = await api.teamHeadToHead(match.teamAId, props.stageKeys)
+    if (seq !== daySeq) return
+    const opponent = h2h.opponents.find((row) => row.opponentTeamId === match.teamBId)
+    h2hSummary.value = opponent
+      ? { wins: opponent.matchWins, losses: opponent.matchLosses, gameWins: opponent.gameWins, gameLosses: opponent.gameLosses }
+      : { wins: 0, losses: 0, gameWins: 0, gameLosses: 0 }
+  } catch {
+    if (seq === daySeq) h2hSummary.value = null
+  } finally {
+    if (seq === daySeq) h2hLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -141,17 +293,87 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
       </div>
       <div class="toolbar-right">
         <div class="sort-row">
-          <button class="pos-chip" :class="{ active: props.sortBy === 'startTime' }" @click="changeSort('startTime')">时间{{ sortIndicator('startTime') }}</button>
-          <button class="pos-chip" :class="{ active: props.sortBy === 'matchId' }" @click="changeSort('matchId')">系列赛{{ sortIndicator('matchId') }}</button>
+          <button class="pos-chip" :class="{ active: viewMode === 'list' }" @click="switchViewMode('list')">对局列表</button>
+          <button class="pos-chip" :class="{ active: viewMode === 'matchday' }" @click="switchViewMode('matchday')">比赛日</button>
+          <template v-if="viewMode === 'list'">
+            <button class="pos-chip" :class="{ active: props.sortBy === 'startTime' }" @click="changeSort('startTime')">时间{{ sortIndicator('startTime') }}</button>
+            <button class="pos-chip" :class="{ active: props.sortBy === 'matchId' }" @click="changeSort('matchId')">系列赛{{ sortIndicator('matchId') }}</button>
+          </template>
         </div>
-        <span class="total-games">共 {{ result?.total ?? 0 }} 局</span>
+        <span class="total-games">共 {{ viewMode === 'list' ? (result?.total ?? 0) : dayGames.length }} 局</span>
       </div>
     </div>
 
     <p v-if="error" class="message error">{{ error }}</p>
     <p v-if="loading" class="message success">{{ t('matches.loading') }}</p>
 
-    <template v-if="props.stageKeys.length">
+    <!-- 比赛日视图：按日期分组 + Elo 预测 + 可展开交锋 -->
+    <template v-if="viewMode === 'matchday'">
+      <p v-if="dayError" class="message error">{{ dayError }}</p>
+      <p v-if="dayLoading" class="message success">{{ t('matches.loading') }}</p>
+      <template v-else-if="props.submitted && availableDays.length">
+        <div class="day-chips" aria-label="比赛日选择">
+          <button
+            v-for="day in availableDays"
+            :key="day.date"
+            class="pos-chip"
+            :class="{ active: selectedDay === day.date }"
+            @click="selectedDay = day.date"
+          >{{ day.date }}（{{ day.games }}局）</button>
+        </div>
+        <div v-if="dayMatches.length" class="day-match-list">
+          <article v-for="match in dayMatches" :key="match.matchId" class="day-match-card">
+            <div class="day-match-main">
+              <div class="day-match-team">
+                <img v-if="match.teamALogo" :src="match.teamALogo" :alt="match.teamAName" class="team-logo" />
+                <span v-else class="team-placeholder team-logo">{{ match.teamAName.slice(0, 1) }}</span>
+                <strong>{{ match.teamAName }}</strong>
+              </div>
+              <div class="day-match-score">
+                <span class="score" :class="{ 'accent-text': match.teamAWins > match.teamBWins }">{{ match.teamAWins }}</span>
+                <span class="score-sep">:</span>
+                <span class="score" :class="{ 'accent-text': match.teamBWins > match.teamAWins }">{{ match.teamBWins }}</span>
+                <span class="score-note">末局 {{ match.lastGameKills }}</span>
+              </div>
+              <div class="day-match-team">
+                <img v-if="match.teamBLogo" :src="match.teamBLogo" :alt="match.teamBName" class="team-logo" />
+                <span v-else class="team-placeholder team-logo">{{ match.teamBName.slice(0, 1) }}</span>
+                <strong>{{ match.teamBName }}</strong>
+              </div>
+            </div>
+            <div class="day-match-meta">
+              <span v-if="eloWinProbability(match) != null" class="elo-prob">
+                Elo 预测 {{ match.teamAName }} <strong>{{ Math.round((eloWinProbability(match) ?? 0) * 100) }}%</strong>
+              </span>
+              <button class="view-link h2h-toggle" type="button" @click="toggleMatchH2H(match)">
+                {{ expandedMatchId === match.matchId ? '收起交锋' : '交锋记录' }}
+              </button>
+              <a class="view-link" :href="detailHref({ sourceMatchId: match.matchId } as MatchGameRecord)">{{ t('matches.viewDetail') }}</a>
+            </div>
+            <div v-if="expandedMatchId === match.matchId" class="day-match-h2h">
+              <p v-if="h2hLoading" class="h2h-text">加载交锋数据…</p>
+              <p v-else-if="h2hSummary" class="h2h-text">
+                所选赛段交锋：{{ match.teamAName }}
+                <strong>{{ h2hSummary.wins }}</strong> 胜 <strong>{{ h2hSummary.losses }}</strong> 负
+                （小局 {{ h2hSummary.gameWins }}:{{ h2hSummary.gameLosses }}）
+              </p>
+              <p v-else class="h2h-text">所选赛段内两队暂无历史交锋记录。</p>
+            </div>
+          </article>
+        </div>
+        <p v-else class="empty-inline">该日期暂无对局数据。</p>
+      </template>
+      <div v-else-if="props.submitted" class="empty-state">
+        <strong>暂无对局数据</strong>
+        <p>{{ t('matches.empty') }}</p>
+      </div>
+      <div v-else class="empty-state">
+        <strong>选择赛段后点击查询</strong>
+        <p>点击上方「查询统计」按钮后展示比赛日视图。</p>
+      </div>
+    </template>
+
+    <template v-else-if="props.stageKeys.length">
       <template v-if="props.submitted && result && result.items.length">
         <div class="table-scroll" tabindex="0" aria-label="对局赛果表">
           <table class="match-table">
@@ -259,4 +481,22 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
 .result-badge.tie { color: var(--muted); background: var(--tab-bg); }
 .view-link { color: var(--accent); text-decoration: none; font-weight: 600; }
 .view-link:hover { text-decoration: underline; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.day-match-list { display: grid; gap: 10px; }
+.day-match-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--panel-2); }
+.day-match-main { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; }
+.day-match-team { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.day-match-team:last-child { justify-content: flex-end; }
+.day-match-score { display: flex; align-items: baseline; gap: 6px; }
+.day-match-score .score { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.day-match-score .accent-text { color: var(--accent-dark); }
+.score-sep { color: var(--text-4); }
+.score-note { margin-left: 6px; color: var(--text-4); font-size: 11px; white-space: nowrap; }
+.day-match-meta { display: flex; align-items: center; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.elo-prob { color: var(--text-2); font-size: 12.5px; }
+.elo-prob strong { color: var(--accent-dark); }
+.h2h-toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: inherit; }
+.day-match-h2h { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.h2h-text { margin: 0; color: var(--text-2); font-size: 13px; }
+.h2h-text strong { color: var(--accent-dark); }
 </style>

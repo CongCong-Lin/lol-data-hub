@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, type ChampionDetailStatisticsResult } from './api'
+import { api, type ChampionCounterResult, type ChampionDetailStatisticsResult } from './api'
 import ChampionTrendChart from './ChampionTrendChart.vue'
 import { useI18n } from './i18n'
 
@@ -14,6 +14,7 @@ const { t } = useI18n()
 const loading = ref(false)
 const error = ref('')
 const result = ref<ChampionDetailStatisticsResult | null>(null)
+const counters = ref<ChampionCounterResult | null>(null)
 
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单', JUN: '打野', MID: '中路', BOT: '下路', SUP: '辅助',
@@ -35,6 +36,7 @@ const championIdNumber = computed(() => Number(props.championId))
 async function load() {
   const { stageKeys, position, minimumPickCount } = queryParams.value
   result.value = null
+  counters.value = null
   if (!Number.isInteger(championIdNumber.value) || championIdNumber.value <= 0) {
     error.value = '无效的英雄 ID'
     return
@@ -48,7 +50,16 @@ async function load() {
   error.value = ''
   try {
     const data = await api.championDetail(championIdNumber.value, stageKeys, minimumPickCount, position)
-    if (seq === loadSeq) result.value = data
+    if (seq !== loadSeq) return
+    result.value = data
+    if (position) {
+      try {
+        const counterData = await api.championCounters(championIdNumber.value, stageKeys, position)
+        if (seq === loadSeq) counters.value = counterData
+      } catch {
+        /* 对位克制依赖逐局阵容数据，未采集时静默降级 */
+      }
+    }
   } catch (reason) {
     if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
   } finally {
@@ -86,6 +97,18 @@ function fmtDateTime(value: string | null): string {
 }
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
+
+const strongAgainst = computed(() =>
+  [...(counters.value?.opponents ?? [])]
+    .sort((a, b) => b.winRate - a.winRate)
+    .slice(0, 5),
+)
+
+const weakAgainst = computed(() =>
+  [...(counters.value?.opponents ?? [])]
+    .sort((a, b) => a.winRate - b.winRate)
+    .slice(0, 5),
+)
 
 const returnPath = computed(() => {
   const candidate = String(route.query.returnTo ?? '')
@@ -276,6 +299,33 @@ function playerHref(sourcePlayerId: number, position: string): string {
         <p v-else class="detail-notice-inline">{{ t('championDetail.noTrends') }}</p>
       </section>
 
+      <section v-if="counters && counters.opponents.length" class="detail-card">
+        <h2 class="detail-heading">{{ t('championDetail.counters') }}</h2>
+        <p class="detail-subheading">{{ t('championDetail.countersNote', { n: counters.totalGames }) }}</p>
+        <div class="counter-columns">
+          <div class="counter-block">
+            <h3 class="counter-title strong">{{ t('championDetail.strongAgainst') }}</h3>
+            <ul class="counter-list">
+              <li v-for="opponent in strongAgainst" :key="opponent.championId">
+                <img v-if="opponent.championLogo" :src="opponent.championLogo" :alt="opponent.championChineseName" class="counter-logo" />
+                <span class="counter-name">{{ opponent.championChineseName || opponent.championName }}</span>
+                <span class="counter-meta accent">{{ fmtPercent(opponent.winRate) }} · {{ opponent.games }}局</span>
+              </li>
+            </ul>
+          </div>
+          <div class="counter-block">
+            <h3 class="counter-title weak">{{ t('championDetail.weakAgainst') }}</h3>
+            <ul class="counter-list">
+              <li v-for="opponent in weakAgainst" :key="opponent.championId">
+                <img v-if="opponent.championLogo" :src="opponent.championLogo" :alt="opponent.championChineseName" class="counter-logo" />
+                <span class="counter-name">{{ opponent.championChineseName || opponent.championName }}</span>
+                <span class="counter-meta danger">{{ fmtPercent(opponent.winRate) }} · {{ opponent.games }}局</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
       <section class="detail-card">
         <h2 class="detail-heading">统计口径说明</h2>
         <ul class="caliber-list">
@@ -348,4 +398,16 @@ function playerHref(sourcePlayerId: number, position: string): string {
 .player-link:hover strong { color: var(--accent); }
 .player-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
 .caliber-list { margin: 0; padding-left: 20px; color: var(--text-3); font-size: 13px; line-height: 1.75; }
+.counter-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .counter-columns { grid-template-columns: 1fr; } }
+.counter-title { margin: 0 0 8px; font-size: 13.5px; }
+.counter-title.strong { color: var(--accent-dark); }
+.counter-title.weak { color: var(--danger); }
+.counter-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.counter-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.counter-logo { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.counter-name { font-weight: 600; color: var(--text); }
+.counter-meta { margin-left: auto; font-weight: 650; white-space: nowrap; }
+.counter-meta.accent { color: var(--accent-dark); }
+.counter-meta.danger { color: var(--danger); }
 </style>

@@ -10,6 +10,7 @@ import { api, type MatchGameRecord, type TeamDetailStatisticsResult } from './ap
 vi.mock('./api', () => ({
   api: {
     teamDetail: vi.fn(),
+    teamHeadToHead: vi.fn(),
   },
 }))
 
@@ -135,7 +136,7 @@ describe('TeamDetailPage', () => {
     await flushPromises()
 
     expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 5)
-    expect(wrapper.get('.profile-name').text()).toBe('TES')
+    expect(wrapper.get('.profile-name').text()).toContain('TES')
     const metricLabels = wrapper.findAll('.core-metric-item .core-metric-label').map((node) => node.text())
     expect(metricLabels).toEqual(['胜率', 'KDA', '场均伤害'])
     expect(wrapper.get('.core-metric-value').text()).toContain('60.00%')
@@ -228,6 +229,41 @@ describe('TeamDetailPage', () => {
     const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
     await flushPromises()
     expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 5)
+    wrapper.unmount()
+  })
+
+  it('加载并展示对手交锋汇总与最近交手', async () => {
+    vi.mocked(api.teamHeadToHead).mockResolvedValue({
+      teamId: 1,
+      opponents: [{
+        opponentTeamId: 2, opponentTeamName: 'BLG', opponentTeamLogo: null,
+        matchCount: 2, matchWins: 1, matchLosses: 1, gameCount: 5, gameWins: 2, gameLosses: 3,
+      }],
+      recentMeetings: [{
+        matchId: 9002, opponentTeamId: 2, opponentTeamName: 'BLG', opponentTeamLogo: null,
+        startTime: '2026-03-01T10:00:00Z', teamGameWins: 0, opponentGameWins: 2, won: false,
+      }],
+    })
+
+    const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
+    await flushPromises()
+
+    const section = wrapper.findAll('.detail-card').find((card) => card.text().includes('交锋记录'))
+    expect(section).toBeDefined()
+    expect(section!.text()).toContain('BLG')
+    expect(section!.text()).toContain('1胜 1负')
+    expect(section!.text()).toContain('0:2')
+    expect(vi.mocked(api.teamHeadToHead)).toHaveBeenCalledWith(1, ['237:100'])
+    wrapper.unmount()
+  })
+
+  it('无对局明细时不渲染交锋区块', async () => {
+    vi.mocked(api.teamHeadToHead).mockResolvedValue({ teamId: 1, opponents: [], recentMeetings: [] })
+
+    const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('交锋记录')
     wrapper.unmount()
   })
 })

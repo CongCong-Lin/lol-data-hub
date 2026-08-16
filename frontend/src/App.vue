@@ -21,13 +21,24 @@ import SiteNav from './SiteNav.vue'
 import MatchesPage from './MatchesPage.vue'
 import PlayerComparePage from './PlayerComparePage.vue'
 import CollectionsPage from './CollectionsPage.vue'
+import LeaderboardsPage from './LeaderboardsPage.vue'
 import { formatPercent } from './formatters'
 
-type ActiveView = 'champion' | 'team' | 'player' | 'combo' | 'matches' | 'compare' | 'collections'
+type ActiveView =
+  | 'champion'
+  | 'team'
+  | 'player'
+  | 'combo'
+  | 'matches'
+  | 'compare'
+  | 'collections'
+  | 'leaderboards'
 
-const STATISTIC_VIEWS: ReadonlySet<ActiveView> = new Set(['champion', 'team', 'player', 'combo'])
+const STATISTIC_VIEWS: ReadonlySet<ActiveView> = new Set([
+  'champion', 'team', 'player', 'combo', 'leaderboards',
+])
 const VIEW_VALUES: ReadonlySet<string> = new Set([
-  'champion', 'team', 'player', 'combo', 'matches', 'compare', 'collections',
+  'champion', 'team', 'player', 'combo', 'matches', 'compare', 'collections', 'leaderboards',
 ])
 
 const CHAMPION_COLUMNS: ColumnOption[] = [
@@ -107,6 +118,7 @@ const VIEW_STAT_TYPE: Record<ActiveView, StatisticType> = {
   compare: 'PLAYER',
   /* 占位：collections 视图不使用赛段可用性（controls 区隐藏） */
   collections: 'HERO',
+  leaderboards: 'PLAYER',
 }
 
 const MATCHES_SORT_FIELDS = new Set(['startTime', 'matchId'])
@@ -142,6 +154,8 @@ const matchesSortDirection = ref<'asc' | 'desc'>('desc')
 const matchesOffset = ref(0)
 const comparePositionFilter = ref('')
 const compareMinimumMatchCount = ref(5)
+/** 排行榜手动刷新信号：主查询按钮在排行榜视图下触发一次重载 */
+const leaderboardsRefreshKey = ref(0)
 /** 对局赛果查询是否已提交（点击"查询统计"后为 true，赛段变化/切视图时重置） */
 const submittedMatchesQuery = ref(false)
 const search = ref('')
@@ -384,6 +398,8 @@ function buildQueryString(): string {
   } else if (activeView.value === 'compare') {
     if (comparePositionFilter.value) params.set('comparePosition', comparePositionFilter.value)
     params.set('compareMinimumMatchCount', String(compareMinimumMatchCount.value))
+  } else if (activeView.value === 'leaderboards') {
+    /* 排行榜无额外持久化参数 */
   } else if (activeView.value === 'collections') {
     /* 采集状态视图无专属统计参数 */
   } else {
@@ -772,6 +788,14 @@ async function query(preserveCurrentResult = false) {
   }
   /* 选手对比/采集状态由各自面板自行查询，不参与统计查询 */
   if (view === 'compare' || view === 'collections') return
+  /* 排行榜：面板随赛段自动加载，主按钮触发一次手动刷新 */
+  if (view === 'leaderboards') {
+    if (!selectedStageKeys.value.size) return
+    leaderboardsRefreshKey.value++
+    error.value = ''
+    notice.value = ''
+    return
+  }
   if (!activeMinimumValid.value) {
     error.value = '最低样本数必须是 0 到 10000 之间的整数'
     return
@@ -940,6 +964,35 @@ function toggleStage(compositeKey: string, collected: boolean) {
   invalidateQueryResults()
 }
 
+/** 一键勾选当前浏览赛事的全部已采集赛段。 */
+function selectAllCollectedInSeason() {
+  const keys = allAvailability.value
+    .filter((stage) => stage.collected && stage.sourceSeasonId === browsedSeasonId.value)
+    .map((stage) => makeKey(stage.sourceSeasonId, stage.sourceStageId))
+  if (!keys.length) {
+    error.value = '当前赛事暂无已采集赛段'
+    return
+  }
+  selectedStageKeys.value = new Set(keys.slice(0, MAX_STAGE_SELECTION))
+  invalidateQueryResults()
+}
+
+/** 一键勾选全部赛季的已采集赛段；超过上限时保留最新的 50 个。 */
+function selectAllCollectedOverall() {
+  const keys = allAvailability.value
+    .filter((stage) => stage.collected)
+    .map((stage) => makeKey(stage.sourceSeasonId, stage.sourceStageId))
+  if (!keys.length) {
+    error.value = '暂无已采集赛段'
+    return
+  }
+  if (keys.length > MAX_STAGE_SELECTION) {
+    error.value = `已采集 ${keys.length} 个赛段，已达上限，仅保留最新的 ${MAX_STAGE_SELECTION} 个`
+  }
+  selectedStageKeys.value = new Set(keys.slice(0, MAX_STAGE_SELECTION))
+  invalidateQueryResults()
+}
+
 function removeStage(compositeKey: string) {
   const newSet = new Set(selectedStageKeys.value)
   newSet.delete(compositeKey)
@@ -1039,6 +1092,13 @@ onMounted(async () => {
       >
         英雄组合
       </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeView === 'leaderboards' }"
+        @click="switchView('leaderboards')"
+      >
+        排行榜
+      </button>
     </nav>
 
     <section v-if="activeView !== 'collections'" class="panel controls">
@@ -1112,17 +1172,31 @@ onMounted(async () => {
         <div class="basket-section">
           <div class="basket-heading">
             <span>已选跨赛事赛段</span>
-            <div v-if="selectedStageKeys.size > 0" class="basket-heading-actions">
-              <small>
-                {{ selectedSeasonCount }} 个赛事 · {{ selectedStageKeys.size }} 个赛段
-                <template v-if="activeView === 'champion'"> · 样本合计 {{ totalSampleBase }}</template>
-              </small>
+            <div class="basket-heading-actions">
               <button
                 type="button"
-                class="basket-clear"
-                aria-label="取消所有已选赛段"
-                @click="clearSelectedStages"
-              >清空全部</button>
+                class="basket-quick"
+                title="勾选当前浏览赛事的全部已采集赛段"
+                @click="selectAllCollectedInSeason"
+              >全选本赛事</button>
+              <button
+                type="button"
+                class="basket-quick"
+                title="勾选全部赛季的已采集赛段（最多 50 个，超出时保留最新）"
+                @click="selectAllCollectedOverall"
+              >全部赛季</button>
+              <template v-if="selectedStageKeys.size > 0">
+                <small>
+                  {{ selectedSeasonCount }} 个赛事 · {{ selectedStageKeys.size }} 个赛段
+                  <template v-if="activeView === 'champion'"> · 样本合计 {{ totalSampleBase }}</template>
+                </small>
+                <button
+                  type="button"
+                  class="basket-clear"
+                  aria-label="取消所有已选赛段"
+                  @click="clearSelectedStages"
+                >清空全部</button>
+              </template>
             </div>
           </div>
           <div v-if="selectedStageKeys.size === 0" class="empty-inline">
@@ -1606,6 +1680,14 @@ onMounted(async () => {
         :stage-keys="[...selectedStageKeys]"
         v-model:position-filter="comparePositionFilter"
         v-model:minimum-match-count="compareMinimumMatchCount"
+      />
+    </section>
+
+    <!-- 排行榜面板 -->
+    <section v-if="activeView === 'leaderboards'" class="panel table-panel">
+      <LeaderboardsPage
+        :stage-keys="[...selectedStageKeys]"
+        :refresh-key="leaderboardsRefreshKey"
       />
     </section>
 
