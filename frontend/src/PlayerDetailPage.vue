@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, type PlayerDetailStatisticsResult, type PlayerGamesResult } from './api'
 import PlayerRadarChart from './PlayerRadarChart.vue'
 import ScoreggAverageContrast from './ScoreggAverageContrast.vue'
-import { downloadBlob, renderShareCard } from './shareCard'
 
 const props = defineProps<{ playerId: string }>()
 
@@ -133,26 +132,6 @@ function heroSortIndicator(key: HeroSortKey): string {
 
 const stageKeysLabel = computed(() => queryParams.value.stageKeys.join('、'))
 
-async function downloadShareCard() {
-  if (!result.value) return
-  try {
-    const blob = await renderShareCard({
-      title: result.value.player.playerName,
-      subtitle: `${result.value.player.teamNames.join(' / ') || '未知战队'} · ${stageKeysLabel.value}`,
-      badge: result.value.player.playerName,
-      metrics: result.value.coreMetrics.slice(0, 8).map((metric) => ({
-        label: metric.label,
-        value: metric.formattedValue,
-      })),
-      radarScores: result.value.radarMetrics.map((metric) => Number(metric.playerScore)),
-      radarLabels: result.value.radarMetrics.map((metric) => metric.label),
-    })
-    downloadBlob(blob, `${result.value.player.playerName}-data-card.png`)
-  } catch (reason) {
-    error.value = reason instanceof Error ? `海报生成失败：${reason.message}` : '海报生成失败'
-  }
-}
-
 function matchHref(record: { sourceMatchId: number }): string {
   const params = new URLSearchParams({ stageKeys: queryParams.value.stageKeys.join(',') })
   return `/matches/${record.sourceMatchId}?${params.toString()}`
@@ -196,7 +175,6 @@ const returnPath = computed(() => {
         <div class="profile-info">
           <h1 class="profile-name">
             {{ result.player.playerName }}
-            <button class="share-card-btn" type="button" @click="downloadShareCard">生成数据海报</button>
           </h1>
           <p class="profile-meta">
             {{ result.player.teamNames.join(' / ') || '未知战队' }}

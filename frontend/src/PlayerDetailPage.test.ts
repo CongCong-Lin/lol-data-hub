@@ -222,4 +222,13 @@ describe('选手详情页', () => {
     expect(wrapper.text()).toContain('不提供英雄级 MVP 统计')
     wrapper.unmount()
   })
+
+  it('不再提供生成数据海报入口', async () => {
+    const { wrapper } = await mountAt(DETAIL_URL)
+    await flushPromises()
+
+    expect(wrapper.find('button.share-card-btn').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('生成数据海报')
+    wrapper.unmount()
+  })
 })
