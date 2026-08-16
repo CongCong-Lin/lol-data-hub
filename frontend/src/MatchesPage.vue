@@ -21,6 +21,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const PAGE_SIZE = 50
+const DAY_PAGE_SIZE = 100
 
 const allStages = ref<Stage[]>([])
 const loading = ref(false)
@@ -135,7 +136,9 @@ function sortIndicator(field: 'startTime' | 'matchId'): string {
 
 const viewMode = ref<'list' | 'matchday'>('list')
 const dayGames = ref<MatchGameRecord[]>([])
+const dayTotal = ref(0)
 const dayLoading = ref(false)
+const dayMoreLoading = ref(false)
 const dayError = ref('')
 const selectedDay = ref('')
 const eloRatingsByTeam = ref<Map<number, number>>(new Map())
@@ -144,6 +147,8 @@ const h2hLoading = ref(false)
 const h2hSummary = ref<{ wins: number; losses: number; gameWins: number; gameLosses: number } | null>(null)
 let daySeq = 0
 let eloLoaded = false
+
+const dayLoadedAll = computed(() => dayGames.value.length >= dayTotal.value)
 
 function switchViewMode(mode: 'list' | 'matchday') {
   if (viewMode.value === mode) return
@@ -158,14 +163,16 @@ async function loadMatchDays() {
   if (!keys.length || !props.submitted) return
   const seq = ++daySeq
   dayLoading.value = true
+  dayMoreLoading.value = false
   dayError.value = ''
   try {
     const [games, elo] = await Promise.all([
-      api.matchGames(keys, 'startTime', 'desc', 0, 200),
+      api.matchGames(keys, 'startTime', 'desc', 0, DAY_PAGE_SIZE),
       eloLoaded ? Promise.resolve(null) : api.eloRatings(keys),
     ])
     if (seq !== daySeq) return
     dayGames.value = games.items
+    dayTotal.value = games.total
     if (elo) {
       const map = new Map<number, number>()
       for (const rating of elo.ratings) map.set(rating.teamId, rating.rating)
@@ -183,13 +190,61 @@ async function loadMatchDays() {
   }
 }
 
+async function loadMoreMatchDays() {
+  if (dayMoreLoading.value || dayLoadedAll.value) return
+  await fetchOlderMatchDays()
+}
+
+async function fetchOlderMatchDays(): Promise<boolean> {
+  const seq = ++daySeq
+  dayMoreLoading.value = true
+  try {
+    const data = await api.matchGames(props.stageKeys, 'startTime', 'desc', dayGames.value.length, DAY_PAGE_SIZE)
+    if (seq !== daySeq) return false
+    if (data.items.length === 0) {
+      // 服务端未返回更多数据时按已加载量对齐总数，避免死循环
+      dayTotal.value = dayGames.value.length
+      return false
+    }
+    dayGames.value = [...dayGames.value, ...data.items]
+    dayTotal.value = data.total
+    return true
+  } catch (reason) {
+    if (seq === daySeq) dayError.value = reason instanceof Error ? reason.message : String(reason)
+    return false
+  } finally {
+    if (seq === daySeq) dayMoreLoading.value = false
+  }
+}
+
+function selectDay(day: string) {
+  selectedDay.value = day
+  void ensureDayComplete(day)
+}
+
+/* 点击最旧比赛日时自动翻页补齐该日数据（更早日期出现或全部加载完即停） */
+async function ensureDayComplete(target: string) {
+  while (!dayLoadedAll.value && earliestDay() === target) {
+    if (dayMoreLoading.value) return
+    const appended = await fetchOlderMatchDays()
+    if (!appended) return
+  }
+}
+
+function earliestDay(): string | null {
+  const days = availableDays.value
+  return days.length ? days[days.length - 1].date : null
+}
+
 watch([() => props.stageKeys, () => props.submitted], () => {
   dayGames.value = []
+  dayTotal.value = 0
   selectedDay.value = ''
   eloLoaded = false
   eloRatingsByTeam.value = new Map()
   expandedMatchId.value = null
   h2hSummary.value = null
+  dayMoreLoading.value = false
   if (viewMode.value === 'matchday') void loadMatchDays()
 })
 
@@ -300,7 +355,7 @@ async function toggleMatchH2H(match: DayMatch) {
             <button class="pos-chip" :class="{ active: props.sortBy === 'matchId' }" @click="changeSort('matchId')">系列赛{{ sortIndicator('matchId') }}</button>
           </template>
         </div>
-        <span class="total-games">共 {{ viewMode === 'list' ? (result?.total ?? 0) : dayGames.length }} 局</span>
+        <span class="total-games">共 {{ viewMode === 'list' ? (result?.total ?? 0) : dayTotal }} 局<span v-if="viewMode === 'matchday' && !dayLoadedAll"> · 已加载 {{ dayGames.length }} 局</span></span>
       </div>
     </div>
 
@@ -318,8 +373,15 @@ async function toggleMatchH2H(match: DayMatch) {
             :key="day.date"
             class="pos-chip"
             :class="{ active: selectedDay === day.date }"
-            @click="selectedDay = day.date"
+            @click="selectDay(day.date)"
           >{{ day.date }}（{{ day.games }}局）</button>
+          <button
+            v-if="!dayLoadedAll"
+            class="pos-chip load-more-day"
+            type="button"
+            :disabled="dayMoreLoading"
+            @click="loadMoreMatchDays"
+          >{{ dayMoreLoading ? '加载中…' : `加载更多（已加载 ${dayGames.length}/${dayTotal} 局）` }}</button>
         </div>
         <div v-if="dayMatches.length" class="day-match-list">
           <article v-for="match in dayMatches" :key="match.matchId" class="day-match-card">
@@ -482,6 +544,7 @@ async function toggleMatchH2H(match: DayMatch) {
 .view-link { color: var(--accent); text-decoration: none; font-weight: 600; }
 .view-link:hover { text-decoration: underline; }
 .day-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.load-more-day:disabled { opacity: 0.55; cursor: wait; }
 .day-match-list { display: grid; gap: 10px; }
 .day-match-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--panel-2); }
 .day-match-main { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; }

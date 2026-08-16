@@ -340,4 +340,106 @@ describe('MatchesPage', () => {
     expect(wrapper.get('.day-match-h2h').text()).toContain('1 胜 0 负')
     wrapper.unmount()
   })
+
+  it('比赛日视图按页加载并显示加载更多按钮', async () => {
+    const items = Array.from({ length: 100 }, (_, i) =>
+      game({ sourceMatchId: 7000 + i, gameNumber: 1, startTime: '2026-03-01T10:00:00Z' }),
+    )
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 120, limit: 100, items }))
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const matchdayButton = wrapper.findAll('.sort-row .pos-chip').find((b) => b.text() === '比赛日')!
+    await matchdayButton.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames)).toHaveBeenCalledWith(['237:100'], 'startTime', 'desc', 0, 100)
+    expect(wrapper.text()).toContain('共 120 局')
+    expect(wrapper.text()).toContain('已加载 100 局')
+    const moreButton = wrapper.findAll('.day-chips .pos-chip').find((b) => b.text()!.includes('加载更多'))
+    expect(moreButton).toBeDefined()
+
+    // 点击加载更多：以当前已加载量作为偏移追加下一页
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({
+      total: 120, offset: 100, limit: 100,
+      items: [game({ sourceMatchId: 8001, gameNumber: 1, startTime: '2026-02-28T10:00:00Z' })],
+    }))
+    await moreButton!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'startTime', 'desc', 100, 100)
+    expect(wrapper.text()).toContain('已加载 101 局')
+
+    // 数据补齐后按钮消失
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({
+      total: 101, offset: 100, limit: 100,
+      items: [game({ sourceMatchId: 8002, gameNumber: 1, startTime: '2026-02-27T10:00:00Z' })],
+    }))
+    await moreButton!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(wrapper.findAll('.day-chips .pos-chip').some((b) => b.text()!.includes('加载更多'))).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('点击最旧比赛日时自动翻页补齐该日数据', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => game({
+      sourceMatchId: 5000 + i,
+      gameNumber: 1,
+      startTime: i < 50 ? '2026-03-02T10:00:00Z' : '2026-03-01T10:00:00Z',
+    }))
+    const page2 = Array.from({ length: 50 }, (_, i) => game({
+      sourceMatchId: 6000 + i,
+      gameNumber: 1,
+      startTime: '2026-02-28T10:00:00Z',
+    }))
+    vi.mocked(api.matchGames).mockImplementation(async (_keys, _sort, _dir, offset, _limit) => {
+      // 列表视图与比赛日首屏都从 offset 0 拉取；自动翻页从 100 开始
+      return offset === 0
+        ? gamesResult({ total: 150, limit: 100, items: page1 })
+        : gamesResult({ total: 150, offset: 100, limit: 100, items: page2 })
+    })
+
+    const wrapper = mountPage()
+    await flushPromises()
+    const matchdayButton = wrapper.findAll('.sort-row .pos-chip').find((b) => b.text() === '比赛日')!
+    await matchdayButton.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    // 03-01 是已加载范围的最旧日期且数据未加载完 → 点击后自动翻页
+    const oldestChip = wrapper.findAll('.day-chips .pos-chip').find((b) => b.text()!.includes('2026-03-01'))!
+    await oldestChip.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames)).toHaveBeenLastCalledWith(['237:100'], 'startTime', 'desc', 100, 100)
+    expect(wrapper.text()).toContain('2026-02-28')
+    wrapper.unmount()
+  })
+
+  it('点击非最旧比赛日不触发额外翻页请求', async () => {
+    const items = Array.from({ length: 100 }, (_, i) => game({
+      sourceMatchId: 7000 + i,
+      gameNumber: 1,
+      startTime: i < 50 ? '2026-03-02T10:00:00Z' : '2026-03-01T10:00:00Z',
+    }))
+    vi.mocked(api.matchGames).mockResolvedValue(gamesResult({ total: 150, limit: 100, items }))
+    const wrapper = mountPage()
+    await flushPromises()
+    const matchdayButton = wrapper.findAll('.sort-row .pos-chip').find((b) => b.text() === '比赛日')!
+    await matchdayButton.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    const callsBefore = vi.mocked(api.matchGames).mock.calls.length
+    const newerChip = wrapper.findAll('.day-chips .pos-chip').find((b) => b.text()!.includes('2026-03-02'))!
+    await newerChip.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(api.matchGames).mock.calls.length).toBe(callsBefore)
+    wrapper.unmount()
+  })
 })
