@@ -13,7 +13,10 @@ import {
  * BP 模拟器：Ban/Pick 沙盘。
  * 推荐基于当前赛段的英雄胜率×样本（版本 Tier），并结合已选敌方英雄的克制数据与
  * 己方已选英雄的组合胜率给出参考；所有衍生查询按英雄/组合缓存，调用次数有界。
+ * 赛段来自全局赛段选择（App 传入 stageKeys），本组件只负责名册名称映射。
  */
+
+const props = defineProps<{ stageKeys: string[] }>()
 
 const POSITIONS = ['TOP', 'JUN', 'MID', 'BOT', 'SUP'] as const
 type Position = (typeof POSITIONS)[number]
@@ -66,7 +69,7 @@ const SLOTS: Slot[] = [
     .map<Slot>((side) => ({ kind: 'pick', side, position: null, championId: null })),
 ]
 
-const stageKey = ref('')
+const stageKey = ref(props.stageKeys[0] ?? '')
 const stages = ref<Stage[]>([])
 const champions = ref<ChampionStatistics[]>([])
 const loading = ref(false)
@@ -93,6 +96,14 @@ function championNameOf(championId: number): string {
 
 function championLogoOf(championId: number): string | null {
   return championById.value.get(championId)?.championLogo ?? null
+}
+
+/** 赛段名册展示：优先用 availability 名册里的名称，尚未加载时退化为键本身。 */
+function stageLabelOf(key: string): string {
+  const stage = stages.value.find(
+    (candidate) => `${candidate.sourceSeasonId}:${candidate.sourceStageId}` === key,
+  )
+  return stage ? `${stage.seasonName ?? `赛事#${stage.sourceSeasonId}`} · ${stage.name}` : key
 }
 
 /** 当前激活槽位之后的第一个空槽；Ban 完成后进入 Pick。 */
@@ -281,19 +292,25 @@ const sideSummary = computed(() => {
   return { blue: summaryOf(bluePicks.value), red: summaryOf(redPicks.value) }
 })
 
+/** 全局赛段变化时同步本组件：当前赛段被移除则回退到第一个赛段。 */
+watch(
+  () => props.stageKeys.join(','),
+  () => {
+    if (!props.stageKeys.includes(stageKey.value)) stageKey.value = props.stageKeys[0] ?? ''
+  },
+)
+
+let availabilitySeq = 0
+
 onMounted(async () => {
-  const seq = ++loadSeq
-  loading.value = true
+  const seq = ++availabilitySeq
   try {
     const [availability] = await Promise.all([api.availability('HERO', true)])
-    if (seq !== loadSeq) return
+    if (seq !== availabilitySeq) return
     stages.value = availability
-    const first = availability[0]
-    if (first) stageKey.value = `${first.sourceSeasonId}:${first.sourceStageId}`
   } catch (reason) {
-    if (seq === loadSeq) error.value = reason instanceof Error ? reason.message : String(reason)
-  } finally {
-    if (seq === loadSeq) loading.value = false
+    /* 名册名称缺失时下拉退化为赛段键本身，不阻断沙盘使用 */
+    if (seq === availabilitySeq) stages.value = []
   }
 })
 
@@ -324,122 +341,126 @@ function fmtPercent(value: number | null | undefined): string {
 </script>
 
 <template>
-  <main class="shell draft-page">
-    <header class="hero">
-      <div>
-        <h1>BP 模拟器</h1>
-        <p class="hero-copy">按真实 Ban/Pick 顺序推演阵容。推荐基于所选赛段的版本强度（胜率×样本），并汇总敌方英雄的克制数据与己方英雄的组合胜率。</p>
-      </div>
-    </header>
+  <div class="draft-page">
+    <div class="draft-heading">
+      <h2>BP 模拟器</h2>
+      <p class="hero-copy">按真实 Ban/Pick 顺序推演阵容。推荐基于所选赛段的版本强度（胜率×样本），并汇总敌方英雄的克制数据与己方英雄的组合胜率。</p>
+    </div>
 
-    <section class="panel controls draft-controls">
-      <div class="field">
-        <label for="draft-stage">数据范围（单赛段）</label>
-        <select id="draft-stage" v-model="stageKey">
-          <option v-for="stage in stages" :key="`${stage.sourceSeasonId}:${stage.sourceStageId}`"
-            :value="`${stage.sourceSeasonId}:${stage.sourceStageId}`">
-            {{ stage.seasonName ?? `赛事#${stage.sourceSeasonId}` }} · {{ stage.name }}
-          </option>
-        </select>
-      </div>
-      <div class="actions">
-        <button class="secondary" type="button" @click="resetDraft">重置 BP</button>
-      </div>
-    </section>
+    <p v-if="!props.stageKeys.length" class="empty-inline draft-empty">请先在上方选择赛段。</p>
 
-    <p v-if="loading" class="message success">加载中…</p>
-    <p v-if="error" class="message error">{{ error }}</p>
+    <template v-else>
+      <section class="panel controls draft-controls">
+        <div class="field">
+          <label for="draft-stage">数据范围（单赛段）</label>
+          <select id="draft-stage" v-model="stageKey">
+            <option v-for="key in props.stageKeys" :key="key" :value="key">
+              {{ stageLabelOf(key) }}
+            </option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="secondary" type="button" @click="resetDraft">重置 BP</button>
+        </div>
+      </section>
 
-    <div class="draft-columns">
-      <section class="panel draft-board">
-        <h2 class="board-title">Ban / Pick 沙盘</h2>
-        <div class="draft-slot-list">
-          <div
-            v-for="(slot, index) in slots"
-            :key="index"
-            class="draft-slot"
-            :class="{
-              blue: slot.side === 'blue',
-              red: slot.side === 'red',
-              active: index === activeIndex && slot.championId == null,
-              filled: slot.championId != null,
-            }"
-            @click="slot.championId == null ? setActive(index) : clearSlot(index)"
-          >
-            <span class="slot-kind">{{ slotLabel(slot) }}</span>
-            <template v-if="slot.championId != null">
-              <img v-if="championLogoOf(slot.championId)" :src="championLogoOf(slot.championId)!" :alt="championNameOf(slot.championId)" class="slot-logo" />
-              <strong class="slot-name">{{ championNameOf(slot.championId) }}</strong>
-            </template>
-            <span v-else class="slot-empty">点击后在右侧选择英雄</span>
+      <p v-if="loading" class="message success">加载中…</p>
+      <p v-if="error" class="message error">{{ error }}</p>
+
+      <div class="draft-columns">
+        <section class="panel draft-board">
+          <h2 class="board-title">Ban / Pick 沙盘</h2>
+          <div class="draft-slot-list">
             <div
-              v-if="slot.kind === 'pick' && slot.championId == null"
-              class="slot-positions"
-              @click.stop
+              v-for="(slot, index) in slots"
+              :key="index"
+              class="draft-slot"
+              :class="{
+                blue: slot.side === 'blue',
+                red: slot.side === 'red',
+                active: index === activeIndex && slot.championId == null,
+                filled: slot.championId != null,
+              }"
+              @click="slot.championId == null ? setActive(index) : clearSlot(index)"
             >
-              <button
-                v-for="position in POSITIONS"
-                :key="position"
-                class="pos-chip"
-                :class="{ active: slot.position === position }"
-                @click="assignPosition(slot, position)"
-              >{{ POSITION_LABELS[position] }}</button>
+              <span class="slot-kind">{{ slotLabel(slot) }}</span>
+              <template v-if="slot.championId != null">
+                <img v-if="championLogoOf(slot.championId)" :src="championLogoOf(slot.championId)!" :alt="championNameOf(slot.championId)" class="slot-logo" />
+                <strong class="slot-name">{{ championNameOf(slot.championId) }}</strong>
+              </template>
+              <span v-else class="slot-empty">点击后在右侧选择英雄</span>
+              <div
+                v-if="slot.kind === 'pick' && slot.championId == null"
+                class="slot-positions"
+                @click.stop
+              >
+                <button
+                  v-for="position in POSITIONS"
+                  :key="position"
+                  class="pos-chip"
+                  :class="{ active: slot.position === position }"
+                  @click="assignPosition(slot, position)"
+                >{{ POSITION_LABELS[position] }}</button>
+              </div>
             </div>
           </div>
-        </div>
-        <div v-if="sideSummary.blue || sideSummary.red" class="side-summary">
-          <div>
-            <strong>蓝方阵容</strong>
-            <span v-if="sideSummary.blue">
-              {{ sideSummary.blue.count }} 英雄 · 平均胜率 {{ fmtPercent(sideSummary.blue.winRate) }} · 平均 KDA {{ sideSummary.blue.kda.toFixed(2) }}
-            </span>
+          <div v-if="sideSummary.blue || sideSummary.red" class="side-summary">
+            <div>
+              <strong>蓝方阵容</strong>
+              <span v-if="sideSummary.blue">
+                {{ sideSummary.blue.count }} 英雄 · 平均胜率 {{ fmtPercent(sideSummary.blue.winRate) }} · 平均 KDA {{ sideSummary.blue.kda.toFixed(2) }}
+              </span>
+            </div>
+            <div>
+              <strong>红方阵容</strong>
+              <span v-if="sideSummary.red">
+                {{ sideSummary.red.count }} 英雄 · 平均胜率 {{ fmtPercent(sideSummary.red.winRate) }} · 平均 KDA {{ sideSummary.red.kda.toFixed(2) }}
+              </span>
+            </div>
           </div>
-          <div>
-            <strong>红方阵容</strong>
-            <span v-if="sideSummary.red">
-              {{ sideSummary.red.count }} 英雄 · 平均胜率 {{ fmtPercent(sideSummary.red.winRate) }} · 平均 KDA {{ sideSummary.red.kda.toFixed(2) }}
-            </span>
+        </section>
+
+        <section class="panel draft-picker">
+          <h2 class="board-title">
+            {{ activeSlot ? (activeSlot.kind === 'ban' ? '选择禁用英雄' : '选择英雄') : 'BP 已完成' }}
+          </h2>
+          <input v-model="searchKeyword" type="search" placeholder="搜索英雄（中文名/英文名）" class="draft-search" />
+          <div class="draft-candidates">
+            <button
+              v-for="champion in candidates"
+              :key="champion.championId"
+              class="candidate-chip"
+              :disabled="!activeSlot"
+              @click="assignChampion(champion.championId)"
+            >
+              <img v-if="champion.championLogo" :src="champion.championLogo" :alt="champion.championName" class="candidate-logo" />
+              <span class="candidate-name">{{ champion.championName }}</span>
+              <span class="candidate-meta">{{ fmtPercent(champion.winningRate) }} · {{ champion.pickCount }}局</span>
+            </button>
           </div>
-        </div>
-      </section>
+          <p v-if="!candidates.length" class="empty-inline">没有符合条件的候选英雄。</p>
 
-      <section class="panel draft-picker">
-        <h2 class="board-title">
-          {{ activeSlot ? (activeSlot.kind === 'ban' ? '选择禁用英雄' : '选择英雄') : 'BP 已完成' }}
-        </h2>
-        <input v-model="searchKeyword" type="search" placeholder="搜索英雄（中文名/英文名）" class="draft-search" />
-        <div class="draft-candidates">
-          <button
-            v-for="champion in candidates"
-            :key="champion.championId"
-            class="candidate-chip"
-            :disabled="!activeSlot"
-            @click="assignChampion(champion.championId)"
-          >
-            <img v-if="champion.championLogo" :src="champion.championLogo" :alt="champion.championName" class="candidate-logo" />
-            <span class="candidate-name">{{ champion.championName }}</span>
-            <span class="candidate-meta">{{ fmtPercent(champion.winningRate) }} · {{ champion.pickCount }}局</span>
-          </button>
-        </div>
-        <p v-if="!candidates.length" class="empty-inline">没有符合条件的候选英雄。</p>
-
-        <div v-if="counterHints.length" class="hint-block">
-          <h3>敌方英雄克制提示</h3>
-          <p v-for="hint in counterHints" :key="hint.enemy" class="hint-line">
-            对阵 <strong>{{ hint.enemy }}</strong> 胜率最高：{{ hint.counters.join('、') }}
-          </p>
-        </div>
-        <div v-if="combinationHints.length" class="hint-block">
-          <h3>己方组合参考</h3>
-          <p v-for="hint in combinationHints" :key="hint" class="hint-line">{{ hint }}</p>
-        </div>
-      </section>
-    </div>
-  </main>
+          <div v-if="counterHints.length" class="hint-block">
+            <h3>敌方英雄克制提示</h3>
+            <p v-for="hint in counterHints" :key="hint.enemy" class="hint-line">
+              对阵 <strong>{{ hint.enemy }}</strong> 胜率最高：{{ hint.counters.join('、') }}
+            </p>
+          </div>
+          <div v-if="combinationHints.length" class="hint-block">
+            <h3>己方组合参考</h3>
+            <p v-for="hint in combinationHints" :key="hint" class="hint-line">{{ hint }}</p>
+          </div>
+        </section>
+      </div>
+    </template>
+  </div>
 </template>
 
 <style scoped>
 .draft-page { padding-bottom: 40px; }
+.draft-heading h2 { margin: 0 0 6px; font-size: 16px; }
+.hero-copy { margin: 0 0 16px; color: var(--text-2); font-size: 13px; }
+.draft-empty { padding: 24px 0; }
 .draft-controls { margin-bottom: 16px; }
 .draft-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1000px) { .draft-columns { grid-template-columns: 1fr; } }

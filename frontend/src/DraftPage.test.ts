@@ -82,7 +82,7 @@ beforeEach(() => {
 describe('DraftPage', () => {
   it('挂载后加载已采集赛段并按赛段拉取英雄池', async () => {
     vi.mocked(api.championStatisticsByKeys).mockResolvedValue(championResult([champion()]))
-    const wrapper = mount(DraftPage)
+    const wrapper = mount(DraftPage, { props: { stageKeys: ['237:106'] } })
     await flushPromises()
 
     expect(api.availability).toHaveBeenCalledWith('HERO', true)
@@ -97,7 +97,7 @@ describe('DraftPage', () => {
       champion(),
       champion({ championId: 1, championName: '阿狸', positions: ['MID'], winningRate: 0.5, pickCount: 20 }),
     ]))
-    const wrapper = mount(DraftPage)
+    const wrapper = mount(DraftPage, { props: { stageKeys: ['237:106'] } })
     await flushPromises()
 
     const firstCandidate = wrapper.get('.candidate-chip')
@@ -115,7 +115,7 @@ describe('DraftPage', () => {
 
   it('重置按钮清空全部槽位', async () => {
     vi.mocked(api.championStatisticsByKeys).mockResolvedValue(championResult([champion()]))
-    const wrapper = mount(DraftPage)
+    const wrapper = mount(DraftPage, { props: { stageKeys: ['237:106'] } })
     await flushPromises()
 
     await wrapper.get('.candidate-chip').trigger('click')
@@ -128,11 +128,22 @@ describe('DraftPage', () => {
 
   it('加载失败时展示错误信息', async () => {
     vi.mocked(api.championStatisticsByKeys).mockRejectedValue(new Error('赛段数据加载失败'))
-    const wrapper = mount(DraftPage)
+    const wrapper = mount(DraftPage, { props: { stageKeys: ['237:106'] } })
     await flushPromises()
     await flushPromises()
 
     expect(wrapper.get('.message.error').text()).toContain('赛段数据加载失败')
+    wrapper.unmount()
+  })
+
+  it('未选择赛段时提示先选择赛段且不拉取英雄', async () => {
+    vi.mocked(api.championStatisticsByKeys).mockResolvedValue(championResult([champion()]))
+    const wrapper = mount(DraftPage, { props: { stageKeys: [] } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('请先在上方选择赛段')
+    expect(wrapper.findAll('.draft-slot')).toHaveLength(0)
+    expect(api.championStatisticsByKeys).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

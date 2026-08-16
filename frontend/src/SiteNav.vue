@@ -46,7 +46,7 @@ function isActive(view: string): boolean {
         <a href="/?view=champion" class="site-link" :class="{ active: isActive('statistics') }" @click.prevent="emit('navigate', 'champion')">{{ t('nav.statistics') }}</a>
         <a href="/?view=matches" class="site-link" :class="{ active: isActive('matches') }" @click.prevent="emit('navigate', 'matches')">{{ t('nav.matches') }}</a>
         <a href="/?view=compare" class="site-link" :class="{ active: isActive('compare') }" @click.prevent="emit('navigate', 'compare')">{{ t('nav.compare') }}</a>
-        <a href="/draft" class="site-link" :class="{ active: isActive('draft') }">{{ t('nav.draft') }}</a>
+        <a href="/?view=draft" class="site-link" :class="{ active: isActive('draft') }" @click.prevent="emit('navigate', 'draft')">{{ t('nav.draft') }}</a>
         <a href="/?view=collections" class="site-link" :class="{ active: isActive('collections') }" @click.prevent="emit('navigate', 'collections')">{{ t('nav.collections') }}</a>
       </nav>
       <div class="site-actions">
