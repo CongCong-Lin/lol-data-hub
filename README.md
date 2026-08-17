@@ -18,6 +18,16 @@
 - **手动采集**：通过内部接口手动触发英雄、战队、选手数据采集；自动调度已预留但默认关闭。
 - **数据快照**：每次变化的采集保留快照，支持版本窗口增量分析。
 
+### 页面功能
+
+- **英雄 / 选手 / 战队详情页**：按实际登场分路展示分路统计、同位置排名与八维能力雷达图（分位归一化）、英雄/选手使用分布、近期对局与历史交锋，并支持把统计图表保存为分享卡片。
+- **对局赛果与逐局明细**：比赛列表按赛段聚合胜-负与大场信息，详情页按小局展示双方阵容选人、十条路的击杀/经济/伤害与运营指标。
+- **排行榜**：数据王榜单（KDA/场均击杀/分均伤害等七个维度 Top 10）、战队 Elo 评分与大场轨迹、英雄版本变迁（日期区间内出场/胜率/期间胜负窗口统计）。
+- **BP 模拟器**：Ban / Pick 沙盘，支持按英雄组合与轮次搭建禁用、选取阵容。
+- **选手对比**：最多 5 名选手同屏雷达叠加（与详情页同一分位口径）与逐项数值对比，URL 保留选手与搜索状态便于分享。
+- **采集状态页**：赛段覆盖矩阵、最近采集记录与数据版本，直观查看各赛段的采集缺口。
+- **全局搜索**：跨英雄 / 选手 / 战队名称的关键字联想跳转。
+
 ### 当前公开赛事范围
 
 公共目录按赛事独立展示 2023—2026 年已采集的数据，而不是把同一年所有比赛合并为一个“职业联赛”选项。当前共开放 13 个赛事、48 个赛段，三类统计均已采集：
@@ -110,6 +120,16 @@ Invoke-RestMethod -Method Post `
   -Headers $headers -ContentType 'application/json' -Body $body
 ```
 
+对局明细回填（消费采集时已保存的官网原始响应重建对局赛果，不重复请求官网）：
+
+```powershell
+$headers = @{ 'X-Internal-Token' = $env:INTERNAL_API_TOKEN }
+$body = @{ seasonId = 237; stageIds = @(112, 113, 100) } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8080/api/internal/collections/match-games' `
+  -Headers $headers -ContentType 'application/json' -Body $body
+```
+
 ## 本地开发
 
 ### 后端
@@ -179,8 +199,19 @@ npm run build
 | GET | `/api/v1/catalog/stages/availability?statisticType=HERO&collectedOnly=false` | 获取全赛事赛段可用性（含 seasonName/collected/sampleBaseCount） |
 | GET | `/api/v1/statistics/champions?stageKeys=237:102,239:28&minimumPickCount=10&position=TOP&sortBy=bpRate&sortDirection=desc` | 英雄统计查询（跨赛事；可按实际登场分路筛选） |
 | GET | `/api/v1/statistics/teams?stageKeys=237:102,239:28&minimumMatchCount=5` | 战队统计查询（跨赛事） |
-| GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=5` | 选手统计查询（跨赛事） |
+| GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=5&position=TOP` | 选手统计查询（跨赛事，可按位置筛选） |
 | GET | `/api/v1/statistics/team-combinations?stageKeys=237:102,239:28&combinationType=MID_JUNGLE&minimumPickCount=3` | 战队英雄组合查询（`MID_JUNGLE` 或 `BOT_SUPPORT`） |
+| GET | `/api/v1/statistics/matches?stageKeys=237:102,239:28` | 对局赛果列表（按赛段聚合） |
+| GET | `/api/v1/statistics/matches/{matchId}` | 单场对局逐小局明细（阵容、击杀、经济、伤害、运营指标） |
+| GET | `/api/v1/statistics/elo?stageKeys=…&seasonId=…&minimumMatchCount=5` | 战队 Elo 评分排名与大场轨迹（支持跨赛段/赛季数据源） |
+| GET | `/api/v1/statistics/champions/version-compare?stageKeys=…&fromDate=…&toDate=…` | 英雄版本变迁窗口统计 |
+| GET | `/api/v1/statistics/champions/{id}/detail` | 英雄详情（分路统计、Top 选手、克制关系） |
+| GET | `/api/v1/statistics/players/{id}/detail` | 选手详情（同位置分位归一化的八维雷达指标） |
+| GET | `/api/v1/statistics/players/{id}/games` | 选手最近单局战绩 |
+| GET | `/api/v1/statistics/teams/{id}/detail` | 战队详情（核心指标、阵容、近期对局） |
+| GET | `/api/v1/statistics/teams/{id}/head-to-head` | 两队历史交锋 |
+| GET | `/api/v1/collections/coverage` | 采集覆盖矩阵（赛段 × 统计类型缺口） |
+| GET | `/api/v1/collections/status?limit=20` | 最近采集运行记录 |
 
 > **跨赛事查询说明**：`stageKeys` 参数使用 `seasonId:stageId` 复合键格式，多个用逗号分隔。旧参数 `seasonId` + `stageIds` 仍向后兼容，但推荐使用 `stageKeys` 以支持跨赛事选择。
 
@@ -192,6 +223,7 @@ npm run build
 | POST | `/api/internal/collections/heroes` | 采集英雄统计 |
 | POST | `/api/internal/collections/teams` | 采集战队统计 |
 | POST | `/api/internal/collections/players` | 采集选手统计 |
+| POST | `/api/internal/collections/match-games` | 回填对局明细（消费既有原始响应重建对局赛果，不重复请求官网） |
 
 > **注意**：内部接口（`/api/internal/`）需要在请求头中携带 `X-Internal-Token` 进行鉴权，且必须直连后端端口（仅绑定 `127.0.0.1`），Nginx 不代理该路径（返回 404）。`INTERNAL_API_TOKEN` 为手动同步和采集的必填环境变量。
 
