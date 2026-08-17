@@ -14,13 +14,6 @@ vi.mock('./api', () => ({
   },
 }))
 
-vi.mock('./ChampionTrendChart.vue', () => ({
-  default: {
-    name: 'ChampionTrendChart',
-    template: '<div class="trend-chart-stub" />',
-  },
-}))
-
 function overall(): ChampionStatistics {
   return {
     championId: 84,
@@ -162,11 +155,12 @@ describe('ChampionDetailPage', () => {
     wrapper.unmount()
   })
 
-  it('渲染赛段趋势图组件', async () => {
+  it('不再渲染赛段趋势区块', async () => {
     const { wrapper } = await mountAt('/champions/84?stageKeys=237:100')
     await flushPromises()
 
-    expect(wrapper.find('.trend-chart-stub').exists()).toBe(true)
+    expect(wrapper.find('.trend-chart-stub').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('赛段趋势')
     wrapper.unmount()
   })
 

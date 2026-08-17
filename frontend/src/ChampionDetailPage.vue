@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type ChampionCounterResult, type ChampionDetailStatisticsResult } from './api'
-import ChampionTrendChart from './ChampionTrendChart.vue'
 import { useI18n } from './i18n'
 
 const props = defineProps<{ championId: string }>()
@@ -291,13 +290,6 @@ function playerHref(sourcePlayerId: number, position: string): string {
           <p v-else class="detail-notice-inline">所选位置暂无满足最低出场次数的选手</p>
         </section>
       </div>
-
-      <section class="detail-card">
-        <h2 class="detail-heading">{{ t('championDetail.trends') }}</h2>
-        <p class="detail-subheading">{{ t('championDetail.trendsNote') }}</p>
-        <ChampionTrendChart v-if="result.trends.length" :trends="result.trends" />
-        <p v-else class="detail-notice-inline">{{ t('championDetail.noTrends') }}</p>
-      </section>
 
       <section v-if="counters && counters.opponents.length" class="detail-card">
         <h2 class="detail-heading">{{ t('championDetail.counters') }}</h2>
