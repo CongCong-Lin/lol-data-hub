@@ -229,7 +229,9 @@ const visiblePlayers = computed(() => filteredPlayers.value.slice(0, MAX_VISIBLE
 const radarLoading = ref(false)
 const radarLabels = ref<string[]>([])
 const radarWarnings = ref<string[]>([])
-const radarOverlay = ref<{ name: string; scores: number[] }[]>([])
+/* 与 PlayerRadarChart 叠加调色板一致：颜色按选手顺序分配，图例色块与雷达描边同源 */
+const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
+const radarOverlay = ref<{ name: string; scores: number[]; color: string }[]>([])
 let radarSeq = 0
 
 watch(
@@ -252,7 +254,7 @@ async function refreshRadar() {
   }
   radarLoading.value = true
   radarWarnings.value = []
-  const overlay: { name: string; scores: number[] }[] = []
+  const overlay: { name: string; scores: number[]; color: string }[] = []
   let labels: string[] = []
   for (const player of list) {
     if (player.sourcePlayerId == null) {
@@ -276,6 +278,7 @@ async function refreshRadar() {
       overlay.push({
         name: player.playerName,
         scores: detail.radarMetrics.map((metric) => Number(metric.playerScore)),
+        color: OVERLAY_COLORS[overlay.length % OVERLAY_COLORS.length],
       })
     } catch {
       if (seq === radarSeq) radarWarnings.value.push(`${player.playerName}：雷达数据获取失败，已跳过`)
@@ -435,6 +438,12 @@ function fmtTeamNames(teamNames: string[]): string {
         <p v-if="radarLoading" class="radar-status">正在获取雷达数据（与详情页同口径）…</p>
         <template v-else>
           <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" />
+          <ul v-if="radarOverlay.length" class="radar-legend-overlay" aria-label="选手图例">
+            <li v-for="series in radarOverlay" :key="series.name">
+              <span class="radar-legend-swatch" :style="{ background: series.color }"></span>
+              <span class="radar-legend-text">{{ series.name }}</span>
+            </li>
+          </ul>
           <p class="radar-note">八维雷达与选手详情页同口径：按同位置 10%-90% 分位归一化（0-100），浅色叠加便于观察相对强弱。</p>
         </template>
         <p v-if="radarWarnings.length" class="radar-warning">{{ radarWarnings.join('；') }}</p>
@@ -519,7 +528,11 @@ function fmtTeamNames(teamNames: string[]): string {
 .selected-name:hover { color: var(--accent); text-decoration: underline; }
 .highlight-note { color: var(--muted); font-size: 12px; }
 .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
-.compare-radar { padding: 6px 0 10px; }
+.compare-radar { padding: 6px 0 10px; position: relative; }
+.radar-legend-overlay { position: absolute; top: 10px; right: 12px; margin: 0; padding: 8px 12px; list-style: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
+.radar-legend-overlay li { display: flex; align-items: center; gap: 7px; }
+.radar-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.radar-legend-text { font-size: 12px; font-weight: 650; color: #24292f; }
 .radar-status { margin: 0; text-align: center; color: var(--text-3); font-size: 12.5px; padding: 40px 0; }
 .radar-note { margin: 4px 0 0; text-align: center; color: var(--text-4); font-size: 12px; }
 .radar-warning { margin: 6px 0 0; text-align: center; color: var(--danger, #c0392b); font-size: 12px; }

@@ -142,12 +142,6 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number | null): str
       <text v-if="showCorePolygons" :x="axis.x" :y="axis.y + 15" :text-anchor="axis.anchor" class="radar-label-value">{{ axis.valueText }}</text>
       <text v-if="showCorePolygons && axis.rankText" :x="axis.x" :y="axis.y + 29" :text-anchor="axis.anchor" class="radar-label-rank">{{ axis.rankText }}</text>
     </template>
-    <g v-if="!showCorePolygons" class="radar-legend">
-      <template v-for="(series, index) in overlaySeries" :key="`legend-${index}`">
-        <rect :x="330" :y="20 + index * 20" width="10" height="10" :fill="series.color" rx="2" />
-        <text :x="346" :y="29 + index * 20" class="radar-legend-text">{{ series.name }}</text>
-      </template>
-    </g>
   </svg>
 </template>
 
@@ -161,5 +155,4 @@ function formatMetricValue(metric: PlayerRadarMetric, value: number | null): str
 .radar-label { font-size: 13px; font-weight: 700; fill: #24292f; }
 .radar-label-value { font-size: 12px; font-weight: 600; fill: #57606a; }
 .radar-label-rank { font-size: 11px; font-weight: 700; fill: var(--accent); }
-.radar-legend-text { font-size: 12px; font-weight: 650; fill: #24292f; }
 </style>

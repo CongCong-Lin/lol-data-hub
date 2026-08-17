@@ -93,7 +93,7 @@ describe('PlayerRadarChart', () => {
     expect(wrapper.find('svg').exists()).toBe(false)
   })
 
-  it('叠加模式下绘制多选手浅色多边形与图例', () => {
+  it('叠加模式下绘制多选手浅色多边形', () => {
     const wrapper = mount(PlayerRadarChart, {
       props: {
         metrics,
@@ -114,8 +114,7 @@ describe('PlayerRadarChart', () => {
     // 叠加模式下隐藏单人多边形与数值文字
     expect(wrapper.find('polygon.radar-player').exists()).toBe(false)
     expect(wrapper.find('text.radar-label-value').exists()).toBe(false)
-    // 图例展示选手名
-    const legend = wrapper.findAll('text.radar-legend-text').map((node) => node.text())
-    expect(legend).toEqual(['Knight', 'Rookie'])
+    // 图例不再由图表组件绘制（移至对比页 HTML 图例）
+    expect(wrapper.find('g.radar-legend').exists()).toBe(false)
   })
 })
