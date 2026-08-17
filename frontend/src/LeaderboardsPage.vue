@@ -36,6 +36,56 @@ const eloRatings = ref<EloTeamRating[]>([])
 const versionItems = ref<ChampionVersionCompareItem[]>([])
 const versionFrom = ref('')
 const versionTo = ref('')
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/* ---- 版本变迁日期：点击触发按钮弹出日历面板，点选日期回填 ---- */
+const dateOpenFor = ref<'from' | 'to' | null>(null)
+const calendarMonth = ref(new Date())
+const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日']
+
+interface CalendarDay {
+  iso: string
+  day: number
+  inMonth: boolean
+}
+
+function toIso(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const calendarCells = computed<CalendarDay[]>(() => {
+  const year = calendarMonth.value.getFullYear()
+  const month = calendarMonth.value.getMonth()
+  const first = new Date(year, month, 1)
+  // 周一起始：getDay() 0=周日…6=周六
+  const mondayOffset = (first.getDay() + 6) % 7
+  const cells: CalendarDay[] = []
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(year, month, 1 - mondayOffset + i)
+    cells.push({ iso: toIso(date), day: date.getDate(), inMonth: date.getMonth() === month })
+  }
+  return cells
+})
+const todayIso = toIso(new Date())
+
+function toggleDatePicker(which: 'from' | 'to') {
+  dateOpenFor.value = dateOpenFor.value === which ? null : which
+  if (dateOpenFor.value) {
+    const current = which === 'from' ? versionFrom.value : versionTo.value
+    const parsed = DATE_PATTERN.test(current) ? new Date(`${current}T00:00:00`) : new Date()
+    calendarMonth.value = new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+  }
+}
+function shiftCalendarMonth(delta: number) {
+  calendarMonth.value = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + delta, 1)
+}
+function pickDate(which: 'from' | 'to' | null, iso: string) {
+  if (!which) return
+  if (which === 'from') versionFrom.value = iso
+  else versionTo.value = iso
+  dateOpenFor.value = null
+}
+
 let loadSeq = 0
 
 const hasStages = computed(() => props.stageKeys.length > 0)
@@ -154,8 +204,6 @@ async function load() {
     }
   }
 }
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 async function loadVersions() {
   if (!hasStages.value || !DATE_PATTERN.test(versionFrom.value) || !DATE_PATTERN.test(versionTo.value)) {
@@ -349,9 +397,41 @@ function sparklinePoints(history: number[]): string {
 
     <div v-else-if="activeTab === 'versions'" class="version-panel">
       <div class="version-controls">
-        <label>起始日期 <input v-model="versionFrom" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="起始日期" /></label>
-        <label>结束日期 <input v-model="versionTo" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="结束日期" /></label>
+        <label class="version-date-field"><span>起始日期</span>
+          <button type="button" class="version-date-trigger" :class="{ active: dateOpenFor === 'from' }" @click="toggleDatePicker('from')">
+            <span :class="{ placeholder: !versionFrom }">{{ versionFrom || '请选择日期' }}</span><span class="version-date-caret" aria-hidden="true">▾</span>
+          </button>
+        </label>
+        <label class="version-date-field"><span>结束日期</span>
+          <button type="button" class="version-date-trigger" :class="{ active: dateOpenFor === 'to' }" @click="toggleDatePicker('to')">
+            <span :class="{ placeholder: !versionTo }">{{ versionTo || '请选择日期' }}</span><span class="version-date-caret" aria-hidden="true">▾</span>
+          </button>
+        </label>
         <button class="primary" type="button" @click="loadVersions">对比版本变化</button>
+      </div>
+      <div v-if="dateOpenFor" class="date-calendar-popup">
+        <div class="date-calendar-head">
+          <button type="button" class="date-calendar-nav" @click="shiftCalendarMonth(-1)" aria-label="上个月">‹</button>
+          <span class="date-calendar-title">{{ calendarMonth.getFullYear() }} 年 {{ calendarMonth.getMonth() + 1 }} 月</span>
+          <button type="button" class="date-calendar-nav" @click="shiftCalendarMonth(1)" aria-label="下个月">›</button>
+        </div>
+        <div class="date-calendar-week">
+          <span v-for="label in WEEK_LABELS" :key="label">{{ label }}</span>
+        </div>
+        <div class="date-calendar-grid">
+          <button
+            v-for="cell in calendarCells"
+            :key="cell.iso"
+            type="button"
+            class="date-calendar-day"
+            :class="{
+              'outside-month': !cell.inMonth,
+              'is-today': cell.iso === todayIso,
+              'is-selected': cell.iso === (dateOpenFor === 'from' ? versionFrom : versionTo),
+            }"
+            @click="pickDate(dateOpenFor, cell.iso)"
+          >{{ cell.day }}</button>
+        </div>
       </div>
       <div class="table-scroll">
         <table class="team-table">
@@ -409,8 +489,24 @@ function sparklinePoints(history: number[]): string {
 .elo-sparkline { width: 120px; height: 32px; }
 .elo-sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; }
 .version-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 6px 0 12px; overflow-x: auto; }
-.version-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; flex: 0 0 auto; }
-.version-controls input[type='text'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; flex: 0 0 auto; font-size: 13px; width: 132px; }
+.version-controls .version-date-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; flex: 0 0 auto; }
+.version-date-trigger { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font: inherit; font-size: 13px; color: var(--text-1); cursor: pointer; min-width: 118px; justify-content: space-between; }
+.version-date-trigger:hover { border-color: var(--accent); }
+.version-date-trigger.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.version-date-trigger .placeholder { color: var(--text-4); }
+.version-date-caret { color: var(--text-3); font-size: 11px; }
+.date-calendar-popup { width: 256px; margin: 0 0 14px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14); }
+.date-calendar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.date-calendar-nav { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer; }
+.date-calendar-nav:hover { border-color: var(--accent); color: var(--accent); }
+.date-calendar-title { font-size: 13px; font-weight: 650; color: var(--text-1); }
+.date-calendar-week, .date-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.date-calendar-week span { padding: 2px 0; text-align: center; font-size: 11px; color: var(--text-3); }
+.date-calendar-day { padding: 4px 0; border: none; border-radius: 5px; background: none; font: inherit; font-size: 12px; color: var(--text-1); cursor: pointer; }
+.date-calendar-day:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.date-calendar-day.outside-month { color: var(--text-4); }
+.date-calendar-day.is-today { font-weight: 750; color: var(--accent); }
+.date-calendar-day.is-selected { background: var(--accent); color: #fff; font-weight: 700; }
 .error-text { color: var(--danger, #c93c37); }
 .detail-notice-inline { color: var(--text-3); font-size: 13px; }
 .danger-text { color: var(--danger, #c93c37); font-weight: 650; }

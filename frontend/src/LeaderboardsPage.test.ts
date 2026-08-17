@@ -172,7 +172,7 @@ describe('LeaderboardsPage', () => {
     wrapper.unmount()
   })
 
-  it('版本变迁标签按日期对比并筛选出场上升英雄', async () => {
+  it('版本变迁标签点击弹出日历选日期并筛选出场上升英雄', async () => {
     vi.mocked(api.championVersionCompare).mockResolvedValue({
       fromDate: '2026-07-01',
       toDate: '2026-08-01',
@@ -187,13 +187,31 @@ describe('LeaderboardsPage', () => {
     const versionTab = wrapper.findAll('.position-filter .pos-chip').find((button) => button.text() === '版本变迁')
     await versionTab!.trigger('click')
 
-    const dateInputs = wrapper.findAll('input[type="text"]')
-    await dateInputs[0].setValue('2026-07-01')
-    await dateInputs[1].setValue('2026-08-01')
+    // 起始日期取当前月的前一个月 1 号、结束日期取当前月 1 号，避免依赖真实时钟
+    const now = new Date()
+    const fmtFirst = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    const fromDate = fmtFirst(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+    const toDate = fmtFirst(new Date(now.getFullYear(), now.getMonth(), 1))
+
+    // 点击起始日期触发按钮 → 弹出日历面板 → 上个月 → 选 1 号
+    const triggers = wrapper.findAll('button.version-date-trigger')
+    expect(triggers).toHaveLength(2)
+    await triggers[0].trigger('click')
+    expect(wrapper.find('.date-calendar-popup').exists()).toBe(true)
+    await wrapper.findAll('.date-calendar-nav')[0].trigger('click')
+    await wrapper.findAll('.date-calendar-day:not(.outside-month)').find((day) => day.text() === '1')!.trigger('click')
+    expect(wrapper.find('.date-calendar-popup').exists()).toBe(false)
+    expect(wrapper.findAll('button.version-date-trigger')[0].text()).toContain(fromDate)
+
+    // 点击结束日期触发按钮 → 日历默认当前月 → 选 1 号
+    await wrapper.findAll('button.version-date-trigger')[1].trigger('click')
+    await wrapper.findAll('.date-calendar-day:not(.outside-month)').find((day) => day.text() === '1')!.trigger('click')
+    expect(wrapper.findAll('button.version-date-trigger')[1].text()).toContain(toDate)
+
     await wrapper.get('button.primary').trigger('click')
     await flushPromises()
 
-    expect(api.championVersionCompare).toHaveBeenCalledWith(['237:106'], '2026-07-01', '2026-08-01')
+    expect(api.championVersionCompare).toHaveBeenCalledWith(['237:106'], fromDate, toDate)
     const rows = wrapper.findAll('.team-table tbody tr')
     expect(rows).toHaveLength(1)
     expect(rows[0].text()).toContain('阿狸')
