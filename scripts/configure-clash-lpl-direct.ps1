@@ -30,7 +30,7 @@ $directRules = @(
 
 $profileScript = @'
 // Clash Verge Rev 全局扩展脚本：LPL 数据源使用中国大陆网络直连。
-// 除下列域名外，其余流量继续遵循订阅原有规则（包括 Codex/OpenAI）。
+// 除下列域名外，其余流量继续遵循订阅原有规则。
 const LPL_DIRECT_RULES = [
   "DOMAIN-SUFFIX,lpl.qq.com,DIRECT",
   "DOMAIN,lol.qq.com,DIRECT",

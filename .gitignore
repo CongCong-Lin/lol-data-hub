@@ -11,4 +11,31 @@ frontend/dist/
 *.log
 .mvn/repository/
 .claude/
+.codex/
+.zcode/
+.agents/
+.audit-tmp/
 backups/
+gui-test-screenshots/
+*.vtt
+seasons_check.json
+
+# 本地临时文件与内部运维脚本（不上传）
+backend-java-files.txt
+backend/all-java.txt
+docker-build.txt
+$null
+1
+deploy/backfill-*.cjs
+deploy/probe.cjs
+deploy/smoke-test.cjs
+
+# 内部交接/开发文档（含服务器信息与占位令牌，不公开）
+docs/feature-expansion-handoff.md
+docs/project-context-handover.md
+docs/player-detail-page.md
+docs/player-percentage-precision-summary.md
+docs/scoregg-average-contrast/
+docs/team-detail-metrics-backfill-guide.md
+docs/claude-code-*.md
+docs/mainland-collection-report.md
