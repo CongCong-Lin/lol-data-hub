@@ -509,5 +509,6 @@ function sparklinePoints(history: number[]): string {
 .date-calendar-day.is-selected { background: var(--accent); color: #fff; font-weight: 700; }
 .error-text { color: var(--danger, #c93c37); }
 .detail-notice-inline { color: var(--text-3); font-size: 13px; }
+.version-panel .detail-notice-inline { padding-left: 10px; }
 .danger-text { color: var(--danger, #c93c37); font-weight: 650; }
 </style>
