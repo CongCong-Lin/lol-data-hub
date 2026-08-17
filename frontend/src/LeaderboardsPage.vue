@@ -488,7 +488,7 @@ function sparklinePoints(history: number[]): string {
 .team-link:hover { color: var(--accent); text-decoration: underline; }
 .elo-sparkline { width: 120px; height: 32px; }
 .elo-sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; }
-.version-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 6px 0 12px; overflow-x: auto; }
+.version-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 6px 0 12px 10px; overflow-x: auto; }
 .version-controls .version-date-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; flex: 0 0 auto; }
 .version-date-trigger { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font: inherit; font-size: 13px; color: var(--text-1); cursor: pointer; min-width: 118px; justify-content: space-between; }
 .version-date-trigger:hover { border-color: var(--accent); }
