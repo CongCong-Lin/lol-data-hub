@@ -155,8 +155,14 @@ async function load() {
   }
 }
 
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
 async function loadVersions() {
-  if (!hasStages.value || !versionFrom.value || !versionTo.value || versionFrom.value >= versionTo.value) {
+  if (!hasStages.value || !DATE_PATTERN.test(versionFrom.value) || !DATE_PATTERN.test(versionTo.value)) {
+    error.value = '请按 YYYY-MM-DD 格式填写完整起始/结束日期'
+    return
+  }
+  if (versionFrom.value >= versionTo.value) {
     error.value = '请选择有效的日期范围（起始早于结束）'
     return
   }
@@ -343,8 +349,8 @@ function sparklinePoints(history: number[]): string {
 
     <div v-else-if="activeTab === 'versions'" class="version-panel">
       <div class="version-controls">
-        <label>起始日期 <input v-model="versionFrom" type="date" /></label>
-        <label>结束日期 <input v-model="versionTo" type="date" /></label>
+        <label>起始日期 <input v-model="versionFrom" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="起始日期" /></label>
+        <label>结束日期 <input v-model="versionTo" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="结束日期" /></label>
         <button class="primary" type="button" @click="loadVersions">对比版本变化</button>
       </div>
       <div class="table-scroll">
@@ -404,7 +410,7 @@ function sparklinePoints(history: number[]): string {
 .elo-sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; }
 .version-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; padding: 6px 0 12px; overflow-x: auto; }
 .version-controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; flex: 0 0 auto; }
-.version-controls input[type='date'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; flex: 0 0 auto; }
+.version-controls input[type='text'] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; flex: 0 0 auto; font-size: 13px; width: 132px; }
 .error-text { color: var(--danger, #c93c37); }
 .detail-notice-inline { color: var(--text-3); font-size: 13px; }
 .danger-text { color: var(--danger, #c93c37); font-weight: 650; }

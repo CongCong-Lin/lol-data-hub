@@ -187,7 +187,7 @@ describe('LeaderboardsPage', () => {
     const versionTab = wrapper.findAll('.position-filter .pos-chip').find((button) => button.text() === '版本变迁')
     await versionTab!.trigger('click')
 
-    const dateInputs = wrapper.findAll('input[type="date"]')
+    const dateInputs = wrapper.findAll('input[type="text"]')
     await dateInputs[0].setValue('2026-07-01')
     await dateInputs[1].setValue('2026-08-01')
     await wrapper.get('button.primary').trigger('click')
