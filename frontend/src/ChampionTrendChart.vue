@@ -12,20 +12,31 @@ const chartWidth = computed(() => Math.max(props.trends.length * SLOT, 360))
 const plotWidth = computed(() => chartWidth.value - PAD.left - PAD.right)
 const plotHeight = HEIGHT - PAD.top - PAD.bottom
 
-const maxCount = computed(() =>
-  Math.max(1, ...props.trends.flatMap((point) => [point.pickCount, point.banCount])),
+const maxPickCount = computed(() =>
+  Math.max(1, ...props.trends.map((point) => point.pickCount)),
 )
+
+const plotBottom = PAD.top + plotHeight
 
 function xAt(index: number): number {
   return PAD.left + index * SLOT + SLOT / 2
 }
 
 function yCount(value: number): number {
-  return PAD.top + (1 - value / maxCount.value) * plotHeight
+  return PAD.top + (1 - value / maxPickCount.value) * plotHeight
 }
 
 function yRate(rate: number): number {
   return PAD.top + (1 - rate) * plotHeight
+}
+
+/** 柱顶 y：禁用数可能超出出场数比例基准，超出时截断到绘图区顶部。 */
+function barTop(value: number): number {
+  return Math.max(yCount(value), PAD.top)
+}
+
+function barHeight(value: number): number {
+  return plotBottom - barTop(value)
 }
 
 const GRID_LEVELS = [0.25, 0.5, 0.75, 1]
@@ -34,7 +45,7 @@ const pickLine = computed(() =>
   props.trends.map((point, index) => `${xAt(index).toFixed(1)},${yCount(point.pickCount).toFixed(1)}`).join(' '),
 )
 const banLine = computed(() =>
-  props.trends.map((point, index) => `${xAt(index).toFixed(1)},${yCount(point.banCount).toFixed(1)}`).join(' '),
+  props.trends.map((point, index) => `${xAt(index).toFixed(1)},${barTop(point.banCount).toFixed(1)}`).join(' '),
 )
 const winRateLine = computed(() =>
   props.trends.map((point, index) => `${xAt(index).toFixed(1)},${yRate(point.winningRate).toFixed(1)}`).join(' '),
@@ -61,25 +72,25 @@ function formatCount(value: number): string {
         :y2="yRate(level)"
         class="trend-grid"
       />
-      <text :x="chartWidth - PAD.right" :y="yRate(1) - 4" text-anchor="end" class="trend-axis-label">{{ (level => `${level * 100}%`)(1) }}</text>
+      <text :x="chartWidth - PAD.right" :y="yRate(1) - 4" text-anchor="end" class="trend-axis-label">100%</text>
       <text :x="chartWidth - PAD.right" :y="yRate(0.5) - 4" text-anchor="end" class="trend-axis-label">50%</text>
       <text :x="chartWidth - PAD.right" :y="yRate(0) - 4" text-anchor="end" class="trend-axis-label">0%</text>
       <rect
         v-for="(point, index) in trends"
         :key="`bar-pick-${point.sourceStageId}`"
         :x="xAt(index) - 14"
-        :y="yCount(point.pickCount)"
+        :y="barTop(point.pickCount)"
         :width="11"
-        :height="Math.max(plotHeight - yCount(point.pickCount) + PAD.top, 0)"
+        :height="barHeight(point.pickCount)"
         class="trend-bar trend-bar-pick"
       />
       <rect
         v-for="(point, index) in trends"
         :key="`bar-ban-${point.sourceStageId}`"
         :x="xAt(index) + 3"
-        :y="yCount(point.banCount)"
+        :y="barTop(point.banCount)"
         :width="11"
-        :height="Math.max(plotHeight - yCount(point.banCount) + PAD.top, 0)"
+        :height="barHeight(point.banCount)"
         class="trend-bar trend-bar-ban"
       />
       <polyline :points="pickLine" class="trend-line trend-line-pick" />
@@ -93,7 +104,7 @@ function formatCount(value: number): string {
       </g>
     </svg>
     <div class="trend-legend">
-      <span class="legend-item legend-pick">出场 {{ formatCount(maxCount) }} / {{ formatCount(trends[0]?.pickCount ?? 0) }}</span>
+      <span class="legend-item legend-pick">出场 {{ formatCount(maxPickCount) }}</span>
       <span class="legend-item legend-ban">禁用</span>
       <span class="legend-item legend-rate">胜率</span>
       <span class="legend-hint">柱高按出场数归一化，胜率按 0—100% 映射</span>
