@@ -100,7 +100,7 @@ function stageKeysParam(): string {
 function championHref(champion: ChampionStatistics): string {
   const params = new URLSearchParams({
     stageKeys: stageKeysParam(),
-    minimumPickCount: '10',
+    minimumPickCount: '5',
     returnTo: returnTo(),
   })
   return `/champions/${champion.championId}?${params.toString()}`
@@ -109,7 +109,7 @@ function championHref(champion: ChampionStatistics): string {
 function teamHref(team: TeamStatistics): string {
   const params = new URLSearchParams({
     stageKeys: stageKeysParam(),
-    minimumMatchCount: '5',
+    minimumMatchCount: '3',
     returnTo: returnTo(),
   })
   return `/teams/${team.teamId}?${params.toString()}`
@@ -120,7 +120,7 @@ function playerHref(player: PlayerStatistics): string {
   const params = new URLSearchParams({
     stageKeys: stageKeysParam(),
     position,
-    minimumMatchCount: '5',
+    minimumMatchCount: '3',
     returnTo: returnTo(),
   })
   if (player.sourcePlayerId == null) return '#'

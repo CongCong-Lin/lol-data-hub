@@ -323,7 +323,7 @@ describe('查询状态', () => {
     await wrapper.get('#minimum').setValue('11')
     expect(wrapper.text()).not.toContain('安妮')
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(
-      ['237:100'], 10, '', 'bpRate', 'desc',
+      ['237:100'], 5, '', 'bpRate', 'desc',
     )
 
     wrapper.unmount()
@@ -345,7 +345,7 @@ describe('查询状态', () => {
     await flushPromises()
 
     expect(vi.mocked(api.playerStatisticsByKeys)).toHaveBeenCalledWith(
-      ['237:100'], 5, 'TOP', 'kda', 'desc',
+      ['237:100'], 3, 'TOP', 'kda', 'desc',
     )
     wrapper.unmount()
   })
@@ -368,7 +368,7 @@ describe('查询状态', () => {
     expect(href).toContain('/players/1?')
     expect(href).toContain('stageKeys=237%3A100')
     expect(href).toContain('position=TOP')
-    expect(href).toContain('minimumMatchCount=5')
+    expect(href).toContain('minimumMatchCount=3')
     expect(href).toContain('returnTo=%2F%3Fview%3Dplayer')
     expect(decodeURIComponent(href)).toContain('playerSortBy=kda')
     expect(link.text()).toContain('TopPlayer')
@@ -451,7 +451,7 @@ describe('查询状态', () => {
     await flushPromises()
 
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenCalledWith(
-      ['237:100'], 10, 'TOP', 'bpRate', 'desc',
+      ['237:100'], 5, 'TOP', 'bpRate', 'desc',
     )
     expect(wrapper.text()).toContain('出场、胜负与 KDA 按实际分路独立统计')
     wrapper.unmount()
@@ -472,7 +472,7 @@ describe('查询状态', () => {
     await flushPromises()
 
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
-      ['237:100'], 10, 'TOP', 'bpRate', 'desc',
+      ['237:100'], 5, 'TOP', 'bpRate', 'desc',
     )
     expect(wrapper.text()).toContain('安妮')
     wrapper.unmount()
@@ -692,7 +692,7 @@ describe('查询状态', () => {
     resolveSortedResult(championResult)
     await flushPromises()
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
-      ['237:100'], 10, '', 'bpRate', 'asc',
+      ['237:100'], 5, '', 'bpRate', 'asc',
     )
     expect(wrapper.get('.table-scroll').attributes('aria-busy')).toBe('false')
     expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('BP 率'))!.text()).toContain('▲')
@@ -703,7 +703,7 @@ describe('查询状态', () => {
     await winningRateHeader!.trigger('click')
     await flushPromises()
     expect(vi.mocked(api.championStatisticsByKeys)).toHaveBeenLastCalledWith(
-      ['237:100'], 10, '', 'winningRate', 'desc',
+      ['237:100'], 5, '', 'winningRate', 'desc',
     )
     expect(wrapper.findAll('.sort-header').find((button) => button.text().includes('胜率'))!.text()).toContain('▼')
     wrapper.unmount()
@@ -723,7 +723,7 @@ describe('详情链接与 URL 状态同步', () => {
     const href = link.attributes('href') ?? ''
     expect(href).toContain('/champions/1?')
     expect(href).toContain('stageKeys=237%3A100')
-    expect(href).toContain('minimumPickCount=10')
+    expect(href).toContain('minimumPickCount=5')
     expect(href).toContain('returnTo=%2F%3Fview%3Dchampion')
     wrapper.unmount()
   })
@@ -743,7 +743,7 @@ describe('详情链接与 URL 状态同步', () => {
     const href = link.attributes('href') ?? ''
     expect(href).toContain('/teams/1?')
     expect(href).toContain('stageKeys=237%3A100')
-    expect(href).toContain('minimumMatchCount=5')
+    expect(href).toContain('minimumMatchCount=3')
     expect(href).toContain('returnTo=%2F%3Fview%3Dteam')
     wrapper.unmount()
   })
@@ -852,7 +852,7 @@ describe('详情链接与 URL 状态同步', () => {
     await selectFirstStage(wrapper)
     expect(window.location.search).toContain('stageKeys=237%3A100')
     expect(window.location.search).toContain('view=champion')
-    expect(window.location.search).toContain('minimumPickCount=10')
+    expect(window.location.search).toContain('minimumPickCount=5')
 
     await wrapper.get('#minimum').setValue('11')
     expect(window.location.search).toContain('minimumPickCount=11')

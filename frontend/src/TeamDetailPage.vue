@@ -32,8 +32,8 @@ const queryParams = computed(() => {
     .split(',')
     .map((key) => key.trim())
     .filter(Boolean)
-  const parsedMinimum = Number(route.query.minimumMatchCount ?? '5')
-  const minimumMatchCount = Number.isInteger(parsedMinimum) ? parsedMinimum : 5
+  const parsedMinimum = Number(route.query.minimumMatchCount ?? '3')
+  const minimumMatchCount = Number.isInteger(parsedMinimum) ? parsedMinimum : 3
   return { stageKeys, minimumMatchCount }
 })
 

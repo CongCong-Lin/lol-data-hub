@@ -135,7 +135,7 @@ describe('TeamDetailPage', () => {
     const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
     await flushPromises()
 
-    expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 5)
+    expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 3)
     expect(wrapper.get('.profile-name').text()).toContain('TES')
     const metricLabels = wrapper.findAll('.core-metric-item .core-metric-label').map((node) => node.text())
     expect(metricLabels).toEqual(['胜率', 'KDA', '场均伤害'])
@@ -225,10 +225,10 @@ describe('TeamDetailPage', () => {
     wrapper.unmount()
   })
 
-  it('未传 minimumMatchCount 时使用默认值 5', async () => {
+  it('未传 minimumMatchCount 时使用默认值 3', async () => {
     const { wrapper } = await mountAt('/teams/1?stageKeys=237:100')
     await flushPromises()
-    expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 5)
+    expect(vi.mocked(api.teamDetail)).toHaveBeenCalledWith(1, ['237:100'], 3)
     wrapper.unmount()
   })
 

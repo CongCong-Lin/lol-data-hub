@@ -28,7 +28,7 @@ public class PlayerDetailStatisticsController {
             @RequestParam(required = false) Long seasonId,
             @RequestParam(required = false) List<Long> stageIds,
             @RequestParam String position,
-            @RequestParam(defaultValue = "5") int minimumMatchCount
+            @RequestParam(defaultValue = "3") int minimumMatchCount
     ) {
         List<StageKey> stages = StageKeyParamParser.parse(stageKeys, seasonId, stageIds);
         var query = new PlayerDetailQuery(sourcePlayerId, stages, position, minimumMatchCount);

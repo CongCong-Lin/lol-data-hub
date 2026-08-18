@@ -26,7 +26,7 @@ public class TeamStatisticsController {
             @RequestParam(required = false) String stageKeys,
             @RequestParam(required = false) Long seasonId,
             @RequestParam(required = false) List<Long> stageIds,
-            @RequestParam(defaultValue = "5") int minimumMatchCount,
+            @RequestParam(defaultValue = "3") int minimumMatchCount,
             @RequestParam(defaultValue = "winningRate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection
     ) {
