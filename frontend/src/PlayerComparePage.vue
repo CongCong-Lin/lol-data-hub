@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { api, type PlayerRadarMetric, type PlayerStatistics } from './api'
-import PlayerRadarChart from './PlayerRadarChart.vue'
+import PlayerRadarChart, { type RadarAxisBox } from './PlayerRadarChart.vue'
+import { formatRadarMetricValue } from './formatters'
 import { useI18n } from './i18n'
 
 const props = defineProps<{
@@ -232,6 +233,8 @@ const radarWarnings = ref<string[]>([])
 /* 与 PlayerRadarChart 叠加调色板一致：颜色按选手顺序分配，图例色块与雷达描边同源 */
 const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
 const radarOverlay = ref<{ name: string; scores: number[]; color: string }[]>([])
+/** 每个雷达轴的指标数据方框：列出各选手该项指标的具体数值，名字前带对应颜色 */
+const radarAxisBoxes = ref<RadarAxisBox[]>([])
 let radarSeq = 0
 
 watch(
@@ -248,6 +251,7 @@ async function refreshRadar() {
   if (list.length < 2) {
     radarOverlay.value = []
     radarLabels.value = []
+    radarAxisBoxes.value = []
     radarWarnings.value = []
     radarLoading.value = false
     return
@@ -255,6 +259,8 @@ async function refreshRadar() {
   radarLoading.value = true
   radarWarnings.value = []
   const overlay: { name: string; scores: number[]; color: string }[] = []
+  /** 每个成功获取雷达数据的选手：保留原始指标（key/value 与 label 对齐）供方框使用 */
+  const detailRows: Array<{ name: string; color: string; metrics: PlayerRadarMetric[] }> = []
   let labels: string[] = []
   for (const player of list) {
     if (player.sourcePlayerId == null) {
@@ -274,12 +280,14 @@ async function refreshRadar() {
         props.minimumMatchCount,
       )
       if (seq !== radarSeq) return
-      labels = detail.radarMetrics.map((metric) => metric.label)
+      if (!labels.length) labels = detail.radarMetrics.map((metric) => metric.label)
+      const color = OVERLAY_COLORS[overlay.length % OVERLAY_COLORS.length]
       overlay.push({
         name: player.playerName,
         scores: detail.radarMetrics.map((metric) => Number(metric.playerScore)),
-        color: OVERLAY_COLORS[overlay.length % OVERLAY_COLORS.length],
+        color,
       })
+      detailRows.push({ name: player.playerName, color, metrics: detail.radarMetrics })
     } catch {
       if (seq === radarSeq) radarWarnings.value.push(`${player.playerName}：雷达数据获取失败，已跳过`)
     }
@@ -287,6 +295,17 @@ async function refreshRadar() {
   if (seq !== radarSeq) return
   radarOverlay.value = overlay
   radarLabels.value = labels
+  radarAxisBoxes.value = labels.map((label, index) => ({
+    label,
+    rows: detailRows.map((entry) => ({
+      name: entry.name,
+      color: entry.color,
+      text: formatRadarMetricValue(
+        entry.metrics[index]?.key ?? '',
+        entry.metrics[index]?.value != null ? entry.metrics[index].value : null,
+      ),
+    })),
+  }))
   radarLoading.value = false
 }
 
@@ -437,14 +456,14 @@ function fmtTeamNames(teamNames: string[]): string {
       <div class="compare-radar">
         <p v-if="radarLoading" class="radar-status">正在获取雷达数据（与详情页同口径）…</p>
         <template v-else>
-          <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" />
+          <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" :axis-boxes="radarAxisBoxes" />
           <ul v-if="radarOverlay.length" class="radar-legend-overlay" aria-label="选手图例">
             <li v-for="series in radarOverlay" :key="series.name">
               <span class="radar-legend-swatch" :style="{ background: series.color }"></span>
               <span class="radar-legend-text">{{ series.name }}</span>
             </li>
           </ul>
-          <p class="radar-note">八维雷达与选手详情页同口径：按同位置 10%-90% 分位归一化（0-100），浅色叠加便于观察相对强弱。</p>
+          <p class="radar-note">八维雷达与选手详情页同口径：按同位置 10%-90% 分位归一化（0-100），浅色叠加便于观察相对强弱；各轴旁方框内为该指标的原始数值，颜色与选手对应。</p>
         </template>
         <p v-if="radarWarnings.length" class="radar-warning">{{ radarWarnings.join('；') }}</p>
       </div>

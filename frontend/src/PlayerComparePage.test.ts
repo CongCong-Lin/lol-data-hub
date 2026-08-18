@@ -204,6 +204,12 @@ describe('PlayerComparePage', () => {
     expect(api.playerDetail).toHaveBeenCalledWith(2, ['237:100'], 'MID', 5)
     expect(wrapper.find('.player-radar-chart').exists()).toBe(true)
     expect(wrapper.findAll('.radar-legend-text').length).toBe(2)
+    // 每个雷达轴旁渲染数据方框：列出各选手该指标数值，名字前带对应颜色
+    expect(wrapper.findAll('rect.radar-axis-box')).toHaveLength(RADAR_LABELS.length)
+    expect(wrapper.findAll('rect.radar-axis-swatch')).toHaveLength(2 * RADAR_LABELS.length)
+    expect(wrapper.text()).toContain('Knight:')
+    expect(wrapper.text()).toContain('knight:')
+    expect(wrapper.text()).toContain('1.00')
     wrapper.unmount()
   })
 
