@@ -579,9 +579,9 @@ function fmtTeamNames(teamNames: string[]): string {
     "west chart east"
     "southwest south southeast";
   align-items: center;
-  gap: 6px 8px;
+  gap: 6px;
   width: 100%;
-  max-width: 906px;
+  max-width: 902px;
   margin: 0 auto;
 }
 .radar-chart-cell { grid-area: chart; min-width: 0; }
@@ -609,14 +609,14 @@ function fmtTeamNames(teamNames: string[]): string {
 .radar-metric-swatch { width: 9px; height: 9px; border-radius: 2px; }
 .radar-metric-name { overflow: hidden; color: var(--text-2); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .radar-metric-value { color: var(--text-3); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.radar-card-0 { grid-area: north; }
-.radar-card-1 { grid-area: northeast; }
-.radar-card-2 { grid-area: east; }
-.radar-card-3 { grid-area: southeast; }
-.radar-card-4 { grid-area: south; }
-.radar-card-5 { grid-area: southwest; }
-.radar-card-6 { grid-area: west; }
-.radar-card-7 { grid-area: northwest; }
+.radar-card-0 { grid-area: north; transform: translateY(33px); }
+.radar-card-1 { grid-area: northeast; transform: translate(-85px, 55px); }
+.radar-card-2 { grid-area: east; transform: translateX(-48px); }
+.radar-card-3 { grid-area: southeast; transform: translate(-85px, -64px); }
+.radar-card-4 { grid-area: south; transform: translateY(-43px); }
+.radar-card-5 { grid-area: southwest; transform: translate(100px, -64px); }
+.radar-card-6 { grid-area: west; transform: translateX(74px); }
+.radar-card-7 { grid-area: northwest; transform: translate(100px, 55px); }
 .radar-status { margin: 0; text-align: center; color: var(--text-3); font-size: 12.5px; padding: 40px 0; }
 .radar-note { margin: 4px 0 0; text-align: center; color: var(--text-4); font-size: 12px; }
 .radar-warning { margin: 6px 0 0; text-align: center; color: var(--danger, #c0392b); font-size: 12px; }
@@ -639,7 +639,7 @@ function fmtTeamNames(teamNames: string[]): string {
     max-width: 900px;
   }
   .radar-chart-cell { grid-area: auto; grid-column: 1 / -1; grid-row: 1; }
-  .radar-metric-card { grid-area: auto !important; max-width: none; align-self: stretch; }
+  .radar-metric-card { grid-area: auto !important; max-width: none; align-self: stretch; transform: none; }
 }
 @media (max-width: 720px) {
   .compare-radar { padding-right: 10px; padding-left: 10px; }

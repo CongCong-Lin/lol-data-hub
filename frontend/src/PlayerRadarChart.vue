@@ -150,7 +150,7 @@ const axisLabels = computed<AxisLabel[]>(() => props.metrics.map((metric, index)
 .radar-player { fill: rgba(47, 133, 90, .20); stroke: var(--accent); stroke-width: 2.4; }
 .radar-point { fill: var(--accent); }
 .radar-label { font-size: 13px; font-weight: 700; fill: #24292f; }
-.player-radar-chart.is-overlay .radar-label { font-size: 15px; }
+.player-radar-chart.is-overlay .radar-label { font-size: 17px; }
 .radar-label-value { font-size: 12px; font-weight: 600; fill: #57606a; }
 .radar-label-rank { font-size: 11px; font-weight: 700; fill: var(--accent); }
 </style>
