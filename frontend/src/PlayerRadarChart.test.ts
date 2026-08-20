@@ -122,14 +122,7 @@ describe('PlayerRadarChart', () => {
     expect(wrapper.find('g.radar-legend').exists()).toBe(false)
   })
 
-  it('叠加模式下每个轴标签旁渲染指标数据方框（含颜色与数值）', () => {
-    const axisBoxes = metrics.map((item) => ({
-      label: item.label,
-      rows: [
-        { name: 'Knight', color: '#7fb0f7', text: '8.00' },
-        { name: 'Rookie', color: '#f0a3a3', text: '6.00' },
-      ],
-    }))
+  it('叠加模式不在 SVG 内渲染指标框，八个轴名使用统一标准位置', () => {
     const wrapper = mount(PlayerRadarChart, {
       props: {
         metrics,
@@ -137,25 +130,19 @@ describe('PlayerRadarChart', () => {
           { name: 'Knight', scores: [80, 70, 65, 75, 60, 55, 85, 45] },
           { name: 'Rookie', scores: [60, 80, 55, 65, 70, 75, 60, 55] },
         ],
-        axisBoxes,
       },
     })
 
-    expect(wrapper.findAll('rect.radar-axis-box')).toHaveLength(8)
-    expect(wrapper.findAll('rect.radar-axis-swatch')).toHaveLength(16)
-    const text = wrapper.text()
-    expect(text).toContain('Knight:')
-    expect(text).toContain('Rookie:')
-    expect(text).toContain('8.00')
-    expect(text).toContain('6.00')
-    // 方框色块一一对应选手颜色
-    const swatches = wrapper.findAll('rect.radar-axis-swatch')
-    expect(swatches.slice(0, 2).map((node) => node.attributes('fill'))).toEqual(['#7fb0f7', '#f0a3a3'])
-    // 叠加模式下左右水平轴标签移到方框外侧（右侧 x=632、左侧 x=68），不被白底方框覆盖
+    expect(wrapper.findAll('rect.radar-axis-box')).toHaveLength(0)
+    expect(wrapper.findAll('rect.radar-axis-swatch')).toHaveLength(0)
+    expect(wrapper.findAll('text.radar-label').map((node) => node.text())).toEqual(
+      ['KDA', '参团率', '场均补刀', '场均经济差', '场均击杀', '伤害占比', '伤害', '场均死亡'],
+    )
+    // 对比模式与单人模式共用标准标签半径，不再为 SVG 指标框进行特殊避让。
     const labelEls = wrapper.findAll('text.radar-label')
-    expect(Number(labelEls[2].attributes('x'))).toBeCloseTo(632, 0)
+    expect(Number(labelEls[2].attributes('x'))).toBeCloseTo(513, 0)
     expect(labelEls[2].attributes('text-anchor')).toBe('start')
-    expect(Number(labelEls[6].attributes('x'))).toBeCloseTo(68, 0)
+    expect(Number(labelEls[6].attributes('x'))).toBeCloseTo(187, 0)
     expect(labelEls[6].attributes('text-anchor')).toBe('end')
   })
 })

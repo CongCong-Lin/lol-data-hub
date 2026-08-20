@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { api, type PlayerRadarMetric, type PlayerStatistics } from './api'
-import PlayerRadarChart, { type RadarAxisBox } from './PlayerRadarChart.vue'
+import PlayerRadarChart from './PlayerRadarChart.vue'
 import { formatRadarMetricValue } from './formatters'
 import { useI18n } from './i18n'
 
@@ -233,8 +233,12 @@ const radarWarnings = ref<string[]>([])
 /* 与 PlayerRadarChart 叠加调色板一致：颜色按选手顺序分配，图例色块与雷达描边同源 */
 const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
 const radarOverlay = ref<{ name: string; scores: number[]; color: string }[]>([])
-/** 每个雷达轴的指标数据方框：列出各选手该项指标的具体数值，名字前带对应颜色 */
-const radarAxisBoxes = ref<RadarAxisBox[]>([])
+interface RadarMetricCard {
+  label: string
+  rows: Array<{ name: string; color: string; text: string }>
+}
+/** 雷达图外的八张指标卡片：列出各选手原始指标值，并兼任选手图例。 */
+const radarMetricCards = ref<RadarMetricCard[]>([])
 let radarSeq = 0
 
 watch(
@@ -251,7 +255,7 @@ async function refreshRadar() {
   if (list.length < 2) {
     radarOverlay.value = []
     radarLabels.value = []
-    radarAxisBoxes.value = []
+    radarMetricCards.value = []
     radarWarnings.value = []
     radarLoading.value = false
     return
@@ -295,7 +299,7 @@ async function refreshRadar() {
   if (seq !== radarSeq) return
   radarOverlay.value = overlay
   radarLabels.value = labels
-  radarAxisBoxes.value = labels.map((label, index) => ({
+  radarMetricCards.value = labels.map((label, index) => ({
     label,
     rows: detailRows.map((entry) => ({
       name: entry.name,
@@ -456,52 +460,69 @@ function fmtTeamNames(teamNames: string[]): string {
       <div class="compare-radar">
         <p v-if="radarLoading" class="radar-status">正在获取雷达数据（与详情页同口径）…</p>
         <template v-else>
-          <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" :axis-boxes="radarAxisBoxes" />
-          <ul v-if="radarOverlay.length" class="radar-legend-overlay" aria-label="选手图例">
-            <li v-for="series in radarOverlay" :key="series.name">
-              <span class="radar-legend-swatch" :style="{ background: series.color }"></span>
-              <span class="radar-legend-text">{{ series.name }}</span>
-            </li>
-          </ul>
-          <p class="radar-note">八维雷达与选手详情页同口径：按同位置 10%-90% 分位归一化（0-100），浅色叠加便于观察相对强弱；各轴旁方框内为该指标的原始数值，颜色与选手对应。</p>
+          <div v-if="radarOverlay.length" class="radar-compass" aria-label="选手雷达指标对比">
+            <div class="radar-chart-cell">
+              <PlayerRadarChart :metrics="radarFakeMetrics" :overlay="radarOverlay" />
+            </div>
+            <article
+              v-for="(card, index) in radarMetricCards"
+              :key="card.label"
+              class="radar-metric-card"
+              :class="`radar-card-${index}`"
+            >
+              <h3>{{ card.label }}</h3>
+              <div
+                v-for="row in card.rows"
+                :key="`${card.label}:${row.name}`"
+                class="radar-metric-row"
+              >
+                <span class="radar-metric-swatch" :style="{ background: row.color }" aria-hidden="true"></span>
+                <span class="radar-metric-name" :title="row.name">{{ row.name }}</span>
+                <span class="radar-metric-value">{{ row.text }}</span>
+              </div>
+            </article>
+          </div>
+          <p class="radar-note">八维雷达展示同位置 10%-90% 分位得分（0-100），周围卡片展示各选手的原始指标值。</p>
         </template>
         <p v-if="radarWarnings.length" class="radar-warning">{{ radarWarnings.join('；') }}</p>
       </div>
-      <table class="compare-table">
-        <thead>
-          <tr>
-            <th>{{ t('compare.metric') }}</th>
-            <th v-for="player in selectedPlayers" :key="player.playerKey">
-              <div class="compare-player-head">
-                <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar" />
-                <span class="player-placeholder player-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
-                <div>
-                  <strong>{{ player.playerName }}</strong>
-                  <small>{{ fmtPositions(player.positions) }}</small>
+      <div class="compare-table-scroll">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>{{ t('compare.metric') }}</th>
+              <th v-for="player in selectedPlayers" :key="player.playerKey">
+                <div class="compare-player-head">
+                  <img v-if="player.playerAvatar" :src="player.playerAvatar" :alt="player.playerName" class="player-avatar" />
+                  <span class="player-placeholder player-avatar" v-else>{{ player.playerName.slice(0, 1) }}</span>
+                  <div>
+                    <strong>{{ player.playerName }}</strong>
+                    <small>{{ fmtPositions(player.positions) }}</small>
+                  </div>
                 </div>
-              </div>
-            </th>
-          </tr>
-          <tr class="compare-subhead">
-            <th>{{ t('compare.teams') }}</th>
-            <th v-for="player in selectedPlayers" :key="`teams-${player.playerKey}`">{{ fmtTeamNames(player.teamNames) || '—' }}</th>
-          </tr>
-          <tr class="compare-subhead">
-            <th>{{ t('compare.games') }}</th>
-            <th v-for="player in selectedPlayers" :key="`games-${player.playerKey}`">{{ player.matchCount }} 系列 / {{ player.gameCount }} 局</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="metric in COMPARE_METRICS" :key="metric.key">
-            <td class="metric-label">{{ metric.label }}</td>
-            <td
-              v-for="player in selectedPlayers"
-              :key="`${metric.key}:${player.playerKey}`"
-              :class="{ 'best-value': isBest(metric, player) }"
-            >{{ metricValue(metric, player) }}</td>
-          </tr>
-        </tbody>
-      </table>
+              </th>
+            </tr>
+            <tr class="compare-subhead">
+              <th>{{ t('compare.teams') }}</th>
+              <th v-for="player in selectedPlayers" :key="`teams-${player.playerKey}`">{{ fmtTeamNames(player.teamNames) || '—' }}</th>
+            </tr>
+            <tr class="compare-subhead">
+              <th>{{ t('compare.games') }}</th>
+              <th v-for="player in selectedPlayers" :key="`games-${player.playerKey}`">{{ player.matchCount }} 系列 / {{ player.gameCount }} 局</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="metric in COMPARE_METRICS" :key="metric.key">
+              <td class="metric-label">{{ metric.label }}</td>
+              <td
+                v-for="player in selectedPlayers"
+                :key="`${metric.key}:${player.playerKey}`"
+                :class="{ 'best-value': isBest(metric, player) }"
+              >{{ metricValue(metric, player) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <p v-else-if="selectedPlayers.length === 1" class="message success">
@@ -546,12 +567,56 @@ function fmtTeamNames(teamNames: string[]): string {
 .selected-name { color: var(--text-2); text-decoration: none; font-weight: 600; }
 .selected-name:hover { color: var(--accent); text-decoration: underline; }
 .highlight-note { color: var(--muted); font-size: 12px; }
+.compare-table-scroll { width: 100%; overflow-x: auto; }
 .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
-.compare-radar { padding: 6px 0 10px; position: relative; }
-.radar-legend-overlay { position: absolute; top: 10px; right: 12px; margin: 0; padding: 8px 12px; list-style: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
-.radar-legend-overlay li { display: flex; align-items: center; gap: 7px; }
-.radar-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
-.radar-legend-text { font-size: 12px; font-weight: 650; color: #24292f; }
+.compare-radar { padding: 10px 16px 14px; }
+.radar-compass {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(420px, 560px) minmax(160px, 1fr);
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "northwest north northeast"
+    "west chart east"
+    "southwest south southeast";
+  align-items: center;
+  gap: 14px 18px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.radar-chart-cell { grid-area: chart; min-width: 0; }
+.radar-chart-cell :deep(.player-radar-chart) { width: 100%; }
+.radar-metric-card {
+  width: 100%;
+  max-width: 200px;
+  min-width: 0;
+  justify-self: center;
+  padding: 10px 11px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.radar-metric-card h3 { margin: 0 0 7px; color: var(--text-2); font-size: 12.5px; font-weight: 750; }
+.radar-metric-row {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.radar-metric-swatch { width: 9px; height: 9px; border-radius: 2px; }
+.radar-metric-name { overflow: hidden; color: var(--text-2); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.radar-metric-value { color: var(--text-3); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.radar-card-0 { grid-area: north; }
+.radar-card-1 { grid-area: northeast; }
+.radar-card-2 { grid-area: east; }
+.radar-card-3 { grid-area: southeast; }
+.radar-card-4 { grid-area: south; }
+.radar-card-5 { grid-area: southwest; }
+.radar-card-6 { grid-area: west; }
+.radar-card-7 { grid-area: northwest; }
 .radar-status { margin: 0; text-align: center; color: var(--text-3); font-size: 12.5px; padding: 40px 0; }
 .radar-note { margin: 4px 0 0; text-align: center; color: var(--text-4); font-size: 12px; }
 .radar-warning { margin: 6px 0 0; text-align: center; color: var(--danger, #c0392b); font-size: 12px; }
@@ -566,4 +631,21 @@ function fmtTeamNames(teamNames: string[]): string {
 .player-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
 .compare-subhead th { font-weight: 600; color: var(--muted); background: var(--panel-2); font-size: 11.5px; }
 .compare-result { margin-top: 16px; }
+@media (max-width: 1000px) {
+  .radar-compass {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas: none;
+    grid-auto-flow: row;
+    max-width: 900px;
+  }
+  .radar-chart-cell { grid-area: auto; grid-column: 1 / -1; grid-row: 1; }
+  .radar-metric-card { grid-area: auto !important; max-width: none; align-self: stretch; }
+}
+@media (max-width: 720px) {
+  .compare-radar { padding-right: 10px; padding-left: 10px; }
+  .radar-compass { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 440px) {
+  .radar-compass { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

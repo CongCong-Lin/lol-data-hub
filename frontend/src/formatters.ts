@@ -8,7 +8,7 @@ export function formatPercent(value: number, decimals = 2): string {
 const RADAR_PERCENT_KEYS = new Set(['killParticipantPercent', 'damagePercent', 'goldPercent'])
 
 /** 雷达图指标数值显示口径：占比类显示为百分比，过万按 K 缩写，其余保留两位小数。
- *  选手详情页雷达与选手对比页的数据方框共用此口径，保证同一指标两处数值一致。 */
+ *  选手详情页雷达与选手对比页的指标卡片共用此口径，保证同一指标两处数值一致。 */
 export function formatRadarMetricValue(key: string, value: number | null): string {
   if (value == null) return '暂无数据'
   const number = Number(value)

@@ -13,7 +13,16 @@ vi.mock('./api', () => ({
   },
 }))
 
-const RADAR_LABELS = ['KDA', '参团率', '场均补刀', '场均击杀', '伤害占比', '场均伤害', '场均经济', '场均死亡']
+const RADAR_METRICS = [
+  { key: 'kda', label: 'KDA', value: 1.31 },
+  { key: 'killParticipantPercent', label: '参团率', value: 0.5965 },
+  { key: 'creepScorePerGame', label: '场均补刀', value: 283.55 },
+  { key: 'goldGapPerGame', label: '场均经济差', value: -1507.59 },
+  { key: 'killPerGame', label: '场均击杀', value: 2.64 },
+  { key: 'damagePercent', label: '伤害占比', value: 0.2245 },
+  { key: 'damagePerGame', label: '伤害', value: 18700 },
+  { key: 'deathPerGame', label: '场均死亡', value: 4.73 },
+]
 
 function player(overrides: Partial<PlayerStatistics> = {}): PlayerStatistics {
   return {
@@ -73,11 +82,11 @@ function detailResult(playerName: string): PlayerDetailStatisticsResult {
       gameCount: 12,
     },
     coreMetrics: [],
-    radarMetrics: RADAR_LABELS.map((label) => ({
-      key: label,
-      label,
-      value: 1,
-      averageValue: 1,
+    radarMetrics: RADAR_METRICS.map((metric) => ({
+      key: metric.key,
+      label: metric.label,
+      value: metric.value,
+      averageValue: metric.value,
       playerScore: 60,
       averageScore: 50,
       rank: 3,
@@ -203,13 +212,40 @@ describe('PlayerComparePage', () => {
     expect(api.playerDetail).toHaveBeenCalledWith(1, ['237:100'], 'MID', 5)
     expect(api.playerDetail).toHaveBeenCalledWith(2, ['237:100'], 'MID', 5)
     expect(wrapper.find('.player-radar-chart').exists()).toBe(true)
-    expect(wrapper.findAll('.radar-legend-text').length).toBe(2)
-    // 每个雷达轴旁渲染数据方框：列出各选手该指标数值，名字前带对应颜色
-    expect(wrapper.findAll('rect.radar-axis-box')).toHaveLength(RADAR_LABELS.length)
-    expect(wrapper.findAll('rect.radar-axis-swatch')).toHaveLength(2 * RADAR_LABELS.length)
-    expect(wrapper.text()).toContain('Knight:')
-    expect(wrapper.text()).toContain('knight:')
-    expect(wrapper.text()).toContain('1.00')
+    const cards = wrapper.findAll('.radar-metric-card')
+    expect(cards).toHaveLength(RADAR_METRICS.length)
+    expect(cards.map((card) => card.get('h3').text())).toEqual(RADAR_METRICS.map((metric) => metric.label))
+    expect(wrapper.findAll('.radar-metric-row')).toHaveLength(2 * RADAR_METRICS.length)
+    expect(wrapper.findAll('.radar-metric-swatch')).toHaveLength(2 * RADAR_METRICS.length)
+    expect(wrapper.findAll('rect.radar-axis-box')).toHaveLength(0)
+    expect(wrapper.findAll('.radar-metric-name').map((node) => node.text())).toContain('Knight')
+    expect(wrapper.findAll('.radar-metric-name').map((node) => node.text())).toContain('knight')
+    expect(wrapper.text()).toContain('59.65%')
+    expect(wrapper.text()).toContain('18.7K')
+    expect(wrapper.text()).toContain('-1507.59')
+    expect(wrapper.text()).toContain('1.31')
+    const swatchStyles = wrapper.findAll('.radar-metric-swatch').slice(0, 2).map((node) => node.attributes('style'))
+    expect(swatchStyles[0]).not.toBe(swatchStyles[1])
+    wrapper.unmount()
+  })
+
+  it('某位选手详情加载失败时只跳过该选手并保留其余八张指标卡片', async () => {
+    vi.mocked(api.playerDetail).mockImplementation(async (sourcePlayerId) => {
+      if (sourcePlayerId === 2) throw new Error('detail failed')
+      return detailResult('Knight')
+    })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.findAll('.player-row')[0].trigger('click')
+    await wrapper.findAll('.player-row')[1].trigger('click')
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('knight：雷达数据获取失败，已跳过')
+    })
+
+    expect(wrapper.findAll('.radar-metric-card')).toHaveLength(8)
+    expect(wrapper.findAll('.radar-metric-row')).toHaveLength(8)
+    expect(wrapper.findAll('.radar-metric-name').every((node) => node.text() === 'Knight')).toBe(true)
     wrapper.unmount()
   })
 
@@ -229,6 +265,9 @@ describe('PlayerComparePage', () => {
       await wrapper.findAll('.player-row')[index].trigger('click')
     }
     expect(wrapper.findAll('.selected-players .basket-item')).toHaveLength(5)
+    await vi.waitFor(() => {
+      expect(wrapper.findAll('.radar-metric-row')).toHaveLength(40)
+    })
 
     await wrapper.findAll('.player-row')[5].trigger('click')
     expect(wrapper.text()).toContain('最多同时对比 5 名选手')
