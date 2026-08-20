@@ -572,16 +572,16 @@ function fmtTeamNames(teamNames: string[]): string {
 .compare-radar { padding: 10px 16px 14px; }
 .radar-compass {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(420px, 560px) minmax(160px, 1fr);
+  grid-template-columns: minmax(160px, 200px) minmax(460px, 520px) minmax(160px, 200px);
   grid-template-rows: auto auto auto;
   grid-template-areas:
     "northwest north northeast"
     "west chart east"
     "southwest south southeast";
   align-items: center;
-  gap: 14px 18px;
+  gap: 8px 10px;
   width: 100%;
-  max-width: 1120px;
+  max-width: 940px;
   margin: 0 auto;
 }
 .radar-chart-cell { grid-area: chart; min-width: 0; }

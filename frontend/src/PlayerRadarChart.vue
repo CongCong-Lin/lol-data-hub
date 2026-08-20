@@ -23,17 +23,20 @@ const props = defineProps<{
 
 const CENTER_X = 350
 const CENTER_Y = 280
-const RADIUS = 128
+const DETAIL_RADIUS = 128
+const COMPARE_RADIUS = 165
 const GRID_LEVELS = [20, 40, 60, 80, 100]
 /** 对比叠加调色板：浅色系 + 20% 透明填充，多位选手叠加时互不遮盖轮廓 */
 const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
+/** 对比页中央雷达适当放大；详情页单人雷达继续沿用原尺寸。 */
+const radarRadius = computed(() => props.overlay?.length ? COMPARE_RADIUS : DETAIL_RADIUS)
 function angleAt(index: number): number {
   return (Math.PI * 2 * index) / Math.max(props.metrics.length, 1) - Math.PI / 2
 }
 
 function pointAt(index: number, score: number): { x: number; y: number } {
   const clamped = Math.min(Math.max(score, 0), 100)
-  const radius = (RADIUS * clamped) / 100
+  const radius = (radarRadius.value * clamped) / 100
   const angle = angleAt(index)
   return { x: CENTER_X + radius * Math.cos(angle), y: CENTER_Y + radius * Math.sin(angle) }
 }
@@ -71,7 +74,7 @@ interface AxisLabel {
 
 const axisLabels = computed<AxisLabel[]>(() => props.metrics.map((metric, index) => {
   const angle = angleAt(index)
-  const labelRadius = RADIUS + 35
+  const labelRadius = radarRadius.value + 35
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
   let x = CENTER_X + labelRadius * cos
