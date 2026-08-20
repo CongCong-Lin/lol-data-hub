@@ -24,7 +24,7 @@ const props = defineProps<{
 const CENTER_X = 350
 const CENTER_Y = 280
 const DETAIL_RADIUS = 128
-const COMPARE_RADIUS = 165
+const COMPARE_RADIUS = 182
 const GRID_LEVELS = [20, 40, 60, 80, 100]
 /** 对比叠加调色板：浅色系 + 20% 透明填充，多位选手叠加时互不遮盖轮廓 */
 const OVERLAY_COLORS = ['#7fb0f7', '#f0a3a3', '#b39ce8', '#f0bd7e', '#7fd0c5']
@@ -97,6 +97,7 @@ const axisLabels = computed<AxisLabel[]>(() => props.metrics.map((metric, index)
   <svg
     v-if="metrics.length"
     class="player-radar-chart"
+    :class="{ 'is-overlay': !showCorePolygons }"
     viewBox="0 0 700 560"
     role="img"
     aria-label="选手八维能力雷达图"
@@ -149,6 +150,7 @@ const axisLabels = computed<AxisLabel[]>(() => props.metrics.map((metric, index)
 .radar-player { fill: rgba(47, 133, 90, .20); stroke: var(--accent); stroke-width: 2.4; }
 .radar-point { fill: var(--accent); }
 .radar-label { font-size: 13px; font-weight: 700; fill: #24292f; }
+.player-radar-chart.is-overlay .radar-label { font-size: 15px; }
 .radar-label-value { font-size: 12px; font-weight: 600; fill: #57606a; }
 .radar-label-rank { font-size: 11px; font-weight: 700; fill: var(--accent); }
 </style>

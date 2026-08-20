@@ -115,8 +115,9 @@ describe('PlayerRadarChart', () => {
     expect(overlays[1].attributes('stroke')).toBe('#f0a3a3')
     expect(overlays[0].attributes('fill')).toBe('#7fb0f733')
     expect(overlays[0].attributes('stroke-width')).toBe('2')
-    // 对比模式使用更大的绘制半径：首轴 80 分落在 y=148（280 - 165×80%）。
-    expect(overlays[0].attributes('points')).toContain('350.0,148.0')
+    // 对比模式使用更大的绘制半径：首轴 80 分落在 y=134.4（280 - 182×80%）。
+    expect(overlays[0].attributes('points')).toContain('350.0,134.4')
+    expect(wrapper.get('svg').classes()).toContain('is-overlay')
     // 叠加模式下隐藏单人多边形与数值文字
     expect(wrapper.find('polygon.radar-player').exists()).toBe(false)
     expect(wrapper.find('text.radar-label-value').exists()).toBe(false)
@@ -142,9 +143,9 @@ describe('PlayerRadarChart', () => {
     )
     // 对比模式与单人模式共用标准标签半径，不再为 SVG 指标框进行特殊避让。
     const labelEls = wrapper.findAll('text.radar-label')
-    expect(Number(labelEls[2].attributes('x'))).toBeCloseTo(550, 0)
+    expect(Number(labelEls[2].attributes('x'))).toBeCloseTo(567, 0)
     expect(labelEls[2].attributes('text-anchor')).toBe('start')
-    expect(Number(labelEls[6].attributes('x'))).toBeCloseTo(150, 0)
+    expect(Number(labelEls[6].attributes('x'))).toBeCloseTo(133, 0)
     expect(labelEls[6].attributes('text-anchor')).toBe('end')
   })
 })
