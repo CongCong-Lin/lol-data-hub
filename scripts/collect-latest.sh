@@ -22,6 +22,14 @@ if ! flock -n 9; then log "另一次采集仍在进行，本次退出。"; exit 
 
 get_env() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r'; }
 
+# 本地可通过 .env 显式停用自动采集；未配置时保持云端原有行为。
+LOCAL_COLLECTION_ENABLED="$(get_env LOCAL_COLLECTION_ENABLED)"
+[ -n "$LOCAL_COLLECTION_ENABLED" ] || LOCAL_COLLECTION_ENABLED="true"
+case "$(printf '%s' "$LOCAL_COLLECTION_ENABLED" | tr '[:upper:]' '[:lower:]')" in
+  true|1|yes|on) ;;
+  *) log "本机自动采集已禁用（LOCAL_COLLECTION_ENABLED=false），未访问官网。"; exit 0 ;;
+esac
+
 BACKEND_PORT="$(get_env BACKEND_PORT)"
 [ -n "$BACKEND_PORT" ] || BACKEND_PORT="18080"
 API_BASE="http://127.0.0.1:$BACKEND_PORT"

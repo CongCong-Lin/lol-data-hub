@@ -24,8 +24,7 @@ seasons_check.json
 backend-java-files.txt
 backend/all-java.txt
 docker-build.txt
-$null
-1
+logs/
 deploy/backfill-*.cjs
 deploy/probe.cjs
 deploy/smoke-test.cjs
