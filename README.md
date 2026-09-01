@@ -13,7 +13,7 @@
 
 ### 核心特性
 
-- **样本过滤**：查询时可设置最低出场次数阈值（英雄默认 10，战队/选手默认 5），数据库保留全部原始数据。
+- **样本过滤**：查询时可设置最低出场次数阈值（英雄默认 5，战队/选手默认 3），数据库保留全部原始数据。
 - **跨赛段重算**：多赛段查询时，先累计原始计数（pickCount、banCount、winningCount 等），再计算胜率、BP 率和 KDA，不直接平均官网百分比。
 - **手动采集**：通过内部接口手动触发英雄、战队、选手数据采集；自动调度已预留但默认关闭。
 - **数据快照**：每次变化的采集保留快照，支持版本窗口增量分析。
@@ -197,13 +197,13 @@ npm run build
 | GET | `/api/v1/catalog/seasons` | 获取所有赛季列表 |
 | GET | `/api/v1/catalog/stages?seasonId=237&statisticType=HERO` | 获取指定赛季的赛段列表（可选 HERO/TEAM/PLAYER） |
 | GET | `/api/v1/catalog/stages/availability?statisticType=HERO&collectedOnly=false` | 获取全赛事赛段可用性（含 seasonName/collected/sampleBaseCount） |
-| GET | `/api/v1/statistics/champions?stageKeys=237:102,239:28&minimumPickCount=10&position=TOP&sortBy=bpRate&sortDirection=desc` | 英雄统计查询（跨赛事；可按实际登场分路筛选） |
-| GET | `/api/v1/statistics/teams?stageKeys=237:102,239:28&minimumMatchCount=5` | 战队统计查询（跨赛事） |
-| GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=5&position=TOP` | 选手统计查询（跨赛事，可按位置筛选） |
-| GET | `/api/v1/statistics/team-combinations?stageKeys=237:102,239:28&combinationType=MID_JUNGLE&minimumPickCount=3` | 战队英雄组合查询（`MID_JUNGLE` 或 `BOT_SUPPORT`） |
+| GET | `/api/v1/statistics/champions?stageKeys=237:102,239:28&minimumPickCount=5&position=TOP&sortBy=bpRate&sortDirection=desc` | 英雄统计查询（跨赛事；可按实际登场分路筛选） |
+| GET | `/api/v1/statistics/teams?stageKeys=237:102,239:28&minimumMatchCount=3` | 战队统计查询（跨赛事） |
+| GET | `/api/v1/statistics/players?stageKeys=237:102,239:28&minimumMatchCount=3&position=TOP` | 选手统计查询（跨赛事，可按位置筛选） |
+| GET | `/api/v1/statistics/team-combinations?stageKeys=237:102,239:28&combinationType=MID_JUNGLE&minimumPickCount=3` | 战队英雄组合查询（10 种两位置组合类型，如 `MID_JUNGLE`、`TOP_SUPPORT`） |
 | GET | `/api/v1/statistics/matches?stageKeys=237:102,239:28` | 对局赛果列表（按赛段聚合） |
 | GET | `/api/v1/statistics/matches/{matchId}` | 单场对局逐小局明细（阵容、击杀、经济、伤害、运营指标） |
-| GET | `/api/v1/statistics/elo?stageKeys=…&seasonId=…&minimumMatchCount=5` | 战队 Elo 评分排名与大场轨迹（支持跨赛段/赛季数据源） |
+| GET | `/api/v1/statistics/elo?stageKeys=…&seasonId=…&minimumMatchCount=3` | 战队 Elo 评分排名与大场轨迹（支持跨赛段/赛季数据源） |
 | GET | `/api/v1/statistics/champions/version-compare?stageKeys=…&fromDate=…&toDate=…` | 英雄版本变迁窗口统计 |
 | GET | `/api/v1/statistics/champions/{id}/detail` | 英雄详情（分路统计、Top 选手、克制关系） |
 | GET | `/api/v1/statistics/players/{id}/detail` | 选手详情（同位置分位归一化的八维雷达指标） |
