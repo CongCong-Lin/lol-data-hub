@@ -38,6 +38,8 @@ lol-datahub:
   catalog:
     # 只控制公共查询目录，不删除数据库中已经同步的其他赛事。
     # 顺序即前端下拉列表顺序；赛段范围与官网大数据页面保持一致。
+    stage-name-overrides:
+      237-114: 第三赛段淘汰赛
     visible-events:
       - season-id: 237
         stage-ids: [112, 113, 100, 102, 103, 104, 106, 114]

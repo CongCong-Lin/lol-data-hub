@@ -19,9 +19,13 @@ public record StageAvailabilityView(
         OffsetDateTime collectedAt
 ) {
     static StageAvailabilityView from(CrossSeasonStageAvailabilityRow row) {
+        return from(row, row.name());
+    }
+
+    static StageAvailabilityView from(CrossSeasonStageAvailabilityRow row, String displayName) {
         return new StageAvailabilityView(
                 row.sourceSeasonId(), row.sourceStageId(), row.seasonName(),
-                row.name(), row.startTime(), row.endTime(),
+                displayName, row.startTime(), row.endTime(),
                 row.collected(), row.sampleBaseCount(), row.collectedAt()
         );
     }

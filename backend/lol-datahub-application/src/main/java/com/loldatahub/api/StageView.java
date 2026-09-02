@@ -15,8 +15,12 @@ public record StageView(
         OffsetDateTime collectedAt
 ) {
     static StageView from(StageAvailabilityRow row) {
+        return from(row, row.name());
+    }
+
+    static StageView from(StageAvailabilityRow row, String displayName) {
         return new StageView(
-                row.sourceSeasonId(), row.sourceStageId(), row.name(), row.startTime(), row.endTime(),
+                row.sourceSeasonId(), row.sourceStageId(), displayName, row.startTime(), row.endTime(),
                 row.collected(), row.sampleBaseCount(), row.collectedAt()
         );
     }

@@ -18,7 +18,7 @@ class CatalogControllerTest {
     private static final PublicCatalogProperties PUBLIC_CATALOG = new PublicCatalogProperties(List.of(
             new PublicCatalogProperties.VisibleEvent(237L, List.of(112L, 102L)),
             new PublicCatalogProperties.VisibleEvent(239L, List.of(28L))
-    ));
+    ), java.util.Map.of());
 
     @Test
     void exposesOnlyConfiguredSeasonsInConfiguredOrder() {
@@ -54,6 +54,24 @@ class CatalogControllerTest {
                 new StageView(237, 112, "第一赛段", null, null, true, 80L, collectedAt),
                 new StageView(237, 102, "第二赛段", null, null, false, null, null)
         );
+    }
+
+    @Test
+    void usesConfiguredPublicStageNameWithoutChangingSourceCatalog() {
+        CatalogMapper mapper = mock(CatalogMapper.class);
+        PublicCatalogProperties catalog = new PublicCatalogProperties(
+                List.of(new PublicCatalogProperties.VisibleEvent(237L, List.of(114L))),
+                java.util.Map.of("237-114", "第三赛段淘汰赛"));
+        CatalogController controller = new CatalogController(mapper, catalog);
+        when(mapper.findHeroStageAvailability(237L)).thenReturn(List.of(
+                new StageAvailabilityRow(237, 114, "2026赛季季后赛", null, null, true, 9L, null)
+        ));
+
+        ApiResponse<List<StageView>> response = controller.stages(237L, "HERO");
+
+        assertThat(response.data()).singleElement()
+                .extracting(StageView::name)
+                .isEqualTo("第三赛段淘汰赛");
     }
 
     @Test
@@ -137,6 +155,27 @@ class CatalogControllerTest {
         assertThat(response.data()).hasSize(2);
         assertThat(response.data().get(0).seasonName()).isEqualTo("2025 LPL 春季赛");
         assertThat(response.data().get(1).seasonName()).isEqualTo("2025 MSI");
+    }
+
+    @Test
+    void crossSeasonAvailabilityUsesConfiguredPublicStageName() {
+        CatalogMapper mapper = mock(CatalogMapper.class);
+        PublicCatalogProperties catalog = new PublicCatalogProperties(
+                List.of(new PublicCatalogProperties.VisibleEvent(237L, List.of(114L))),
+                java.util.Map.of("237-114", "第三赛段淘汰赛"));
+        CatalogController controller = new CatalogController(mapper, catalog);
+        when(mapper.findAllHeroStageAvailability(false)).thenReturn(List.of(
+                new CrossSeasonStageAvailabilityRow(
+                        237, 114, "2026职业联赛", "2026赛季季后赛",
+                        null, null, true, 9L, null)
+        ));
+
+        ApiResponse<List<StageAvailabilityView>> response =
+                controller.stagesAvailability("HERO", false);
+
+        assertThat(response.data()).singleElement()
+                .extracting(StageAvailabilityView::name)
+                .isEqualTo("第三赛段淘汰赛");
     }
 
     @Test

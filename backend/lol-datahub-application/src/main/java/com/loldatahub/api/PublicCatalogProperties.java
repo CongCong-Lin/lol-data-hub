@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -13,10 +14,12 @@ import java.util.Set;
  * 不删除已经同步到数据库的原始目录数据。</p>
  */
 @ConfigurationProperties(prefix = "lol-datahub.catalog")
-public record PublicCatalogProperties(List<VisibleEvent> visibleEvents) {
+public record PublicCatalogProperties(List<VisibleEvent> visibleEvents,
+                                      Map<String, String> stageNameOverrides) {
 
     public PublicCatalogProperties {
         visibleEvents = visibleEvents == null ? List.of() : List.copyOf(visibleEvents);
+        stageNameOverrides = stageNameOverrides == null ? Map.of() : Map.copyOf(stageNameOverrides);
         Set<Long> seasonIds = new HashSet<>();
         for (VisibleEvent event : visibleEvents) {
             if (!seasonIds.add(event.seasonId())) {
@@ -33,6 +36,10 @@ public record PublicCatalogProperties(List<VisibleEvent> visibleEvents) {
         return visibleEvents.stream()
                 .filter(event -> event.seasonId() == seasonId)
                 .anyMatch(event -> event.stageIds().contains(stageId));
+    }
+
+    public String displayStageName(long seasonId, long stageId, String sourceName) {
+        return stageNameOverrides.getOrDefault(seasonId + "-" + stageId, sourceName);
     }
 
     public record VisibleEvent(long seasonId, List<Long> stageIds) {

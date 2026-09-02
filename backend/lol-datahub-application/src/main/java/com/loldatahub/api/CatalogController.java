@@ -45,7 +45,8 @@ public class CatalogController {
         };
         return ApiResponse.success(rows.stream()
                 .filter(row -> publicCatalog.containsStage(row.sourceSeasonId(), row.sourceStageId()))
-                .map(StageView::from)
+                .map(row -> StageView.from(row, publicCatalog.displayStageName(
+                        row.sourceSeasonId(), row.sourceStageId(), row.name())))
                 .toList());
     }
 
@@ -69,7 +70,8 @@ public class CatalogController {
                 rows,
                 CrossSeasonStageAvailabilityRow::sourceSeasonId,
                 row -> publicCatalog.containsStage(row.sourceSeasonId(), row.sourceStageId())).stream()
-                .map(StageAvailabilityView::from)
+                .map(row -> StageAvailabilityView.from(row, publicCatalog.displayStageName(
+                        row.sourceSeasonId(), row.sourceStageId(), row.name())))
                 .toList());
     }
 
