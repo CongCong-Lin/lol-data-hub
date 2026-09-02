@@ -40,7 +40,7 @@ lol-datahub:
     # 顺序即前端下拉列表顺序；赛段范围与官网大数据页面保持一致。
     visible-events:
       - season-id: 237
-        stage-ids: [112, 113, 100, 102, 103, 104, 106]
+        stage-ids: [112, 113, 100, 102, 103, 104, 106, 114]
       - season-id: 238
         stage-ids: [19, 18]
       - season-id: 239
